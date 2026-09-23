@@ -1,10 +1,17 @@
-# Fine-Tuning (Phase D — Datensatz fertig, Training noch offen)
+# Fine-Tuning (Phase D — pausiert, Datensatz liegt bereit)
 
-Ziel: den Zero-Shot-Baseline-Checkpoint (`laya-english`) auf einer Human-vs-KI-Text-
-Klassifikationsaufgabe spezialisieren, weil Laya laut eigener Doku zero-shot nahe
-Zufallsniveau liegt (siehe `../RESOURCES.md`, dort auch der verifizierte Beleg dafür
-in `../server/README.md`: KI- und menschlicher Testtext ergaben beide ~0.0–0.5 ohne
-Trennschärfe).
+**Status 2026-09-23: zurückgestellt.** Die Extension nutzt aktuell zwei bereits fertig
+trainierte Backends (TMR "low", desklib "medium" — siehe `EVAL_RESULTS.md` und
+`../extension/options.html`), die ohne eigenes Training brauchbare Ergebnisse liefern.
+Laya-Fine-Tuning bleibt trotzdem vorbereitet: Datensatz fertig, Anleitung unten aktuell.
+**Sobald ein fine-getunter Laya-Checkpoint existiert, noch mal gegen `eval_sample.jsonl`
+laufen lassen und mit TMR/desklib vergleichen** (`evaluate_backends.py --backend laya`,
+dann `model` in `server/shim_server.py`s `LAYA_MODELS` bzw. den Checkpoint-Namen anpassen).
+
+Ursprüngliches Ziel: den Zero-Shot-Baseline-Checkpoint (`laya-english`) auf einer
+Human-vs-KI-Text-Klassifikationsaufgabe spezialisieren, weil Laya laut eigener Doku
+zero-shot nahe Zufallsniveau liegt — bestätigt durch unseren eigenen Test:
+AUROC 0.549 auf 100 balancierten Beispielen, siehe `EVAL_RESULTS.md`.
 
 ## Stand: `prepare_dataset.py` ✅ geschrieben, getestet, mit echten Daten verifiziert
 

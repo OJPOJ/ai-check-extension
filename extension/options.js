@@ -5,15 +5,41 @@ const DEFAULTS = {
   model: "tmr"
 };
 
+// Werte aus training/EVAL_RESULTS.md (100er-Testsample, HC3-Holdout, CPU) -
+// kleine Stichprobe, dient als Startpunkt, nicht als Garantie.
+const BACKEND_INFO = {
+  tmr: {
+    threshold: 0.90,
+    html:
+      "<b>Low — TMR</b> (RoBERTa-base, 125M). ~62ms/Text, ~900MB RAM, " +
+      "25er-Batch ~1,6s. AUROC 0.91, Accuracy 0.83 bei Schwelle 0.98 im Test. " +
+      "Empfohlen fürs normale Mitlaufen im Hintergrund."
+  },
+  desklib: {
+    threshold: 0.87,
+    html:
+      "<b>Medium — desklib</b> (DeBERTa-v3-large, 430M). ~4,9s/Text, ~4,65GB RAM, " +
+      "25er-Batch ~2 Minuten. AUROC 0.998, Accuracy 0.99 bei Schwelle 0.87 im Test. " +
+      "Deutlich genauer, aber spürbar langsam/schwer — eher für gezielte Einzelprüfung " +
+      "als für automatisches Scannen jeder Seite geeignet."
+  }
+};
+
 const els = {
   enabled: document.getElementById("enabled"),
   threshold: document.getElementById("threshold"),
   thresholdValue: document.getElementById("thresholdValue"),
   serverUrl: document.getElementById("serverUrl"),
   model: document.getElementById("model"),
+  backendInfo: document.getElementById("backendInfo"),
   rescan: document.getElementById("rescan"),
   status: document.getElementById("status")
 };
+
+function updateBackendInfo() {
+  const info = BACKEND_INFO[els.model.value];
+  els.backendInfo.innerHTML = info ? info.html : "";
+}
 
 function showStatus(text) {
   els.status.textContent = text;
@@ -38,11 +64,20 @@ chrome.storage.sync.get(DEFAULTS, (stored) => {
   els.thresholdValue.textContent = stored.threshold.toFixed(2);
   els.serverUrl.value = stored.serverUrl;
   els.model.value = stored.model;
+  updateBackendInfo();
 });
 
 els.enabled.addEventListener("change", save);
 els.serverUrl.addEventListener("change", save);
-els.model.addEventListener("change", save);
+els.model.addEventListener("change", () => {
+  updateBackendInfo();
+  const info = BACKEND_INFO[els.model.value];
+  if (info) {
+    els.threshold.value = info.threshold;
+    els.thresholdValue.textContent = info.threshold.toFixed(2);
+  }
+  save();
+});
 els.threshold.addEventListener("input", () => {
   els.thresholdValue.textContent = parseFloat(els.threshold.value).toFixed(2);
 });

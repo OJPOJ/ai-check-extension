@@ -105,6 +105,57 @@ def score_laya(texts, server_url="http://127.0.0.1:11500", model="english"):
     return scores
 
 
+def score_desklib(texts):
+    import torch
+    import torch.nn as nn
+    from transformers import AutoConfig, AutoModel, AutoTokenizer, PreTrainedModel
+
+    model_id = "desklib/ai-text-detector-v1.01"
+
+    class DesklibAIDetectionModel(PreTrainedModel):
+        config_class = AutoConfig
+
+        def __init__(self, config):
+            super().__init__(config)
+            self.model = AutoModel.from_config(config)
+            self.classifier = nn.Linear(config.hidden_size, 1)
+            self.init_weights()
+
+        @property
+        def all_tied_weights_keys(self):
+            # Kompatibilitaets-Fix: der Original-Code der Model Card (2024)
+            # crasht beim Laden mit transformers>=5 ("no attribute
+            # 'all_tied_weights_keys'"), weil PreTrainedModel diese Property
+            # inzwischen intern beim Laden erwartet und unsere Subklasse sie
+            # nicht sinnvoll vererbt. Leeres Dict ist korrekt, weil der
+            # Classifier-Kopf nichts mit dem Encoder tiedt.
+            return {}
+
+        def forward(self, input_ids, attention_mask=None):
+            outputs = self.model(input_ids, attention_mask=attention_mask)
+            last_hidden_state = outputs[0]
+            mask = attention_mask.unsqueeze(-1).expand(last_hidden_state.size()).float()
+            summed = torch.sum(last_hidden_state * mask, dim=1)
+            counted = torch.clamp(mask.sum(dim=1), min=1e-9)
+            pooled = summed / counted
+            return self.classifier(pooled)
+
+    tok = AutoTokenizer.from_pretrained(model_id)
+    model = DesklibAIDetectionModel.from_pretrained(model_id)
+    model.eval()
+
+    scores = []
+    batch_size = 8
+    with torch.no_grad():
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i : i + batch_size]
+            enc = tok(batch, padding="max_length", truncation=True, max_length=768, return_tensors="pt")
+            logits = model(input_ids=enc["input_ids"], attention_mask=enc["attention_mask"])
+            probs = torch.sigmoid(logits).squeeze(-1)
+            scores.extend(probs.tolist())
+    return scores
+
+
 def score_tmr(texts):
     import torch
     from transformers import AutoModelForSequenceClassification, AutoTokenizer
@@ -132,7 +183,7 @@ def score_tmr(texts):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--backend", choices=["laya", "tmr"], required=True)
+    parser.add_argument("--backend", choices=["laya", "tmr", "desklib"], required=True)
     args = parser.parse_args()
 
     sample = load_sample()
@@ -141,6 +192,8 @@ def main():
 
     if args.backend == "laya":
         scores = score_laya(texts)
+    elif args.backend == "desklib":
+        scores = score_desklib(texts)
     else:
         scores = score_tmr(texts)
 

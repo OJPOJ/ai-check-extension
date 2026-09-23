@@ -1,14 +1,34 @@
-# Backend-Vergleich: Laya (Zero-Shot) vs. TMR
+# Backend-Vergleich: Laya (Zero-Shot) vs. TMR vs. desklib
 
-Stand: 2026-09-23. 100 balancierte Beispiele (50 human / 50 KI) aus dem HC3-Holdout-Split
-(`data/holdout.jsonl`, Domäne größtenteils `reddit_eli5` — informeller, umgangssprachlicher
-Text). Reproduzierbar mit `evaluate_backends.py` (Sample in `eval_sample.jsonl`,
-Rohdaten in `eval_scores_<backend>.jsonl`).
+Stand: 2026-09-23. Genauigkeit: 100 balancierte Beispiele (50 human / 50 KI) aus dem
+HC3-Holdout-Split (`data/holdout.jsonl`, Domäne größtenteils `reddit_eli5` — informeller,
+umgangssprachlicher Text). Latenz/Speicher: `benchmark_latency.py`, CPU (kein GPU-Test),
+Batch-Größen an `extension/content.js` angelehnt (BATCH_SIZE=25). Reproduzierbar mit
+`evaluate_backends.py` (Sample in `eval_sample.jsonl`, Rohdaten in `eval_scores_<backend>.jsonl`).
 
-| Backend | Accuracy@0.5 | AUROC | Beste Schwelle | Accuracy@beste Schwelle |
-|---|---|---|---|---|
-| Laya (`english`, zero-shot) | 0.510 | **0.549** | 0.74 | 0.570 (kaum besser) |
-| TMR (`Oxidane/tmr-ai-text-detector`) | 0.550 | **0.911** | 0.98 | **0.830** |
+| Backend | Accuracy@0.5 | AUROC | Accuracy@beste Schwelle | ms/Text (Batch=25) | Batch=25 gesamt | RAM geladen |
+|---|---|---|---|---|---|---|
+| Laya (`english`, zero-shot) | 0.510 | 0.549 | 0.570 (Schwelle 0.74) | ~2458ms | ~61s | ~2.1 GB (Docker) |
+| **TMR** (RoBERTa-base, 125M) | 0.550 | **0.911** | **0.830** (Schwelle 0.98) | **~62ms** | **~1.6s** | **~900 MB** |
+| **desklib** (DeBERTa-v3-large, 430M) | **0.960** | **0.998** | **0.990** (Schwelle 0.87) | ~4869ms | ~122s | ~4.65 GB |
+
+## Performance-Abwägung (wichtig für "läuft im Hintergrund mit")
+
+**desklib ist mit Abstand am genauesten (AUROC 0.998, nur 1 Fehler von 100 bei optimaler
+Schwelle), aber auf CPU ~80× langsamer als TMR und braucht ~5× mehr RAM.** Ein normaler
+Seitenscan mit 25 Kandidaten (die Batch-Größe, die `content.js` tatsächlich verwendet)
+würde mit desklib **rund 2 Minuten** dauern und zeitweise **4,65 GB RAM** belegen — das
+verträgt sich nicht mit der Anforderung "läuft im Hintergrund mit, ohne den Rechner spürbar
+zu bremsen". TMR schafft denselben Batch in **~1,6 Sekunden** bei **~900 MB**.
+
+Alle Zahlen sind CPU-only gemessen (kein GPU auf dieser Maschine getestet) — mit CUDA-GPU
+wären alle drei Backends deutlich schneller, das Verhältnis zueinander bliebe aber ähnlich.
+
+**Bug/Kompatibilitäts-Fund unterwegs:** desklibs eigener Beispielcode (Model Card, 2024)
+crasht beim Laden mit `transformers>=5` (`AttributeError: ... 'all_tied_weights_keys'`) —
+gefixt durch eine überschriebene Property (leeres Dict), siehe `evaluate_backends.py` und
+`../server/shim_server.py`. Ein konkreter Beleg dafür, dass 2024er-Modellcode ohne Anpassung
+nicht mehr mit aktueller Software läuft.
 
 ## Interpretation
 

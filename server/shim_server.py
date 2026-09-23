@@ -6,7 +6,9 @@ Backends:
   - "english" / "multilingual" / "typed-decisions"  -> Proxy zu laya-serve
     (siehe README.md, muss separat via run_server.ps1 laufen)
   - "tmr"                                            -> lokal geladenes
-    Oxidane/tmr-ai-text-detector (RoBERTa-base, kein Training noetig)
+    Oxidane/tmr-ai-text-detector (RoBERTa-base, 125M, kein Training noetig)
+  - "desklib"                                        -> lokal geladenes
+    desklib/ai-text-detector-v1.01 (DeBERTa-v3-large, 430M, eigene Pooling-Klasse)
 
 Damit bleibt extension/background.js unveraendert - der Backend-Wechsel
 passiert komplett ueber das "model"-Feld, das die Extension schon sendet
@@ -22,14 +24,16 @@ import re
 
 import httpx
 import torch
+import torch.nn as nn
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from transformers import AutoConfig, AutoModel, AutoModelForSequenceClassification, AutoTokenizer, PreTrainedModel
 
 LAYA_UPSTREAM = "http://127.0.0.1:11500"
 LAYA_MODELS = {"english", "multilingual", "typed-decisions"}
 TMR_MODEL_ID = "Oxidane/tmr-ai-text-detector"
+DESKLIB_MODEL_ID = "desklib/ai-text-detector-v1.01"
 CANDIDATE_QID = re.compile(r"^c(\d+)$")
 
 app = FastAPI()
@@ -37,6 +41,9 @@ app = FastAPI()
 _tmr_tokenizer = None
 _tmr_model = None
 _tmr_ai_index = None
+
+_desklib_tokenizer = None
+_desklib_model = None
 
 
 def load_tmr():
@@ -57,6 +64,53 @@ def score_tmr_texts(texts: list[str]) -> list[float]:
         logits = _tmr_model(**enc).logits
         probs = torch.softmax(logits, dim=-1)
         return probs[:, _tmr_ai_index].tolist()
+
+
+class DesklibAIDetectionModel(PreTrainedModel):
+    """Eigene Architektur aus dem Model Card (Mean-Pooling + Sigmoid-Kopf),
+    kein AutoModelForSequenceClassification - deshalb eigene Klasse noetig."""
+
+    config_class = AutoConfig
+
+    def __init__(self, config):
+        super().__init__(config)
+        self.model = AutoModel.from_config(config)
+        self.classifier = nn.Linear(config.hidden_size, 1)
+        self.init_weights()
+
+    @property
+    def all_tied_weights_keys(self):
+        # Kompatibilitaets-Fix fuer transformers>=5, siehe training/evaluate_backends.py
+        return {}
+
+    def forward(self, input_ids, attention_mask=None):
+        outputs = self.model(input_ids, attention_mask=attention_mask)
+        last_hidden_state = outputs[0]
+        mask = attention_mask.unsqueeze(-1).expand(last_hidden_state.size()).float()
+        summed = torch.sum(last_hidden_state * mask, dim=1)
+        counted = torch.clamp(mask.sum(dim=1), min=1e-9)
+        pooled = summed / counted
+        return self.classifier(pooled)
+
+
+def load_desklib():
+    global _desklib_tokenizer, _desklib_model
+    if _desklib_model is not None:
+        return
+    _desklib_tokenizer = AutoTokenizer.from_pretrained(DESKLIB_MODEL_ID)
+    _desklib_model = DesklibAIDetectionModel.from_pretrained(DESKLIB_MODEL_ID)
+    _desklib_model.eval()
+
+
+def score_desklib_texts(texts: list[str]) -> list[float]:
+    load_desklib()
+    with torch.no_grad():
+        enc = _desklib_tokenizer(texts, padding="max_length", truncation=True, max_length=768, return_tensors="pt")
+        logits = _desklib_model(input_ids=enc["input_ids"], attention_mask=enc["attention_mask"])
+        return torch.sigmoid(logits).squeeze(-1).tolist()
+
+
+LOCAL_SCORERS = {"tmr": score_tmr_texts, "desklib": score_desklib_texts}
 
 
 def extract_candidate_texts(state, questions) -> dict[str, str]:
@@ -87,7 +141,12 @@ async def healthz():
             laya_up = r.status_code == 200
     except Exception:
         laya_up = False
-    return {"ok": True, "laya_upstream": laya_up, "tmr_loaded": _tmr_model is not None}
+    return {
+        "ok": True,
+        "laya_upstream": laya_up,
+        "tmr_loaded": _tmr_model is not None,
+        "desklib_loaded": _desklib_model is not None,
+    }
 
 
 @app.post("/v1/systemone")
@@ -100,29 +159,30 @@ async def systemone(request: Request):
             resp = await client.post(f"{LAYA_UPSTREAM}/v1/systemone", json=body)
         return JSONResponse(content=resp.json(), status_code=resp.status_code)
 
-    if model == "tmr":
+    if model in LOCAL_SCORERS:
         state = body.get("state")
         questions = body.get("questions", {})
         qid_to_text = extract_candidate_texts(state, questions)
         if not qid_to_text:
-            return JSONResponse(content={"error": {"message": "no candidate text found for tmr backend", "field": "state"}}, status_code=422)
+            return JSONResponse(content={"error": {"message": f"no candidate text found for {model} backend", "field": "state"}}, status_code=422)
 
         qids = list(qid_to_text.keys())
-        scores = score_tmr_texts([qid_to_text[q] for q in qids])
+        scores = LOCAL_SCORERS[model]([qid_to_text[q] for q in qids])
 
         answers = {
             qid: {"type": "noul", "noul": round(score, 4)}
             for qid, score in zip(qids, scores)
         }
         return {
-            "model": "tmr",
+            "model": model,
             "answers": answers,
             "usage": {"input_tokens": 0, "output_tokens": 0},
-            "routing": {"model": "tmr", "reason": "explicit model='tmr'"},
+            "routing": {"model": model, "reason": f"explicit model='{model}'"},
         }
 
+    known = LAYA_MODELS | set(LOCAL_SCORERS)
     return JSONResponse(
-        content={"error": {"message": f"unknown model '{model}', expected one of {LAYA_MODELS | {'tmr'}}", "field": "model"}},
+        content={"error": {"message": f"unknown model '{model}', expected one of {known}", "field": "model"}},
         status_code=422,
     )
 
