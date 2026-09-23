@@ -83,7 +83,7 @@ async def healthz():
     laya_up = False
     try:
         async with httpx.AsyncClient(timeout=2) as client:
-            r = await client.get(f"{LAYA_UPSTREAM}/healthz")
+            r = await client.get(f"{LAYA_UPSTREAM}/health")
             laya_up = r.status_code == 200
     except Exception:
         laya_up = False
