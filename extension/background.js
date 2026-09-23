@@ -1,8 +1,8 @@
 const DEFAULTS = {
   enabled: true,
-  threshold: 0.70,
-  serverUrl: "http://127.0.0.1:11500",
-  model: "english" // must match a checkpoint name laya-serve was started with (see server/README.md)
+  threshold: 0.90,
+  serverUrl: "http://127.0.0.1:8787", // shim_server.py, not laya-serve directly
+  model: "tmr" // "tmr" | "english" | "multilingual" - see server/shim_server.py
 };
 
 async function getConfig() {
