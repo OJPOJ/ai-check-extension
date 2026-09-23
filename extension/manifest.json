@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "AI Content Flag (Laya)",
+  "version": "0.1.0",
+  "description": "Markiert wahrscheinlich KI-generierte Textinhalte mit einem dezenten Glow-Rahmen. Läuft komplett lokal über laya-serve, sendet nichts an Dritte.",
+  "permissions": ["storage", "tabs"],
+  "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "exclude_matches": ["*://127.0.0.1/*", "*://localhost/*"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "action": {
+    "default_title": "AI Content Flag",
+    "default_popup": "options.html"
+  }
+}

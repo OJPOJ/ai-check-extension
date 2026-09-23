@@ -1,0 +1,29 @@
+/* Rein visueller Marker - kein Einfluss auf Layout, Klicks oder Text-Selektion. */
+.aivsai-flag {
+  outline: 3px solid rgba(168, 85, 247, 0.85);
+  outline-offset: 3px;
+  border-radius: 6px;
+  box-shadow:
+    0 0 8px 2px rgba(168, 85, 247, 0.55),
+    0 0 20px 4px rgba(168, 85, 247, 0.25);
+  animation: aivsai-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes aivsai-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 8px 2px rgba(168, 85, 247, 0.55),
+      0 0 20px 4px rgba(168, 85, 247, 0.25);
+  }
+  50% {
+    box-shadow:
+      0 0 14px 4px rgba(168, 85, 247, 0.8),
+      0 0 28px 8px rgba(168, 85, 247, 0.4);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aivsai-flag {
+    animation: none;
+  }
+}

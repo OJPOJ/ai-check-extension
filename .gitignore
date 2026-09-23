@@ -1,0 +1,5 @@
+training/.venv/
+training/data/
+training/data_smoketest/
+__pycache__/
+*.pyc

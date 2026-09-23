@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<title>AI Content Flag – Einstellungen</title>
+<style>
+  body {
+    font-family: system-ui, sans-serif;
+    width: 320px;
+    padding: 16px;
+    color: #1a1a1a;
+  }
+  h1 { font-size: 15px; margin: 0 0 4px; }
+  .sub { font-size: 12px; color: #666; margin: 0 0 16px; }
+  label { display: block; font-size: 13px; margin-top: 14px; margin-bottom: 4px; font-weight: 600; }
+  input[type="text"] { width: 100%; box-sizing: border-box; padding: 6px 8px; font-size: 13px; }
+  .row { display: flex; align-items: center; gap: 8px; }
+  .row input[type="range"] { flex: 1; }
+  .row span { font-variant-numeric: tabular-nums; font-size: 13px; min-width: 34px; text-align: right; }
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; }
+  button {
+    margin-top: 16px; width: 100%; padding: 8px; font-size: 13px; cursor: pointer;
+    border: 1px solid #ccc; border-radius: 6px; background: #f5f5f5;
+  }
+  button:hover { background: #ececec; }
+  .status { font-size: 12px; color: #2a7a2a; margin-top: 8px; min-height: 14px; }
+  .note { font-size: 11px; color: #888; margin-top: 16px; line-height: 1.4; }
+</style>
+</head>
+<body>
+  <h1>AI Content Flag</h1>
+  <p class="sub">Markiert wahrscheinlich KI-generierten Text lokal. Erkennung ist eine Schätzung, kein Fakt.</p>
+
+  <div class="toggle-row">
+    <label style="margin:0;">Aktiv</label>
+    <input type="checkbox" id="enabled" />
+  </div>
+
+  <label for="model">Erkennungs-Backend</label>
+  <select id="model">
+    <option value="tmr">TMR (empfohlen — AUROC 0.91 im Test, s. training/EVAL_RESULTS.md)</option>
+    <option value="english">Laya "english" (Zero-Shot — im Test kaum besser als Münzwurf)</option>
+    <option value="multilingual">Laya "multilingual" (Zero-Shot, ungetestet)</option>
+  </select>
+
+  <label for="threshold">Schwellenwert</label>
+  <div class="row">
+    <input type="range" id="threshold" min="0.30" max="0.99" step="0.01" />
+    <span id="thresholdValue"></span>
+  </div>
+
+  <label for="serverUrl">Server-URL (shim_server.py)</label>
+  <input type="text" id="serverUrl" placeholder="http://127.0.0.1:8787" />
+
+  <button id="rescan">Aktive Seite neu scannen</button>
+  <div class="status" id="status"></div>
+
+  <p class="note">
+    Alles läuft lokal: Textausschnitte gehen ausschließlich an den oben konfigurierten
+    Server auf deinem eigenen Rechner, nirgendwo sonst hin.
+  </p>
+
+  <script src="options.js"></script>
+</body>
+</html>

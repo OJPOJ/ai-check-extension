@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<title>AI Content Flag – Test-Harness</title>
+<style>
+  body { font-family: Georgia, serif; max-width: 720px; margin: 40px auto; padding: 0 16px; line-height: 1.6; }
+  h1 { font-family: system-ui, sans-serif; font-size: 20px; }
+  .meta { font-family: system-ui, sans-serif; font-size: 12px; color: #888; margin-bottom: 4px; }
+  article { margin-bottom: 32px; }
+  textarea { width: 100%; height: 80px; font-family: system-ui, sans-serif; font-size: 13px; }
+  input, button { font-family: system-ui, sans-serif; }
+</style>
+</head>
+<body>
+  <h1>Test-Harness: bekannte Mensch-/KI-Textbeispiele</h1>
+  <p class="meta">
+    Diese Seite ist nur zum manuellen Testen der Extension gedacht. Jeder &lt;p&gt;-Block hat
+    &gt;= 40 Wörter, damit er von content.js als Kandidat erkannt wird. Extension als "unpacked"
+    laden (chrome://extensions), dann diese Seite laden und beobachten, welche Absätze
+    einen Glow-Rahmen bekommen.
+  </p>
+
+  <article>
+    <p class="meta">Beispiel A – menschlich, informell (Reddit-Stil)</p>
+    <p>
+      honestly i've been putting off fixing my bike for like three weeks now and every single
+      day i tell myself "tomorrow" and then tomorrow comes and i just... don't. the back tire
+      has had a slow leak since that pothole incident and yes i know i should just buy a new
+      tube but the bike shop is a 20 minute walk and it's been raining nonstop so here we are,
+      still walking everywhere like it's the 1800s.
+    </p>
+  </article>
+
+  <article>
+    <p class="meta">Beispiel B – typischer LLM-Stil (glatt, aufzählend, hochwertig)</p>
+    <p>
+      Maintaining a bicycle in good working condition requires regular attention to several
+      key components. First, it is important to inspect the tires for proper inflation and
+      signs of wear, as under-inflated tires can lead to reduced efficiency and increased risk
+      of punctures. Second, the chain should be cleaned and lubricated periodically to ensure
+      smooth shifting and to prevent premature wear. Finally, brake pads should be checked
+      regularly, as worn pads can significantly compromise stopping power and rider safety.
+    </p>
+  </article>
+
+  <article>
+    <p class="meta">Beispiel C – menschlich, Fachtext (sollte nicht markiert werden)</p>
+    <p>
+      Die Wärmeleitfähigkeit von Kupfer liegt bei etwa 401 W/(m·K) und damit deutlich über der
+      von Aluminium mit rund 235 W/(m·K). In unserem Versuchsaufbau haben wir beide Materialien
+      unter identischen Randbedingungen getestet, wobei sich vor allem bei höheren Temperaturen
+      systematische Abweichungen zu den Literaturwerten zeigten, die wir auf Verunreinigungen
+      der Probenoberflächen zurückführen. Eine erneute Messreihe mit gereinigten Proben steht
+      noch aus.
+    </p>
+  </article>
+
+  <p class="meta">Kurzer Text unter 40 Wörtern (sollte NIE als Kandidat gescannt werden):</p>
+  <p>Das ist zu kurz, um klassifiziert zu werden.</p>
+
+  <p class="meta">Eingabefeld (sollte NIE markiert werden, egal was drinsteht):</p>
+  <textarea>
+    Furthermore, it is important to note that this text is inside a textarea and should
+    therefore be excluded from scanning entirely, regardless of its length or style, because
+    users must always be able to type freely without the extension interfering.
+  </textarea>
+
+  <p class="meta">Dynamisch nachgeladener Block (testet MutationObserver, erscheint nach 2s):</p>
+  <div id="dynamic-slot"></div>
+
+  <script>
+    setTimeout(() => {
+      const el = document.createElement("p");
+      el.textContent =
+        "This paragraph is injected after a short delay to verify that the content script's " +
+        "MutationObserver correctly picks up dynamically added text nodes, batches them, and " +
+        "sends them to the local scoring server without requiring a full page reload, which " +
+        "matters a lot on single page applications that render most of their content client-side.";
+      document.getElementById("dynamic-slot").appendChild(el);
+    }, 2000);
+  </script>
+</body>
+</html>
