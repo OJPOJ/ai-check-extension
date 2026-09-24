@@ -6,6 +6,8 @@ const AIVSAI = (() => {
     // "manual" = nur per Popup-Knopf, "sites" = nur Seiten aus `sites`, "all" = jede Seite
     scanMode: "sites",
     sites: [],
+    // nur Absätze nahe am sichtbaren Bereich bewerten, Rest erst beim Scrollen (spart Cloud-Kosten)
+    lazyScan: true,
 
     // "local" = shim_server.py auf diesem Rechner, "custom" = eigener Server (z.B. Cloud),
     // "huggingface" = Hugging Face Inference API

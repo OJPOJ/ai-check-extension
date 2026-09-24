@@ -1,8 +1,11 @@
 (() => {
   const MIN_WORDS = 40;
   const MAX_CHARS = 500;
-  const BATCH_SIZE = 25;
+  const BATCH_SIZE = 5;
   const DEBOUNCE_MS = 600;
+  // lazyScan: nur Absätze bis zu so vielen Bildschirmhöhen über/unter dem sichtbaren
+  // Bereich bewerten, der Rest folgt beim Scrollen
+  const NEAR_SCREENS = 1.5;
   const CANDIDATE_SELECTOR = "article, p, li";
   const EXCLUDE_SELECTOR =
     "nav, header, footer, script, style, noscript, " +
@@ -18,10 +21,21 @@
   const seen = new Map(); // textHash -> probability
   const pending = new Map(); // textHash -> { id, text, els }
   const inFlight = new Map(); // textHash -> { id, text, els }
+  let batchesInFlight = 0;
   let debounceTimer = null;
   let mutationTimer = null;
   let statsTimer = null;
   const addedNodes = new Set();
+  let pumpTimer = null;
+
+  // Meldet, wenn ein zurückgestellter Absatz in die Nähe des sichtbaren Bereichs kommt -
+  // deckt Scrollen, Fenstergröße und aufgeklappte Inhalte ab, ohne Scroll-Listener.
+  const nearObserver = new IntersectionObserver(
+    (entries) => {
+      if (entries.some((e) => e.isIntersecting)) schedulePump();
+    },
+    { rootMargin: `${NEAR_SCREENS * 100}% 0px` }
+  );
 
   chrome.storage.sync.get(AIVSAI.DEFAULTS, (stored) => {
     config = { ...AIVSAI.DEFAULTS, ...stored };
@@ -40,6 +54,7 @@
       rescanAll();
     } else {
       restyleAll();
+      if ("lazyScan" in changes) pump();
     }
     reportStats();
   });
@@ -96,7 +111,7 @@
       if (!text || wordCount(text) < MIN_WORDS) continue;
 
       const hash = hashText(text);
-      if (el.dataset.aivsaiHash === hash && (el.dataset.aivsaiScore || el.classList.contains("aivsai-pending"))) continue;
+      if (el.dataset.aivsaiHash === hash && isQueuedOrScored(el)) continue;
       el.dataset.aivsaiHash = hash;
       unstyle(el); // Text hat sich geändert - alte Bewertung gilt nicht mehr
 
@@ -114,26 +129,81 @@
     }
   }
 
+  function isQueuedOrScored(el) {
+    return el.dataset.aivsaiScore || el.classList.contains("aivsai-pending") || el.classList.contains("aivsai-deferred");
+  }
+
   function scanAndQueue(root) {
     if (!isActive()) return;
     collectCandidates(root);
     if (pending.size) {
       clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(flushBatches, DEBOUNCE_MS);
+      debounceTimer = setTimeout(pump, DEBOUNCE_MS);
     }
     reportStats();
   }
 
-  function flushBatches() {
-    const items = Array.from(pending.values());
-    pending.clear();
-    for (let i = 0; i < items.length; i += BATCH_SIZE) {
-      sendBatch(items.slice(i, i + BATCH_SIZE));
+  // Abstand zum sichtbaren Bereich in px (0 = sichtbar). Unsichtbare/abgehängte
+  // Elemente kommen ganz nach hinten.
+  function viewportDistance(entry) {
+    let best = Infinity;
+    for (const el of entry.els) {
+      if (!el.isConnected) continue;
+      const r = el.getBoundingClientRect();
+      if (!r.width && !r.height) continue;
+      const d = r.bottom < 0 ? -r.bottom : r.top > innerHeight ? r.top - innerHeight : 0;
+      best = Math.min(best, d);
     }
+    return best;
+  }
+
+  // Priorität wird erst beim Absenden bestimmt, nicht beim Einreihen: so bekommt nach
+  // einem Scroll automatisch der dann sichtbare Bereich den nächsten freien Slot.
+  // Ohne Scrollen ergibt das einfach "von oben nach unten".
+  function takeNextBatch() {
+    const limit = config.lazyScan ? NEAR_SCREENS * innerHeight : Infinity;
+    const ranked = [];
+    for (const entry of pending.values()) {
+      if (!entry.els.some((el) => el.isConnected)) {
+        pending.delete(entry.id); // SPA hat den Absatz inzwischen entfernt
+        continue;
+      }
+      const dist = viewportDistance(entry);
+      const near = dist <= limit;
+      for (const el of entry.els) {
+        el.classList.toggle("aivsai-pending", near);
+        el.classList.toggle("aivsai-deferred", !near);
+        if (near) nearObserver.unobserve(el);
+        else nearObserver.observe(el);
+      }
+      if (near) ranked.push({ entry, dist, top: entry.els[0].getBoundingClientRect().top });
+    }
+    ranked.sort((a, b) => a.dist - b.dist || a.top - b.top);
+    const batch = ranked.slice(0, BATCH_SIZE).map((r) => r.entry);
+    batch.forEach((b) => pending.delete(b.id));
+    return batch;
+  }
+
+  // Batches nacheinander statt alle auf einmal - sonst rechnet der Server alles parallel
+  // und die Priorisierung hätte keinen Effekt.
+  function pump() {
+    const maxInFlight = config.provider === "local" ? 1 : 2;
+    while (batchesInFlight < maxInFlight && pending.size && isActive()) {
+      const batch = takeNextBatch();
+      if (!batch.length) break; // alles Übrige ist zurückgestellt, bis gescrollt wird
+      sendBatch(batch);
+    }
+    reportStats();
+  }
+
+  function schedulePump() {
+    clearTimeout(pumpTimer);
+    pumpTimer = setTimeout(pump, 150);
   }
 
   function sendBatch(batch) {
     const gen = generation;
+    batchesInFlight++;
     batch.forEach((b) => inFlight.set(b.id, b));
     try {
       chrome.runtime.sendMessage(
@@ -147,7 +217,9 @@
   }
 
   function handleBatchResult(batch, gen, resp) {
-    batch.forEach((b) => inFlight.delete(b.id));
+    batchesInFlight--;
+    batch.forEach((b) => inFlight.get(b.id) === b && inFlight.delete(b.id));
+    pump();
     if (gen !== generation) return;
     // fail open: ein nicht erreichbares Backend blockiert nie die Seite, es wird nur nichts markiert
     lastError = resp ? resp.error || null : "Extension nicht erreichbar";
@@ -200,7 +272,8 @@
   }
 
   function unstyle(el) {
-    el.classList.remove(...LEVEL_CLASSES, "aivsai-pending", "aivsai-pos");
+    nearObserver.unobserve(el);
+    el.classList.remove(...LEVEL_CLASSES, "aivsai-pending", "aivsai-deferred", "aivsai-pos");
     if (el.dataset.aivsaiTitle) el.removeAttribute("title");
     for (const key of ["aivsaiScore", "aivsaiLevel", "aivsaiLabel", "aivsaiTitle"]) delete el.dataset[key];
   }
@@ -212,7 +285,9 @@
   function clearAll() {
     generation++;
     pending.clear();
+    inFlight.clear(); // laufende Batches gehören zur alten Generation, ihr Ergebnis wird verworfen
     clearTimeout(debounceTimer);
+    clearTimeout(pumpTimer);
     document.querySelectorAll("[data-aivsai-hash]").forEach((el) => {
       unstyle(el);
       delete el.dataset.aivsaiHash;
@@ -230,6 +305,7 @@
     const counts = { red: 0, yellow: 0, green: 0, pending: 0 };
     document.querySelectorAll("[data-aivsai-level]").forEach((el) => counts[el.dataset.aivsaiLevel]++);
     counts.pending = document.querySelectorAll(".aivsai-pending").length;
+    counts.deferred = document.querySelectorAll(".aivsai-deferred").length;
     return { ...counts, active: isActive(), manualScan, error: lastError, host };
   }
 

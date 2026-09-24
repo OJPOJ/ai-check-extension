@@ -21,6 +21,13 @@ Hintergrund/Architektur: `RESOURCES.md`.
   optionalem Bearer-Key), Hugging Face Inference API (Label-Mapping automatisch oder
   manuell). Host-Berechtigungen für Remote-Backends werden erst beim Speichern angefragt;
   Tokens liegen in `storage.local` (nicht synchronisiert). Score-Cache pro Provider.
+- **Sichtbarer Bereich zuerst:** 5er-Batches, nacheinander verschickt (lokal 1, remote 2
+  gleichzeitig). Welche Absätze in den nächsten Batch kommen, wird erst beim Absenden
+  entschieden: sichtbare zuerst, dann nach Abstand zum Viewport – ohne Scrollen also von
+  oben nach unten, nach einem Scroll springt die Priorität zum neuen Bereich.
+- **Lazy-Scan (Default an, abschaltbar):** bewertet nur Absätze bis 1,5 Bildschirmhöhen
+  um den sichtbaren Bereich; der Rest wird per `IntersectionObserver` nachgeholt, sobald er
+  in die Nähe kommt (Scrollen, Resize, aufgeklappte Inhalte). Spart Rechenzeit/Cloud-Kosten.
 - E2E in Chromium (Playwright) gegen echten Shim-Server getestet: Scan-Modi, Toggle,
   dynamisch nachgeladene Absätze, toter Server (fail open), Options-„Verbindung testen“.
 

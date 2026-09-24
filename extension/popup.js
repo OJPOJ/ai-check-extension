@@ -63,6 +63,8 @@ function renderStats(stats) {
     $("pending").textContent = `Fehler: ${stats.error}`;
   } else if (stats.pending) {
     $("pending").textContent = `${stats.pending} Absatz/Absätze werden geprüft…`;
+  } else if (stats.deferred) {
+    $("pending").textContent = `${stats.deferred} weitere Absätze werden beim Scrollen geprüft.`;
   } else if (stats.active && !stats.red && !stats.yellow && !stats.green) {
     $("pending").textContent = "Keine ausreichend langen Textabsätze gefunden.";
   } else if (!stats.active) {

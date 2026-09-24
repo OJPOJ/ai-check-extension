@@ -44,7 +44,8 @@ function readForm() {
     yellowFrom: parseFloat($("yellowFrom").value),
     redFrom: parseFloat($("redFrom").value),
     showGreen: $("showGreen").checked,
-    showBadge: $("showBadge").checked
+    showBadge: $("showBadge").checked,
+    lazyScan: $("lazyScan").checked
   };
   for (const f of TEXT_FIELDS) cfg[f] = $(f).value.trim();
   cfg.localUrl ||= AIVSAI.DEFAULTS.localUrl;
@@ -166,6 +167,7 @@ async function init() {
   $("redFrom").value = cfg.redFrom;
   $("showGreen").checked = cfg.showGreen;
   $("showBadge").checked = cfg.showBadge;
+  $("lazyScan").checked = cfg.lazyScan;
   renderProvider();
   renderScanMode();
   renderScale();
