@@ -46,6 +46,7 @@
   #status { flex: 1; font-size: 12px; min-width: 0; }
   #status.ok { color: var(--green); }
   #status.err { color: var(--red); }
+  progress { width: 100%; height: 8px; margin-top: 10px; accent-color: var(--accent); }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -93,12 +94,35 @@
   <div class="card">
     <h2>Erkennungs-Backend</h2>
     <div class="choices">
+      <label class="choice"><input type="radio" name="provider" value="browser" />
+        <div><b>Im Browser (empfohlen)</b><span>TMR läuft direkt in der Extension – kein Server nötig, Texte verlassen den Rechner nicht.</span></div></label>
       <label class="choice"><input type="radio" name="provider" value="local" />
         <div><b>Lokal</b><span>shim_server.py auf diesem Rechner – Texte verlassen den Rechner nicht.</span></div></label>
       <label class="choice"><input type="radio" name="provider" value="custom" />
         <div><b>Eigener Server / Cloud</b><span>Beliebiger HTTP-Endpunkt mit einfachem JSON-Vertrag, z.B. shim_server.py in der Cloud.</span></div></label>
       <label class="choice"><input type="radio" name="provider" value="huggingface" />
         <div><b>Hugging Face Inference API</b><span>Textklassifikations-Modell vom Hugging Face Hub, gehostet von Hugging Face.</span></div></label>
+    </div>
+
+    <div class="provider-fields" data-provider="browser">
+      <div class="row">
+        <div>
+          <div class="label">Modell: TMR (RoBERTa-base, int8)</div>
+          <div class="hint" id="modelStatus">Prüfe…</div>
+        </div>
+        <div style="display:flex;gap:8px;flex:none">
+          <button id="modelDelete" hidden>Löschen</button>
+          <button id="modelDownload" class="primary" hidden>Herunterladen (126 MB)</button>
+        </div>
+      </div>
+      <progress id="modelProgress" max="1" value="0" hidden></progress>
+      <div class="info">
+        Einmaliger Download von Hugging Face (öffentlich, kein Konto/Token nötig), danach offline
+        nutzbar. Danach werden nur noch Texte lokal bewertet, es geht nichts mehr ins Netz.
+        ~150 ms pro Absatz, ~300 MB RAM solange aktiv (wird nach 10 Min. Leerlauf freigegeben).
+        Englisch trainiert – deutsche Texte können falsch eingestuft werden. MIT-Lizenz, Details in
+        THIRD_PARTY_NOTICES.md.
+      </div>
     </div>
 
     <div class="provider-fields" data-provider="local">

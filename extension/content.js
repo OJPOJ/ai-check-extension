@@ -64,6 +64,8 @@
       manualScan = true;
       rescanAll();
       sendResponse(stats());
+    } else if (msg?.type === "MODEL_READY") {
+      if (isActive() && lastError) rescanAll();
     } else if (msg?.type === "GET_STATS") {
       sendResponse(stats());
     }
@@ -187,7 +189,7 @@
   // Batches nacheinander statt alle auf einmal - sonst rechnet der Server alles parallel
   // und die Priorisierung hätte keinen Effekt.
   function pump() {
-    const maxInFlight = config.provider === "local" ? 1 : 2;
+    const maxInFlight = config.provider === "local" || config.provider === "browser" ? 1 : 2;
     while (batchesInFlight < maxInFlight && pending.size && isActive()) {
       const batch = takeNextBatch();
       if (!batch.length) break; // alles Übrige ist zurückgestellt, bis gescrollt wird

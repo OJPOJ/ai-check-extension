@@ -1,0 +1,11 @@
+{
+  "name": "aivsai",
+  "private": true,
+  "description": "Build-Helfer für die Browser-Extension (kopiert transformers.js + ONNX-Runtime nach extension/vendor/)",
+  "scripts": {
+    "vendor": "node scripts/vendor.mjs"
+  },
+  "devDependencies": {
+    "@huggingface/transformers": "4.3.0"
+  }
+}

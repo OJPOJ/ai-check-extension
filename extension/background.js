@@ -105,7 +105,36 @@ function hfUrl(cfg) {
   return `https://router.huggingface.co/hf-inference/models/${cfg.hfModel}`;
 }
 
+// ---------------------------------------------------------------------------
+// Provider "browser": Modell läuft im Offscreen-Dokument (offscreen.js), weil ein
+// Service Worker weder Worker-Threads für die WASM-Runtime noch DOM-APIs hat.
+// ---------------------------------------------------------------------------
+
+let creatingOffscreen = null;
+
+async function ensureOffscreen() {
+  if (await chrome.offscreen.hasDocument()) return;
+  creatingOffscreen ||= chrome.offscreen
+    .createDocument({
+      url: "offscreen.html",
+      reasons: ["WORKERS"],
+      justification: "KI-Textklassifikation lokal per WebAssembly (ONNX Runtime Web)"
+    })
+    .finally(() => (creatingOffscreen = null));
+  await creatingOffscreen;
+}
+
+async function callOffscreen(type, payload = {}) {
+  await ensureOffscreen();
+  const resp = await chrome.runtime.sendMessage({ target: "offscreen", type, ...payload });
+  if (!resp?.ok) throw new Error(resp?.error || "Modell-Dokument antwortet nicht");
+  return resp;
+}
+
 const PROVIDERS = {
+  browser: {
+    score: async (texts) => (await callOffscreen("score", { texts })).scores
+  },
   local: {
     score: (texts, cfg) =>
       postScoreContract(`${trimSlash(cfg.localUrl)}/v1/score`, texts, cfg.localModel, null, LOCAL_TIMEOUT_MS)
@@ -188,6 +217,16 @@ async function testProvider() {
 async function health() {
   const cfg = await getConfig();
   const provider = AIVSAI.providerLabel(cfg);
+  if (cfg.provider === "browser") {
+    try {
+      const st = await callOffscreen("status");
+      return st.downloaded
+        ? { ok: true, provider, detail: st.loaded ? "Modell geladen" : "Modell bereit" }
+        : { ok: false, provider, error: "Modell noch nicht heruntergeladen" };
+    } catch (err) {
+      return { ok: false, provider, error: String(err?.message || err) };
+    }
+  }
   if (cfg.provider === "local") {
     try {
       const resp = await fetch(`${trimSlash(cfg.localUrl)}/healthz`, { signal: AbortSignal.timeout(3000) });
@@ -232,12 +271,23 @@ async function updateBadge(tabId, stats) {
   }
 }
 
+// Tabs, deren Scan am fehlenden Modell gescheitert ist, sollen nach dem Download neu scannen
+async function notifyTabs(msg) {
+  for (const tab of await chrome.tabs.query({})) {
+    if (tab.id !== undefined) chrome.tabs.sendMessage(tab.id, msg, () => void chrome.runtime.lastError);
+  }
+}
+
 async function toggleEnabled() {
   const { enabled } = await chrome.storage.sync.get({ enabled: AIVSAI.DEFAULTS.enabled });
   await chrome.storage.sync.set({ enabled: !enabled });
 }
 
-chrome.runtime.onInstalled.addListener(() => updateBadge());
+chrome.runtime.onInstalled.addListener(({ reason }) => {
+  updateBadge();
+  // Erstinstallation: Einstellungen öffnen, damit das Modell heruntergeladen werden kann
+  if (reason === "install") chrome.runtime.openOptionsPage();
+});
 chrome.runtime.onStartup.addListener(() => updateBadge());
 
 chrome.storage.onChanged.addListener((changes, area) => {
@@ -267,6 +317,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     case "TEST_PROVIDER":
       testProvider().then(sendResponse);
       return true;
+    case "MODEL_STATUS":
+    case "MODEL_DOWNLOAD":
+    case "MODEL_DELETE": {
+      const type = { MODEL_STATUS: "status", MODEL_DOWNLOAD: "download", MODEL_DELETE: "delete" }[msg.type];
+      callOffscreen(type)
+        .then((result) => {
+          if (type === "download" && result.downloaded) notifyTabs({ type: "MODEL_READY" });
+          sendResponse(result);
+        })
+        .catch((err) => sendResponse({ ok: false, error: String(err?.message || err) }));
+      return true;
+    }
     default:
       return false;
   }

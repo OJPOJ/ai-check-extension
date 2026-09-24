@@ -66,31 +66,58 @@ Hintergrund/Architektur: `RESOURCES.md`.
   `training/eval_sample.jsonl` laufen lassen und mit TMR/desklib vergleichen — dann ggf.
   als dritte Stufe in `options.html` zurückbringen.
 
+## Roadmap (Stand 2026-09-24, Reihenfolge = Priorität)
+
+1. ✅ **Modell im Browser (v0.3):** Provider „Im Browser“ (Default) – TMR int8 aus
+   `onnx-community/tmr-ai-text-detector-ONNX` (Revision gepinnt), per transformers.js im
+   Offscreen-Dokument (`extension/offscreen.js`), einmaliger Download ohne Token in den
+   Cache-Storage. Gemessen: AUROC 0.908 vs. 0.911 PyTorch, 3/100 Ampelwechsel, ~150 ms/Text
+   (WASM, Multithreading via COOP/COEP), Laden ~2 s. desklib bleibt Server-Option (nur
+   1,7GB-fp32-Konvertierung eines Einzelnutzers, im Browser ~10× langsamer).
+   Lizenzen geprüft (alles MIT bzw. transformers.js Apache-2.0): `extension/THIRD_PARTY_NOTICES.md`.
+   HC3 (unser Laya-Datensatz) ist CC-BY-SA-4.0 → bei eigenem Fine-Tuning beachten.
+2. **Sperrliste „nie scannen“** (Banking, Mail, …) + Datenschutzerklärung – Web-Store-Pflicht.
+3. **Rechtsklick → „Auf KI prüfen“** für markierten Text (kurze Texte, Nicht-`<p>`-Inhalte).
+4. **Feedback „Falsch erkannt“** am Absatz → Trainingsdaten fürs eigene Fine-Tuning.
+5. **Score-Kalibrierung pro Modell**, damit Schwellen modellübergreifend dasselbe bedeuten.
+6. **Deutsch/mehrsprachig:** TMR und desklib sind nur auf Englisch trainiert (deutscher
+   Fachtext im Harness: 78 % → gelb, Fehlalarm). Eigenes Fine-Tuning eines
+   mehrsprachigen Encoders (z.B. mDeBERTa-v3/XLM-R) ähnlich desklib.
+7. **Zurückgestellt:** Hugging-Face-Provider mit echtem Token testen (bisher nur gemockt).
+
 ## Quick Start
 
 ```powershell
-# nur der Shim-Server ist noetig (TMR/desklib laufen lokal darin, kein laya-serve noetig)
+# einmalig: transformers.js + ONNX-Runtime-WASM nach extension/vendor/ kopieren (nicht im Git)
+npm install
+npm run vendor
+```
+
+Dann in Chrome/Edge:
+
+1. `chrome://extensions` öffnen, "Entwicklermodus" aktivieren.
+2. "Entpackte Erweiterung laden" → Ordner `extension/` auswählen. Die Einstellungen öffnen
+   sich automatisch → „Herunterladen (126 MB)“ klicken (einmalig, von Hugging Face, kein Token).
+3. Auf das Extension-Icon klicken → Schalter „Diese Seite automatisch scannen“ oder
+   „Diese Seite jetzt scannen“.
+4. Für den Test-Harness: bei der Extension unter "Details" → "Auf Datei-URLs zulassen"
+   aktivieren, dann `test/harness.html` öffnen.
+
+Optional – Server-Backends (desklib, oder TMR per PyTorch), Provider „Lokal“:
+
+```powershell
 cd server
 uv venv .venv --python 3.12
 uv pip install --python .venv -r requirements_shim.txt
 .venv/Scripts/python.exe shim_server.py
 ```
 
-Dann in Chrome/Edge:
-
-1. `chrome://extensions` öffnen, "Entwicklermodus" aktivieren.
-2. "Entpackte Erweiterung laden" → Ordner `extension/` auswählen.
-3. Auf das Extension-Icon klicken → Schalter „Diese Seite automatisch scannen“ oder
-   „Diese Seite jetzt scannen“. Backend/Schwellen unter „Einstellungen“ (Default: Lokal,
-   `http://127.0.0.1:8787`, TMR).
-4. Für den Test-Harness: bei der Extension unter "Details" → "Auf Datei-URLs zulassen"
-   aktivieren, dann `test/harness.html` öffnen.
-
 ## Ordnerstruktur
 
 - `server/` — `shim_server.py` (Backend-Umschalter, Port 8787, TMR+desklib lokal) +
   optionales `laya-serve`-Docker-Setup (Port 11500, aktuell ungenutzt) + README
-- `extension/` — die Browser-Extension selbst (Manifest V3), manuell getestet
+- `extension/` — die Browser-Extension selbst (Manifest V3); `vendor/` wird per
+  `npm run vendor` (`scripts/vendor.mjs`) erzeugt
 - `test/harness.html` — Offline-Testseite mit Beispieltexten
 - `training/` — `prepare_dataset.py` (HC3 → Laya-Fine-Tuning-Format, fertig getestet),
   `evaluate_backends.py` + `benchmark_latency.py` (Genauigkeit/Performance-Vergleich),

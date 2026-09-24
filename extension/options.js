@@ -55,6 +55,7 @@ function readForm() {
 }
 
 function endpointUrl(cfg) {
+  if (cfg.provider === "browser") return null;
   if (cfg.provider === "custom") return cfg.customUrl;
   if (cfg.provider === "huggingface") return "https://router.huggingface.co/";
   return cfg.localUrl;
@@ -62,7 +63,9 @@ function endpointUrl(cfg) {
 
 // Liefert die Origin, für die eine optionale Host-Berechtigung nötig ist (oder null).
 function requiredOrigin(cfg) {
-  const url = new URL(endpointUrl(cfg)); // wirft bei ungültiger URL
+  const endpoint = endpointUrl(cfg);
+  if (!endpoint) return null; // Browser-Modell: Download per CORS, keine Host-Berechtigung nötig
+  const url = new URL(endpoint); // wirft bei ungültiger URL
   if (!/^https?:$/.test(url.protocol)) throw new Error("URL muss mit http:// oder https:// beginnen");
   if (LOOPBACK_HOSTS.has(url.hostname)) return null; // im Manifest bereits erlaubt
   return `${url.protocol}//${url.hostname}/*`;
@@ -128,6 +131,51 @@ function renderProvider() {
   $("privacyTarget").textContent = target || "";
 }
 
+// --- Browser-Modell: Status, Download, Löschen ---
+
+function formatMB(bytes) {
+  return `${(bytes / 1e6).toFixed(0)} MB`;
+}
+
+function renderModel(st, busy = false) {
+  $("modelDownload").hidden = busy || !st?.ok || st.downloaded;
+  $("modelDelete").hidden = busy || !st?.ok || !st.downloaded;
+  if (busy) return;
+  $("modelProgress").hidden = true;
+  if (!st?.ok) {
+    $("modelStatus").textContent = `Fehler: ${st?.error ?? "keine Antwort"}`;
+    $("modelDownload").hidden = false;
+  } else if (st.downloaded) {
+    $("modelStatus").textContent = `Heruntergeladen – bereit (${st.threads === 1 ? "1 Thread" : "Multithreading"}).`;
+  } else {
+    $("modelStatus").textContent = "Noch nicht heruntergeladen.";
+  }
+}
+
+async function refreshModel() {
+  renderModel(await chrome.runtime.sendMessage({ type: "MODEL_STATUS" }));
+}
+
+$("modelDownload").addEventListener("click", async () => {
+  renderModel(null, true);
+  $("modelStatus").textContent = "Lade herunter…";
+  $("modelProgress").hidden = false;
+  $("modelProgress").removeAttribute("value"); // unbestimmt, bis die erste Größe bekannt ist
+  const st = await chrome.runtime.sendMessage({ type: "MODEL_DOWNLOAD" });
+  renderModel(st);
+  if (st?.ok) showStatus("Modell heruntergeladen. Speichern nicht vergessen, falls „Im Browser“ neu gewählt.", "ok");
+});
+
+$("modelDelete").addEventListener("click", async () => {
+  renderModel(await chrome.runtime.sendMessage({ type: "MODEL_DELETE" }));
+});
+
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg?.type !== "MODEL_PROGRESS" || !msg.total) return;
+  $("modelProgress").value = msg.loaded / msg.total;
+  $("modelStatus").textContent = `Lade herunter… ${formatMB(msg.loaded)} von ${formatMB(msg.total)}`;
+});
+
 function renderScanMode() {
   $("sitesField").hidden = radioValue("scanMode") !== "sites";
 }
@@ -145,7 +193,12 @@ function renderScale() {
 
 function applyPreset() {
   const provider = radioValue("provider");
-  const preset = provider === "local" ? AIVSAI.PRESETS[$("localModel").value] : AIVSAI.PRESETS.generic;
+  const preset =
+    provider === "local"
+      ? AIVSAI.PRESETS[$("localModel").value]
+      : provider === "browser"
+        ? AIVSAI.PRESETS.tmr
+        : AIVSAI.PRESETS.generic;
   $("yellowFrom").value = preset.yellowFrom;
   $("redFrom").value = preset.redFrom;
   renderScale();
@@ -171,7 +224,16 @@ async function init() {
   renderProvider();
   renderScanMode();
   renderScale();
+  refreshModel();
 }
+
+// Popup und Tastenkürzel ändern "enabled"/"sites", während diese Seite offen sein kann -
+// ohne Abgleich würde der nächste Klick auf Speichern den alten Formularstand zurückschreiben.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "sync") return;
+  if ("enabled" in changes) $("enabled").checked = changes.enabled.newValue;
+  if ("sites" in changes) $("sites").value = (changes.sites.newValue || []).join("\n");
+});
 
 document.querySelectorAll('input[name="provider"]').forEach((el) => el.addEventListener("change", renderProvider));
 document.querySelectorAll('input[name="scanMode"]').forEach((el) => el.addEventListener("change", renderScanMode));

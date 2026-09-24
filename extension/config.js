@@ -9,9 +9,10 @@ const AIVSAI = (() => {
     // nur Absätze nahe am sichtbaren Bereich bewerten, Rest erst beim Scrollen (spart Cloud-Kosten)
     lazyScan: true,
 
+    // "browser" = TMR per WebAssembly direkt in der Extension (offscreen.js),
     // "local" = shim_server.py auf diesem Rechner, "custom" = eigener Server (z.B. Cloud),
     // "huggingface" = Hugging Face Inference API
-    provider: "local",
+    provider: "browser",
     localUrl: "http://127.0.0.1:8787",
     localModel: "tmr",
     customUrl: "",
@@ -58,6 +59,7 @@ const AIVSAI = (() => {
   function providerLabel(cfg) {
     if (cfg.provider === "custom") return `Eigener Server${cfg.customModel ? ` (${cfg.customModel})` : ""}`;
     if (cfg.provider === "huggingface") return `Hugging Face (${cfg.hfModel})`;
+    if (cfg.provider === "browser") return "Im Browser (TMR)";
     return `Lokal (${cfg.localModel})`;
   }
 

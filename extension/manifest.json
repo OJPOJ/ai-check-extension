@@ -1,20 +1,49 @@
 {
   "manifest_version": 3,
   "name": "AI Content Flag",
-  "version": "0.2.0",
-  "description": "Bewertet Textabsätze mit einem austauschbaren KI-Text-Klassifikator (lokal oder Cloud) und markiert sie grün/gelb/rot mit Score.",
-  "permissions": ["storage", "tabs"],
-  "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
-  "optional_host_permissions": ["https://*/*", "http://*/*"],
+  "version": "0.3.0",
+  "description": "Bewertet Textabsätze mit einem KI-Text-Klassifikator – direkt im Browser, lokal oder per Cloud – und markiert sie grün/gelb/rot mit Score.",
+  "permissions": [
+    "storage",
+    "tabs",
+    "offscreen"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1/*",
+    "http://localhost/*"
+  ],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
+  "cross_origin_opener_policy": {
+    "value": "same-origin"
+  },
+  "cross_origin_embedder_policy": {
+    "value": "require-corp"
+  },
   "background": {
     "service_worker": "background.js"
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "exclude_matches": ["*://127.0.0.1/*", "*://localhost/*"],
-      "js": ["config.js", "content.js"],
-      "css": ["content.css"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "exclude_matches": [
+        "*://127.0.0.1/*",
+        "*://localhost/*"
+      ],
+      "js": [
+        "config.js",
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
       "run_at": "document_idle"
     }
   ],
@@ -28,11 +57,15 @@
   },
   "commands": {
     "toggle-enabled": {
-      "suggested_key": { "default": "Alt+Shift+A" },
+      "suggested_key": {
+        "default": "Alt+Shift+A"
+      },
       "description": "Extension an-/ausschalten"
     },
     "scan-page": {
-      "suggested_key": { "default": "Alt+Shift+S" },
+      "suggested_key": {
+        "default": "Alt+Shift+S"
+      },
       "description": "Aktuelle Seite jetzt scannen"
     }
   }

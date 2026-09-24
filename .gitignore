@@ -6,3 +6,5 @@ training/eval_scores_*.jsonl
 server/.venv/
 __pycache__/
 *.pyc
+node_modules/
+extension/vendor/

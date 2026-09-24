@@ -84,7 +84,7 @@ async function refreshHealth() {
   const dot = $("backendDot");
   dot.className = `dot ${h?.ok === true ? "green" : h?.ok === false ? "red" : "gray"}`;
   $("backendStatus").textContent =
-    h?.ok === true ? "Erreichbar" : h?.ok === false ? h.error || "Fehler" : "Noch nicht verwendet";
+    h?.ok === true ? h.detail || "Erreichbar" : h?.ok === false ? h.error || "Fehler" : "Noch nicht verwendet";
 }
 
 function render() {
