@@ -31,7 +31,20 @@ Invoke-RestMethod http://127.0.0.1:8787/healthz
 # {"ok": true, "laya_upstream": true/false, "tmr_loaded": ..., "desklib_loaded": ...}
 ```
 
-## Beispiel-Request (verifiziert)
+## `/v1/score` — der Endpunkt, den die Extension nutzt
+
+```powershell
+Invoke-RestMethod -Uri http://127.0.0.1:8787/v1/score -Method Post -ContentType "application/json" `
+  -Body '{"model": "tmr", "texts": ["Maintaining a bicycle in good working condition requires regular attention."]}'
+# {"model": "tmr", "scores": [0.98...]}
+```
+
+Für Betrieb als „Eigener Server / Cloud“ (Extension-Provider `custom`):
+`AIVSAI_HOST=0.0.0.0`, `AIVSAI_PORT`, `AIVSAI_API_KEY` (dann ist
+`Authorization: Bearer <key>` Pflicht). Vor einem öffentlichen Deployment trotzdem
+TLS/Reverse-Proxy davor setzen.
+
+## Laya-Wire-Format `/v1/systemone` (Legacy, verifiziert)
 
 ```powershell
 $body = @{

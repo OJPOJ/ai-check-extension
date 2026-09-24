@@ -1,7 +1,28 @@
 # AI Content Flag — Browser-Extension
 
-Markiert wahrscheinlich KI-generierte Textinhalte auf Webseiten mit einem dezenten,
-glühenden Rahmen — komplett lokal, kein Cloud-Call. Hintergrund/Architektur: `RESOURCES.md`.
+Bewertet längere Textabsätze auf Webseiten mit einem austauschbaren KI-Text-Klassifikator
+und markiert sie als Ampel (grün / gelb / rot) mit Score-Badge. Backend wahlweise lokal
+(Standard, kein Cloud-Call), eigener Server/Cloud oder Hugging Face Inference API.
+Hintergrund/Architektur: `RESOURCES.md`.
+
+## Produkt-Stand v0.2 (2026-09-24)
+
+- **An/Aus + Scan-Modi:** Master-Schalter (Popup, `Alt+Shift+A`), Badge „AUS“ am Icon.
+  Gescannt wird nur „auf Knopfdruck“ (`Alt+Shift+S`), „auf ausgewählten Seiten“ (Default,
+  Schalter pro Domain im Popup) oder „auf allen Seiten“. Ohne Freigabe verschickt das
+  Content-Script keinen Text.
+- **Ampel statt Ja/Nein:** zwei Schwellen (Gelb ab / Rot ab), grün = geprüft und *nicht*
+  als KI erkannt (abschaltbar), Prozent-Badge am Absatz, gepunkteter Rahmen während der
+  Prüfung. Stufen auch ohne Farbwahrnehmung unterscheidbar (dünn / gestrichelt / kräftig).
+- **Popup:** Zähler rot/gelb/grün für die aktuelle Seite, Backend-Status, Skala der
+  Schwellen. Icon-Badge zeigt Anzahl roter (sonst gelber) Absätze pro Tab, „!“ bei Fehler.
+- **Provider-Abstraktion** (`extension/background.js`, `PROVIDERS`): Lokal
+  (`shim_server.py`), Eigener Server (Vertrag `POST {texts, model?} -> {scores}` mit
+  optionalem Bearer-Key), Hugging Face Inference API (Label-Mapping automatisch oder
+  manuell). Host-Berechtigungen für Remote-Backends werden erst beim Speichern angefragt;
+  Tokens liegen in `storage.local` (nicht synchronisiert). Score-Cache pro Provider.
+- E2E in Chromium (Playwright) gegen echten Shim-Server getestet: Scan-Modi, Toggle,
+  dynamisch nachgeladene Absätze, toter Server (fail open), Options-„Verbindung testen“.
 
 ## Aktueller Stand (2026-09-23)
 
@@ -52,8 +73,9 @@ Dann in Chrome/Edge:
 
 1. `chrome://extensions` öffnen, "Entwicklermodus" aktivieren.
 2. "Entpackte Erweiterung laden" → Ordner `extension/` auswählen.
-3. Auf das Extension-Icon klicken → Optionen (Server-URL `http://127.0.0.1:8787`,
-   Backend-Dropdown auf "Low — TMR").
+3. Auf das Extension-Icon klicken → Schalter „Diese Seite automatisch scannen“ oder
+   „Diese Seite jetzt scannen“. Backend/Schwellen unter „Einstellungen“ (Default: Lokal,
+   `http://127.0.0.1:8787`, TMR).
 4. Für den Test-Harness: bei der Extension unter "Details" → "Auf Datei-URLs zulassen"
    aktivieren, dann `test/harness.html` öffnen.
 

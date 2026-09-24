@@ -59,27 +59,57 @@ Training des Notebooks.
 
 Das kann ich von hier aus nicht ausführen — es braucht einen Kaggle-Account, eine
 Browser-Session und laufende GPU-Kontingente, alles außerhalb dieser Umgebung.
-Konkrete Schritte für dich:
+Die Ladezelle ist inzwischen **wortwörtlich verifiziert** (per Raw-Fetch der
+`.ipynb`-JSON-Quelle, nicht nur zusammengefasst), Stand 2026-09-23:
+
+**Wichtiger, gerade erst verifizierter Fund:** Die Referenz-Zelle lädt
+`LocalLLaMA/typed-decisions` und verarbeitet dort **nur 1.200 Fälle** (nicht ~30k, wie
+hier vorher unverifiziert stand). Unser Datensatz mit 128.581 Zeilen ist also ~100×
+größer als alles, was dieses Notebook je gesehen hat — für den ersten Lauf unbedingt
+begrenzen (Punkt 3 unten), sonst sehr wahrscheinlich Kaggle-Zeitlimit (9–12h/Session)
+gesprengt.
 
 1. Notebook `notebooks/laya_finetune_typed_decisions_2xT4_kaggle.ipynb` aus
    https://github.com/NandhaKishorM/laya auf Kaggle hochladen (oder als Kaggle-
    Notebook forken, falls dort schon veröffentlicht).
-2. Die Zelle(n), die `LocalLLaMA/typed-decisions` von Hugging Face laden, durch
-   unsere Daten ersetzen — entweder:
-   - `data/train.jsonl` + `data/holdout.jsonl` als Kaggle-Dataset hochladen und lokal
-     laden (`load_dataset("json", data_files={"train": "...", "test": "..."})`), oder
-   - die beiden Dateien als eigenes Hugging-Face-Dataset-Repo pushen und den
-     `load_dataset(...)`-Aufruf auf den eigenen Repo-Namen umstellen.
-   Ich habe das Notebook nur als Zusammenfassung gesehen (nicht Zelle für Zelle), das
-   musst du beim Öffnen gegenprüfen — meld dich mit dem, was du siehst, dann passen
-   wir die Zelle gemeinsam an.
-3. 2x T4 GPU-Runtime aktivieren, `torchrun --nproc_per_node=2` laut Notebook laufen
-   lassen. Bei ~130k Trainingsbeispielen (vs. ~30k im Notebook-Referenzbeispiel für
-   4–5h) realistisch mit mehr Zeit rechnen — ggf. für den ersten Lauf mit
-   `--limit 30000` in `prepare_dataset.py` auf eine kleinere, näher am Referenzwert
-   liegende Menge gehen.
-4. Temperatur-Kalibrierung auf `holdout.jsonl` (nicht auf Trainingsdaten).
-5. Checkpoint auf Hugging Face pushen.
+2. `data/train.jsonl` + `data/holdout.jsonl` als **privates Kaggle-Dataset** hochladen
+   (kaggle.com → "New Dataset" → beide Dateien reinziehen). Danach steht der Pfad als
+   `/kaggle/input/<dein-dataset-slug>/train.jsonl` etc. zur Verfügung — kein HF-Token
+   nötig für diesen Schritt.
+3. In der 3. Code-Zelle des Notebooks (verifizierter Originalinhalt, lädt Tokenizer/
+   Config von `convaiinnovations/laya` und danach `ds_train`) **nur diese eine Zeile**
+   ersetzen:
+
+   ```python
+   # Original:
+   ds_train = load_dataset("LocalLLaMA/typed-decisions", "all", split="train")
+
+   # Ersatz — Slug anpassen, Rest der Zelle (build_training_item, tokenizer, ...) bleibt unveraendert:
+   ds = load_dataset(
+       "json",
+       data_files={
+           "train": "/kaggle/input/<dein-dataset-slug>/train.jsonl",
+           "test": "/kaggle/input/<dein-dataset-slug>/holdout.jsonl",
+       },
+   )
+   ds_train = ds["train"].shuffle(seed=42).select(range(20000))  # erster Lauf begrenzt, s.o.
+   ```
+
+   Das Schema passt 1:1 zum Rest der Zelle (`json.loads(row["state"])`,
+   `row["questions"]`, `row["gold"]` — exakt verifiziert, keine weitere Anpassung an
+   `build_training_item` nötig, weil unsere `noul`-Fragen ohne `criteria`-Feld genau
+   in den `crit = q.get("criteria", {})`-Default fallen).
+4. 2× T4 GPU-Runtime aktivieren, restliche Zellen (DDP-Trainingsskript schreiben,
+   `torchrun --standalone --nproc_per_node=2 train_ddp.py`) unverändert laufen lassen.
+   Läuft der erste 20k-Lauf sauber und im Zeitrahmen durch: schrittweise erhöhen
+   (z. B. 50k, dann Rest) statt direkt auf die vollen 128k zu gehen.
+5. Die spätere Evaluations-/Upload-Zellen im Notebook (Testset-Auswertung, Push zu
+   `convaiinnovations/laya-typed-decisions`) **nicht 1:1 übernehmen** — `NEW_REPO`
+   dort auf ein eigenes HF-Repo umstellen, sonst landet der Checkpoint im fremden
+   Account. Für die eigentliche Bewertung reicht ohnehin unsere eigene Pipeline
+   (Punkt darunter), die ist gegen `holdout.jsonl`/`eval_sample.jsonl` bereits fertig.
+6. Checkpoint auf ein eigenes Hugging-Face-Repo pushen (Notebook-Zelle 8, `NEW_REPO`
+   entsprechend setzen).
 
 ## Danach (Phase E, siehe Plan)
 

@@ -1,10 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "AI Content Flag (Laya)",
-  "version": "0.1.0",
-  "description": "Markiert wahrscheinlich KI-generierte Textinhalte mit einem dezenten Glow-Rahmen. Läuft komplett lokal über laya-serve, sendet nichts an Dritte.",
+  "name": "AI Content Flag",
+  "version": "0.2.0",
+  "description": "Bewertet Textabsätze mit einem austauschbaren KI-Text-Klassifikator (lokal oder Cloud) und markiert sie grün/gelb/rot mit Score.",
   "permissions": ["storage", "tabs"],
   "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
+  "optional_host_permissions": ["https://*/*", "http://*/*"],
   "background": {
     "service_worker": "background.js"
   },
@@ -12,7 +13,7 @@
     {
       "matches": ["<all_urls>"],
       "exclude_matches": ["*://127.0.0.1/*", "*://localhost/*"],
-      "js": ["content.js"],
+      "js": ["config.js", "content.js"],
       "css": ["content.css"],
       "run_at": "document_idle"
     }
@@ -23,6 +24,16 @@
   },
   "action": {
     "default_title": "AI Content Flag",
-    "default_popup": "options.html"
+    "default_popup": "popup.html"
+  },
+  "commands": {
+    "toggle-enabled": {
+      "suggested_key": { "default": "Alt+Shift+A" },
+      "description": "Extension an-/ausschalten"
+    },
+    "scan-page": {
+      "suggested_key": { "default": "Alt+Shift+S" },
+      "description": "Aktuelle Seite jetzt scannen"
+    }
   }
 }

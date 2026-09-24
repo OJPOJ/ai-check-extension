@@ -1,29 +1,76 @@
-/* Rein visueller Marker - kein Einfluss auf Layout, Klicks oder Text-Selektion. */
-.aivsai-flag {
-  outline: 3px solid rgba(168, 85, 247, 0.85);
-  outline-offset: 3px;
+/* Rein visuelle Marker - kein Einfluss auf Layout, Klicks oder Text-Selektion.
+   Die Stufen unterscheiden sich auch ohne Farbwahrnehmung: grün dünn/durchgezogen,
+   gelb gestrichelt, rot kräftig mit Glow - plus Prozentwert in der Badge. */
+
+.aivsai-pending {
+  outline: 2px dotted rgba(148, 163, 184, 0.8) !important;
+  outline-offset: 3px !important;
+}
+
+.aivsai-green {
+  outline: 2px solid rgba(22, 163, 74, 0.55) !important;
+  outline-offset: 3px !important;
+  border-radius: 6px;
+}
+
+.aivsai-yellow {
+  outline: 3px dashed rgba(202, 138, 4, 0.9) !important;
+  outline-offset: 3px !important;
+  border-radius: 6px;
+  box-shadow: 0 0 10px 2px rgba(234, 179, 8, 0.3);
+}
+
+.aivsai-red {
+  outline: 3px solid rgba(220, 38, 38, 0.9) !important;
+  outline-offset: 3px !important;
   border-radius: 6px;
   box-shadow:
-    0 0 8px 2px rgba(168, 85, 247, 0.55),
-    0 0 20px 4px rgba(168, 85, 247, 0.25);
+    0 0 8px 2px rgba(220, 38, 38, 0.5),
+    0 0 20px 4px rgba(220, 38, 38, 0.2);
   animation: aivsai-pulse 2.4s ease-in-out infinite;
 }
 
 @keyframes aivsai-pulse {
   0%, 100% {
     box-shadow:
-      0 0 8px 2px rgba(168, 85, 247, 0.55),
-      0 0 20px 4px rgba(168, 85, 247, 0.25);
+      0 0 8px 2px rgba(220, 38, 38, 0.5),
+      0 0 20px 4px rgba(220, 38, 38, 0.2);
   }
   50% {
     box-shadow:
-      0 0 14px 4px rgba(168, 85, 247, 0.8),
-      0 0 28px 8px rgba(168, 85, 247, 0.4);
+      0 0 14px 4px rgba(220, 38, 38, 0.7),
+      0 0 28px 8px rgba(220, 38, 38, 0.35);
   }
 }
 
+.aivsai-pos {
+  position: relative;
+}
+
+.aivsai-badge::after {
+  content: attr(data-aivsai-label) !important;
+  position: absolute !important;
+  top: -12px !important;
+  right: -6px !important;
+  z-index: 2147483000 !important;
+  display: block !important;
+  padding: 0 6px !important;
+  border-radius: 999px !important;
+  font: 600 10.5px/17px system-ui, -apple-system, "Segoe UI", sans-serif !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  white-space: nowrap !important;
+  color: #fff !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+  pointer-events: none !important;
+}
+
+.aivsai-green.aivsai-badge::after { background: #15803d !important; }
+.aivsai-yellow.aivsai-badge::after { background: #a16207 !important; }
+.aivsai-red.aivsai-badge::after { background: #dc2626 !important; }
+
 @media (prefers-reduced-motion: reduce) {
-  .aivsai-flag {
+  .aivsai-red {
     animation: none;
   }
 }

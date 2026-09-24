@@ -3,34 +3,62 @@
   const MAX_CHARS = 500;
   const BATCH_SIZE = 25;
   const DEBOUNCE_MS = 600;
+  const CANDIDATE_SELECTOR = "article, p, li";
   const EXCLUDE_SELECTOR =
     "nav, header, footer, script, style, noscript, " +
     "[contenteditable], [contenteditable='true'], textarea, input, select, button, " +
-    "[role='textbox'], .aivsai-flag";
+    "[role='textbox']";
+  const LEVEL_CLASSES = ["aivsai-green", "aivsai-yellow", "aivsai-red", "aivsai-badge"];
+  const host = location.hostname;
 
-  let config = { enabled: true, threshold: 0.70, serverUrl: "http://127.0.0.1:11500" };
+  let config = { ...AIVSAI.DEFAULTS };
+  let manualScan = false; // "Diese Seite scannen" aus Popup/Tastenkürzel, gilt bis zum Neuladen
+  let generation = 0; // erhöht bei jedem Neu-Scan, damit veraltete Antworten verworfen werden
+  let lastError = null;
   const seen = new Map(); // textHash -> probability
-  const pending = new Map(); // textHash -> { id, text, el }
+  const pending = new Map(); // textHash -> { id, text, els }
+  const inFlight = new Map(); // textHash -> { id, text, els }
   let debounceTimer = null;
   let mutationTimer = null;
+  let statsTimer = null;
+  const addedNodes = new Set();
 
-  chrome.storage.sync.get(config, (stored) => {
-    config = { ...config, ...stored };
-    if (config.enabled) scanAndQueue(document.body);
+  chrome.storage.sync.get(AIVSAI.DEFAULTS, (stored) => {
+    config = { ...AIVSAI.DEFAULTS, ...stored };
+    if (isActive()) scanAndQueue(document.body);
+    reportStats();
   });
 
-  chrome.storage.onChanged.addListener((changes) => {
-    for (const [key, change] of Object.entries(changes)) config[key] = change.newValue;
-    if (config.enabled === false) {
-      clearAllFlags();
-    } else if ("threshold" in changes) {
-      reapplyThreshold();
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "sync") return;
+    const wasActive = isActive();
+    for (const [key, change] of Object.entries(changes)) config[key] = change.newValue ?? AIVSAI.DEFAULTS[key];
+
+    if (!isActive()) {
+      if (wasActive) clearAll();
+    } else if (!wasActive || AIVSAI.PROVIDER_KEYS.some((k) => k in changes)) {
+      rescanAll();
+    } else {
+      restyleAll();
+    }
+    reportStats();
+  });
+
+  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    if (msg?.type === "SCAN_NOW") {
+      manualScan = true;
+      rescanAll();
+      sendResponse(stats());
+    } else if (msg?.type === "GET_STATS") {
+      sendResponse(stats());
     }
   });
 
-  chrome.runtime.onMessage.addListener((msg) => {
-    if (msg?.type === "RESCAN") rescanAll();
-  });
+  function isActive() {
+    if (!config.enabled) return false;
+    if (manualScan || config.scanMode === "all") return true;
+    return config.scanMode === "sites" && AIVSAI.siteMatches(host, config.sites || []);
+  }
 
   function hashText(text) {
     let h = 0;
@@ -38,39 +66,62 @@
     return `${text.length}_${h}`;
   }
 
-  function isEligible(el) {
-    return !el.closest(EXCLUDE_SELECTOR);
+  function wordCount(text) {
+    return text.split(/\s+/).filter(Boolean).length;
+  }
+
+  // Container (z.B. <article>) nur bewerten, wenn keiner seiner Kind-Kandidaten selbst
+  // lang genug ist - sonst entstehen verschachtelte Doppel-Markierungen.
+  function hasLongCandidateChild(el) {
+    for (const child of el.querySelectorAll(CANDIDATE_SELECTOR)) {
+      if (wordCount(child.textContent || "") >= MIN_WORDS) return true;
+    }
+    return false;
+  }
+
+  function candidatesIn(root) {
+    const nodes = new Set();
+    const ancestor = root.parentElement?.closest(CANDIDATE_SELECTOR);
+    if (ancestor) nodes.add(ancestor); // Text innerhalb eines Absatzes hat sich geändert
+    if (root.matches(CANDIDATE_SELECTOR)) nodes.add(root);
+    root.querySelectorAll(CANDIDATE_SELECTOR).forEach((el) => nodes.add(el));
+    return nodes;
   }
 
   function collectCandidates(root) {
     if (!root || root.nodeType !== Node.ELEMENT_NODE) return;
-    const nodes = root.matches?.("article, p, li")
-      ? [root, ...root.querySelectorAll("article, p, li")]
-      : root.querySelectorAll("article, p, li");
-
-    for (const el of nodes) {
-      if (!isEligible(el)) continue;
+    for (const el of candidatesIn(root)) {
+      if (el.closest(EXCLUDE_SELECTOR) || hasLongCandidateChild(el)) continue;
       const text = (el.innerText || "").trim();
-      if (!text) continue;
-      const wordCount = text.split(/\s+/).filter(Boolean).length;
-      if (wordCount < MIN_WORDS) continue;
+      if (!text || wordCount(text) < MIN_WORDS) continue;
 
       const hash = hashText(text);
+      if (el.dataset.aivsaiHash === hash && (el.dataset.aivsaiScore || el.classList.contains("aivsai-pending"))) continue;
+      el.dataset.aivsaiHash = hash;
+      unstyle(el); // Text hat sich geändert - alte Bewertung gilt nicht mehr
+
       if (seen.has(hash)) {
-        applyFlag(el, seen.get(hash));
+        applyScore(el, seen.get(hash));
         continue;
       }
-      pending.set(hash, { id: hash, text: text.slice(0, MAX_CHARS), el });
+      const entry = inFlight.get(hash) || pending.get(hash);
+      if (entry) {
+        entry.els.push(el);
+      } else {
+        pending.set(hash, { id: hash, text: text.slice(0, MAX_CHARS), els: [el] });
+      }
+      el.classList.add("aivsai-pending");
     }
   }
 
   function scanAndQueue(root) {
-    if (!config.enabled) return;
+    if (!isActive()) return;
     collectCandidates(root);
     if (pending.size) {
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(flushBatches, DEBOUNCE_MS);
     }
+    reportStats();
   }
 
   function flushBatches() {
@@ -82,56 +133,132 @@
   }
 
   function sendBatch(batch) {
-    chrome.runtime.sendMessage(
-      { type: "SCORE_BATCH", items: batch.map((b) => ({ id: b.id, text: b.text })) },
-      (resp) => {
-        // fail open: dead/unreachable server just means nothing gets flagged this round
-        if (chrome.runtime.lastError || !resp?.ok) return;
-        for (const b of batch) {
-          const p = resp.scores[b.id];
-          if (typeof p !== "number") continue;
-          seen.set(b.id, p);
-          applyFlag(b.el, p);
-        }
+    const gen = generation;
+    batch.forEach((b) => inFlight.set(b.id, b));
+    try {
+      chrome.runtime.sendMessage(
+        { type: "SCORE_BATCH", items: batch.map((b) => ({ id: b.id, text: b.text })) },
+        (resp) => handleBatchResult(batch, gen, chrome.runtime.lastError ? null : resp)
+      );
+    } catch {
+      // Extension wurde neu geladen - dieses Content-Script ist verwaist
+      handleBatchResult(batch, gen, null);
+    }
+  }
+
+  function handleBatchResult(batch, gen, resp) {
+    batch.forEach((b) => inFlight.delete(b.id));
+    if (gen !== generation) return;
+    // fail open: ein nicht erreichbares Backend blockiert nie die Seite, es wird nur nichts markiert
+    lastError = resp ? resp.error || null : "Extension nicht erreichbar";
+    for (const b of batch) {
+      const p = resp?.scores?.[b.id];
+      if (typeof p === "number") {
+        seen.set(b.id, p);
+        b.els.forEach((el) => applyScore(el, p));
+      } else {
+        b.els.forEach((el) => el.classList.remove("aivsai-pending"));
       }
-    );
+    }
+    reportStats();
   }
 
-  function applyFlag(el, probability) {
-    if (probability < config.threshold) return;
-    el.classList.add("aivsai-flag");
-    const pct = Math.round(probability * 100);
-    el.title = `Wahrscheinlich KI-generiert (Zero-Shot-Schätzung, kann falsch liegen) — ${pct}%`;
+  function applyScore(el, probability) {
+    el.classList.remove("aivsai-pending");
+    el.dataset.aivsaiScore = String(probability);
+    style(el);
   }
 
-  function reapplyThreshold() {
-    // cached probabilities don't retain element references, so a full
-    // rescan is the simplest correct way to re-derive who's above threshold
-    rescanAll();
-  }
+  function style(el) {
+    const p = parseFloat(el.dataset.aivsaiScore);
+    const level = AIVSAI.level(p, config);
+    const pct = Math.round(p * 100);
+    el.classList.remove(...LEVEL_CLASSES, "aivsai-pos");
+    el.dataset.aivsaiLevel = level;
 
-  function clearAllFlags() {
-    document.querySelectorAll(".aivsai-flag").forEach((el) => {
-      el.classList.remove("aivsai-flag");
+    const visible = level !== "green" || config.showGreen;
+    if (visible) {
+      el.classList.add(`aivsai-${level}`);
+      if (config.showBadge) {
+        el.dataset.aivsaiLabel = `${pct}% KI`;
+        el.classList.add("aivsai-badge");
+        // Badge wird per ::after absolut positioniert und braucht dafür einen Bezugsrahmen
+        if (getComputedStyle(el).position === "static") el.classList.add("aivsai-pos");
+      }
+    }
+
+    // bestehende title-Attribute der Seite nicht überschreiben
+    if (visible && (!el.hasAttribute("title") || el.dataset.aivsaiTitle)) {
+      el.title =
+        `${AIVSAI.LEVEL_TEXT[level]} – ${pct}% KI-Wahrscheinlichkeit ` +
+        `(${AIVSAI.providerLabel(config)}; Schätzung, kann falsch liegen)`;
+      el.dataset.aivsaiTitle = "1";
+    } else if (!visible && el.dataset.aivsaiTitle) {
       el.removeAttribute("title");
+      delete el.dataset.aivsaiTitle;
+    }
+  }
+
+  function unstyle(el) {
+    el.classList.remove(...LEVEL_CLASSES, "aivsai-pending", "aivsai-pos");
+    if (el.dataset.aivsaiTitle) el.removeAttribute("title");
+    for (const key of ["aivsaiScore", "aivsaiLevel", "aivsaiLabel", "aivsaiTitle"]) delete el.dataset[key];
+  }
+
+  function restyleAll() {
+    document.querySelectorAll("[data-aivsai-score]").forEach(style);
+  }
+
+  function clearAll() {
+    generation++;
+    pending.clear();
+    clearTimeout(debounceTimer);
+    document.querySelectorAll("[data-aivsai-hash]").forEach((el) => {
+      unstyle(el);
+      delete el.dataset.aivsaiHash;
     });
+    lastError = null;
   }
 
   function rescanAll() {
+    clearAll();
     seen.clear();
-    pending.clear();
-    clearAllFlags();
     scanAndQueue(document.body);
   }
 
+  function stats() {
+    const counts = { red: 0, yellow: 0, green: 0, pending: 0 };
+    document.querySelectorAll("[data-aivsai-level]").forEach((el) => counts[el.dataset.aivsaiLevel]++);
+    counts.pending = document.querySelectorAll(".aivsai-pending").length;
+    return { ...counts, active: isActive(), manualScan, error: lastError, host };
+  }
+
+  function reportStats() {
+    clearTimeout(statsTimer);
+    statsTimer = setTimeout(() => {
+      try {
+        chrome.runtime.sendMessage({ type: "STATS", stats: stats() }, () => void chrome.runtime.lastError);
+      } catch {
+        // verwaistes Content-Script nach Extension-Reload
+      }
+    }, 200);
+  }
+
+  // Nachgeladene Inhalte (Infinite Scroll, SPAs) - Knoten über die Debounce-Zeit sammeln,
+  // damit keine Mutationen verloren gehen, wenn der Timer neu startet.
   const observer = new MutationObserver((mutations) => {
+    if (!isActive()) return;
+    for (const m of mutations) {
+      m.addedNodes.forEach((node) => {
+        if (node.nodeType === Node.ELEMENT_NODE) addedNodes.add(node);
+        else if (node.parentElement) addedNodes.add(node.parentElement);
+      });
+    }
     clearTimeout(mutationTimer);
     mutationTimer = setTimeout(() => {
-      for (const m of mutations) {
-        m.addedNodes.forEach((node) => {
-          if (node.nodeType === Node.ELEMENT_NODE) scanAndQueue(node);
-        });
-      }
+      const nodes = Array.from(addedNodes).filter((n) => n.isConnected);
+      addedNodes.clear();
+      nodes.forEach(scanAndQueue);
     }, DEBOUNCE_MS);
   });
   observer.observe(document.documentElement, { childList: true, subtree: true });

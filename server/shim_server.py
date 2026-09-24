@@ -10,9 +10,16 @@ Backends:
   - "desklib"                                        -> lokal geladenes
     desklib/ai-text-detector-v1.01 (DeBERTa-v3-large, 430M, eigene Pooling-Klasse)
 
-Damit bleibt extension/background.js unveraendert - der Backend-Wechsel
-passiert komplett ueber das "model"-Feld, das die Extension schon sendet
-(Options-Dropdown -> config.model -> hier).
+Zusaetzlich gibt es POST /v1/score mit einem schlanken Vertrag, den die
+Extension fuer die Provider "Lokal" und "Eigener Server" verwendet:
+
+    {"texts": ["...", ...], "model": "tmr"}  ->  {"scores": [0.93, ...]}
+
+Fuer Betrieb ausserhalb von localhost (z.B. Cloud-VM) per Env konfigurierbar:
+    AIVSAI_HOST     (Default 127.0.0.1)
+    AIVSAI_PORT     (Default 8787)
+    AIVSAI_API_KEY  (optional; wenn gesetzt, muss /v1/score den Header
+                     "Authorization: Bearer <key>" mitschicken)
 
 Start:
     uv venv .venv --python 3.12
@@ -20,14 +27,16 @@ Start:
     .venv/Scripts/python.exe shim_server.py
 """
 
+import os
 import re
 
 import httpx
 import torch
 import torch.nn as nn
 import uvicorn
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 from transformers import AutoConfig, AutoModel, AutoModelForSequenceClassification, AutoTokenizer, PreTrainedModel
 
 LAYA_UPSTREAM = "http://127.0.0.1:11500"
@@ -35,6 +44,9 @@ LAYA_MODELS = {"english", "multilingual", "typed-decisions"}
 TMR_MODEL_ID = "Oxidane/tmr-ai-text-detector"
 DESKLIB_MODEL_ID = "desklib/ai-text-detector-v1.01"
 CANDIDATE_QID = re.compile(r"^c(\d+)$")
+API_KEY = os.environ.get("AIVSAI_API_KEY") or None
+MAX_TEXTS_PER_REQUEST = 64
+MAX_CHARS_PER_TEXT = 4000
 
 app = FastAPI()
 
@@ -187,5 +199,22 @@ async def systemone(request: Request):
     )
 
 
+class ScoreRequest(BaseModel):
+    texts: list[str] = Field(min_length=1, max_length=MAX_TEXTS_PER_REQUEST)
+    model: str = "tmr"
+
+
+@app.post("/v1/score")
+def score(req: ScoreRequest, authorization: str | None = Header(default=None)):
+    # sync def -> FastAPI fuehrt das im Threadpool aus, Inferenz blockiert den Event-Loop nicht
+    if API_KEY and authorization != f"Bearer {API_KEY}":
+        raise HTTPException(status_code=401, detail="invalid or missing API key")
+    if req.model not in LOCAL_SCORERS:
+        raise HTTPException(status_code=422, detail=f"unknown model '{req.model}', expected one of {sorted(LOCAL_SCORERS)}")
+    texts = [t[:MAX_CHARS_PER_TEXT] for t in req.texts]
+    scores = LOCAL_SCORERS[req.model](texts)
+    return {"model": req.model, "scores": [round(s, 4) for s in scores]}
+
+
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8787)
+    uvicorn.run(app, host=os.environ.get("AIVSAI_HOST", "127.0.0.1"), port=int(os.environ.get("AIVSAI_PORT", "8787")))

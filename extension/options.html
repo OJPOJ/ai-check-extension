@@ -3,71 +3,194 @@
 <head>
 <meta charset="utf-8" />
 <title>AI Content Flag – Einstellungen</title>
+<link rel="stylesheet" href="ui.css" />
 <style>
-  body {
-    font-family: system-ui, sans-serif;
-    width: 320px;
-    padding: 16px;
-    color: #1a1a1a;
+  body { background: var(--surface); }
+  main { max-width: 640px; margin: 0 auto; padding: 24px 16px 96px; }
+  .intro { margin: 4px 0 20px; }
+  .card { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  .field { margin-top: 14px; }
+  .field:first-of-type { margin-top: 0; }
+  .field > label, .label { display: block; font-weight: 600; margin-bottom: 4px; }
+  .hint { font-size: 11.5px; color: var(--muted); margin-top: 4px; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+
+  .choices { display: grid; gap: 8px; }
+  .choice {
+    display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px;
+    border: 1px solid var(--border); border-radius: 10px; cursor: pointer;
   }
-  h1 { font-size: 15px; margin: 0 0 4px; }
-  .sub { font-size: 12px; color: #666; margin: 0 0 16px; }
-  label { display: block; font-size: 13px; margin-top: 14px; margin-bottom: 4px; font-weight: 600; }
-  input[type="text"] { width: 100%; box-sizing: border-box; padding: 6px 8px; font-size: 13px; }
-  .row { display: flex; align-items: center; gap: 8px; }
-  .row input[type="range"] { flex: 1; }
-  .row span { font-variant-numeric: tabular-nums; font-size: 13px; min-width: 34px; text-align: right; }
-  .toggle-row { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; }
-  button {
-    margin-top: 16px; width: 100%; padding: 8px; font-size: 13px; cursor: pointer;
-    border: 1px solid #ccc; border-radius: 6px; background: #f5f5f5;
+  .choice:has(input:checked) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .choice input { margin-top: 3px; }
+  .choice b { display: block; }
+  .choice span { font-size: 12px; color: var(--muted); }
+
+  .provider-fields { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border); }
+  .info { font-size: 12px; background: var(--surface); border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
+  code { font-size: 11.5px; background: var(--surface); padding: 1px 4px; border-radius: 4px; }
+  pre { font-size: 11.5px; background: var(--surface); padding: 8px 10px; border-radius: 8px; overflow-x: auto; margin: 8px 0 0; }
+
+  .slider-row { display: grid; grid-template-columns: 110px 1fr 48px; align-items: center; gap: 10px; margin-top: 10px; }
+  .slider-row output { text-align: right; font-variant-numeric: tabular-nums; }
+  .scale { display: flex; height: 10px; border-radius: 999px; overflow: hidden; margin-top: 14px; }
+  .scale-legend { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); margin-top: 6px; gap: 8px; }
+  .scale-legend span { display: flex; align-items: center; gap: 5px; }
+  .check { display: flex; gap: 8px; align-items: flex-start; margin-top: 12px; }
+  .check input { margin-top: 3px; }
+
+  .bar {
+    position: fixed; left: 0; right: 0; bottom: 0; background: var(--bg); border-top: 1px solid var(--border);
+    padding: 12px 16px;
   }
-  button:hover { background: #ececec; }
-  .status { font-size: 12px; color: #2a7a2a; margin-top: 8px; min-height: 14px; }
-  .note { font-size: 11px; color: #888; margin-top: 16px; line-height: 1.4; }
-  .backend-info {
-    font-size: 11.5px; color: #444; margin-top: 6px; line-height: 1.5;
-    background: #f7f7f7; border-radius: 6px; padding: 8px 10px;
-  }
-  .backend-info b { color: #1a1a1a; }
+  .bar-inner { max-width: 640px; margin: 0 auto; display: flex; gap: 8px; align-items: center; }
+  #status { flex: 1; font-size: 12px; min-width: 0; }
+  #status.ok { color: var(--green); }
+  #status.err { color: var(--red); }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
+<main>
   <h1>AI Content Flag</h1>
-  <p class="sub">Markiert wahrscheinlich KI-generierten Text lokal. Erkennung ist eine Schätzung, kein Fakt.</p>
+  <p class="intro muted">Bewertet längere Textabsätze mit einem KI-Text-Klassifikator und markiert sie
+    grün / gelb / rot. Scores sind Schätzungen – sie können sich irren, besonders bei kurzen,
+    übersetzten oder stark redigierten Texten.</p>
 
-  <div class="toggle-row">
-    <label style="margin:0;">Aktiv</label>
-    <input type="checkbox" id="enabled" />
+  <div class="card">
+    <h2>Allgemein</h2>
+    <div class="row field">
+      <div>
+        <div class="label">Extension aktiv</div>
+        <div class="hint">Tastenkürzel: Alt+Shift+A (an/aus), Alt+Shift+S (Seite scannen)</div>
+      </div>
+      <label class="switch"><input type="checkbox" id="enabled" aria-label="Extension aktiv" /><span></span></label>
+    </div>
+
+    <div class="field">
+      <div class="label">Wann wird gescannt?</div>
+      <div class="choices">
+        <label class="choice"><input type="radio" name="scanMode" value="manual" />
+          <div><b>Nur auf Knopfdruck</b><span>Über das Popup oder Alt+Shift+S. Es werden keine Texte ohne Klick verschickt.</span></div></label>
+        <label class="choice"><input type="radio" name="scanMode" value="sites" />
+          <div><b>Auf ausgewählten Seiten automatisch</b><span>Seiten per Schalter im Popup hinzufügen oder unten eintragen.</span></div></label>
+        <label class="choice"><input type="radio" name="scanMode" value="all" />
+          <div><b>Auf allen Seiten automatisch</b><span>Jede besuchte Seite wird analysiert – mit Cloud-Backends ggf. teuer.</span></div></label>
+      </div>
+    </div>
+
+    <div class="field" id="sitesField">
+      <label for="sites">Automatisch scannen auf</label>
+      <textarea id="sites" rows="4" placeholder="example.com&#10;news.example.org"></textarea>
+      <div class="hint">Eine Domain pro Zeile, Subdomains sind eingeschlossen.</div>
+    </div>
   </div>
 
-  <label for="model">Erkennungs-Backend</label>
-  <select id="model">
-    <option value="tmr">Low — TMR (schnell &amp; leicht)</option>
-    <option value="desklib">Medium — desklib (genauer, deutlich langsamer)</option>
-  </select>
-  <div class="backend-info" id="backendInfo"></div>
+  <div class="card">
+    <h2>Erkennungs-Backend</h2>
+    <div class="choices">
+      <label class="choice"><input type="radio" name="provider" value="local" />
+        <div><b>Lokal</b><span>shim_server.py auf diesem Rechner – Texte verlassen den Rechner nicht.</span></div></label>
+      <label class="choice"><input type="radio" name="provider" value="custom" />
+        <div><b>Eigener Server / Cloud</b><span>Beliebiger HTTP-Endpunkt mit einfachem JSON-Vertrag, z.B. shim_server.py in der Cloud.</span></div></label>
+      <label class="choice"><input type="radio" name="provider" value="huggingface" />
+        <div><b>Hugging Face Inference API</b><span>Textklassifikations-Modell vom Hugging Face Hub, gehostet von Hugging Face.</span></div></label>
+    </div>
 
-  <label for="threshold">Schwellenwert</label>
-  <div class="row">
-    <input type="range" id="threshold" min="0.30" max="0.99" step="0.01" />
-    <span id="thresholdValue"></span>
+    <div class="provider-fields" data-provider="local">
+      <div class="field">
+        <label for="localUrl">Server-URL</label>
+        <input type="url" id="localUrl" placeholder="http://127.0.0.1:8787" />
+      </div>
+      <div class="field">
+        <label for="localModel">Modell</label>
+        <select id="localModel">
+          <option value="tmr">Low – TMR (schnell &amp; leicht)</option>
+          <option value="desklib">Medium – desklib (genauer, deutlich langsamer)</option>
+        </select>
+        <div class="info" id="localModelInfo"></div>
+      </div>
+    </div>
+
+    <div class="provider-fields" data-provider="custom">
+      <div class="field">
+        <label for="customUrl">Endpunkt-URL</label>
+        <input type="url" id="customUrl" placeholder="https://detector.example.com/v1/score" />
+      </div>
+      <div class="field">
+        <label for="customApiKey">API-Key <span class="muted">(optional, als Bearer-Token)</span></label>
+        <input type="password" id="customApiKey" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="customModel">Modell <span class="muted">(optional, wird als <code>model</code> mitgeschickt)</span></label>
+        <input type="text" id="customModel" placeholder="tmr" />
+      </div>
+      <div class="hint">Erwarteter Vertrag (shim_server.py erfüllt ihn unter <code>/v1/score</code>):</div>
+      <pre>POST {"texts": ["…", "…"], "model": "…"}
+→    {"scores": [0.93, 0.12]}   // KI-Wahrscheinlichkeit 0..1 pro Text</pre>
+    </div>
+
+    <div class="provider-fields" data-provider="huggingface">
+      <div class="field">
+        <label for="hfModel">Modell-ID</label>
+        <input type="text" id="hfModel" placeholder="openai-community/roberta-base-openai-detector" />
+        <div class="hint">Muss als Textklassifikation über „HF Inference“ verfügbar sein (Modellseite → Deploy → Inference Providers).</div>
+      </div>
+      <div class="field">
+        <label for="hfToken">Access Token</label>
+        <input type="password" id="hfToken" autocomplete="off" placeholder="hf_…" />
+        <div class="hint">Wird nur lokal in diesem Browser gespeichert, nicht synchronisiert.</div>
+      </div>
+      <div class="field">
+        <label for="hfAiLabel">Label der KI-Klasse <span class="muted">(optional)</span></label>
+        <input type="text" id="hfAiLabel" placeholder="automatisch (AI, Fake, LABEL_1, …)" />
+      </div>
+    </div>
+
+    <p class="warn" id="privacyWarn" hidden style="margin:14px 0 0">
+      Textausschnitte (bis 500 Zeichen pro Absatz) werden an <b id="privacyTarget"></b> gesendet.
+      Nutze „Nur auf Knopfdruck“ oder eine Seitenliste, wenn du das nicht für jede Seite willst.
+    </p>
   </div>
 
-  <label for="serverUrl">Server-URL (shim_server.py)</label>
-  <input type="text" id="serverUrl" placeholder="http://127.0.0.1:8787" />
+  <div class="card">
+    <h2>Anzeige</h2>
+    <div class="slider-row">
+      <label for="yellowFrom">Gelb ab</label>
+      <input type="range" id="yellowFrom" min="0.05" max="0.98" step="0.01" />
+      <output id="yellowFromValue"></output>
+    </div>
+    <div class="slider-row">
+      <label for="redFrom">Rot ab</label>
+      <input type="range" id="redFrom" min="0.06" max="0.99" step="0.01" />
+      <output id="redFromValue"></output>
+    </div>
+    <div class="scale" id="scale" aria-hidden="true"></div>
+    <div class="scale-legend">
+      <span><i class="dot green"></i>wahrscheinlich menschlich</span>
+      <span><i class="dot yellow"></i>unklar</span>
+      <span><i class="dot red"></i>wahrscheinlich KI</span>
+    </div>
+    <button id="applyPreset" style="margin-top:12px">Empfohlene Werte fürs gewählte Modell</button>
 
-  <button id="rescan">Aktive Seite neu scannen</button>
-  <div class="status" id="status"></div>
+    <label class="check"><input type="checkbox" id="showGreen" />
+      <div>Auch unauffällige Absätze grün markieren<div class="hint">So siehst du, was geprüft und <i>nicht</i> als KI erkannt wurde.</div></div></label>
+    <label class="check"><input type="checkbox" id="showBadge" />
+      <div>Score als Prozent-Badge am Absatz anzeigen<div class="hint">Ohne Badge steht der Score weiterhin im Tooltip.</div></div></label>
+  </div>
 
-  <p class="note">
-    Alles läuft lokal: Textausschnitte gehen ausschließlich an den oben konfigurierten
-    Server auf deinem eigenen Rechner, nirgendwo sonst hin. Details/Messwerte:
-    training/EVAL_RESULTS.md. Laya ist aktuell absichtlich nicht wählbar (Zero-Shot war
-    unbrauchbar, s. Report) — kommt zurück, sobald ein fine-getunter Checkpoint existiert
-    (server/shim_server.py unterstützt es schon, training/README.md hat den offenen Schritt).
-  </p>
+  <p class="small muted">Messwerte der lokalen Modelle: training/EVAL_RESULTS.md. Laya ist absichtlich nicht wählbar,
+    bis ein fine-getunter Checkpoint existiert (training/README.md).</p>
+</main>
 
-  <script src="options.js"></script>
+<div class="bar">
+  <div class="bar-inner">
+    <div id="status" role="status"></div>
+    <button id="test">Verbindung testen</button>
+    <button id="save" class="primary">Speichern</button>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script src="options.js"></script>
 </body>
 </html>

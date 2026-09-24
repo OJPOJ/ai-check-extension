@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<title>AI Content Flag</title>
+<link rel="stylesheet" href="ui.css" />
+<style>
+  body { width: 320px; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 10px; }
+  section { padding: 12px 16px; border-top: 1px solid var(--border); }
+  .site { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .site-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #scanNow { width: 100%; margin-top: 10px; }
+
+  .counts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .count { background: var(--surface); border-radius: 8px; padding: 8px; text-align: center; }
+  .count b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; line-height: 1.2; }
+  .count.red b { color: var(--red); }
+  .count.yellow b { color: var(--yellow); }
+  .count.green b { color: var(--green); }
+  .count span { font-size: 11px; color: var(--muted); }
+  .pending { margin-top: 8px; min-height: 16px; }
+
+  .scale { display: flex; height: 6px; border-radius: 999px; overflow: hidden; margin: 8px 0 4px; }
+  .scale div { height: 100%; }
+  .scale-labels { position: relative; height: 14px; font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .scale-labels span { position: absolute; transform: translateX(-50%); }
+
+  .backend { display: flex; align-items: center; gap: 8px; }
+  .backend-text { flex: 1; min-width: 0; }
+  .backend-text div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  footer { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px 14px; border-top: 1px solid var(--border); }
+  .off section:not(.always), .off footer .hide-off { opacity: 0.45; pointer-events: none; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>AI Content Flag</h1>
+    <label class="switch" title="Extension an/aus (Alt+Shift+A)">
+      <input type="checkbox" id="enabled" aria-label="Extension aktiv" />
+      <span></span>
+    </label>
+  </header>
+
+  <section>
+    <div class="site">
+      <div style="min-width:0">
+        <div class="site-name" id="host">–</div>
+        <div class="small muted" id="siteHint"></div>
+      </div>
+      <label class="switch" id="siteSwitch" title="Diese Seite automatisch scannen">
+        <input type="checkbox" id="siteAuto" aria-label="Diese Seite automatisch scannen" />
+        <span></span>
+      </label>
+    </div>
+    <button id="scanNow" class="primary">Diese Seite jetzt scannen</button>
+  </section>
+
+  <section>
+    <h2>Diese Seite</h2>
+    <div class="counts">
+      <div class="count red"><b id="cRed">–</b><span>wahrsch. KI</span></div>
+      <div class="count yellow"><b id="cYellow">–</b><span>unklar</span></div>
+      <div class="count green"><b id="cGreen">–</b><span>wahrsch. Mensch</span></div>
+    </div>
+    <div class="pending small muted" id="pending"></div>
+
+    <div class="scale" id="scale" aria-hidden="true"></div>
+    <div class="scale-labels" id="scaleLabels"></div>
+  </section>
+
+  <section class="always">
+    <div class="backend">
+      <span class="dot gray" id="backendDot"></span>
+      <div class="backend-text">
+        <div id="backendName">–</div>
+        <div class="small muted" id="backendStatus">Prüfe…</div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span class="small muted">Scores sind Schätzungen, keine Beweise.</span>
+    <button id="openOptions">Einstellungen</button>
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

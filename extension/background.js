@@ -1,64 +1,273 @@
-const DEFAULTS = {
-  enabled: true,
-  threshold: 0.90,
-  serverUrl: "http://127.0.0.1:8787", // shim_server.py, not laya-serve directly
-  model: "tmr" // "tmr" | "english" | "multilingual" - see server/shim_server.py
-};
+importScripts("config.js");
+
+const LOCAL_TIMEOUT_MS = 180_000; // desklib braucht auf CPU ~2 Min pro 25er-Batch
+const REMOTE_TIMEOUT_MS = 30_000;
+const CACHE_MAX = 5000;
+const TEST_TEXT =
+  "Maintaining a bicycle in good working condition requires regular attention to several " +
+  "key components, including the tires, the chain and the brake pads.";
+
+const BADGE_COLORS = { red: "#dc2626", yellow: "#a16207", green: "#16a34a", error: "#6b7280", off: "#6b7280" };
+
+// providerSignature|textHash -> probability; überlebt Tab-Wechsel, nicht aber einen SW-Neustart
+const cache = new Map();
+let lastStatus = null; // { ok, error?, at, provider }
 
 async function getConfig() {
-  const stored = await chrome.storage.sync.get(DEFAULTS);
-  return { ...DEFAULTS, ...stored };
+  const [sync, local] = await Promise.all([
+    chrome.storage.sync.get(AIVSAI.DEFAULTS),
+    chrome.storage.local.get(AIVSAI.SECRET_DEFAULTS)
+  ]);
+  return { ...AIVSAI.DEFAULTS, ...sync, ...AIVSAI.SECRET_DEFAULTS, ...local };
 }
 
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg?.type !== "SCORE_BATCH") return false;
-  scoreBatch(msg.items, sender)
-    .then(sendResponse)
-    .catch((err) => sendResponse({ ok: false, error: String(err) }));
-  return true; // keep the message channel open for the async response
+// ---------------------------------------------------------------------------
+// Provider: jeder bekommt eine Liste Texte und liefert pro Text eine
+// KI-Wahrscheinlichkeit 0..1 (oder null, falls für diesen Text nichts kam).
+// ---------------------------------------------------------------------------
+
+const trimSlash = (url) => url.replace(/\/+$/, "");
+
+async function httpError(resp) {
+  let detail = "";
+  try {
+    const body = await resp.json();
+    detail = body?.error?.message || body?.error || body?.detail || "";
+    if (typeof detail !== "string") detail = JSON.stringify(detail);
+  } catch {
+    // Body ist kein JSON - Statuscode reicht
+  }
+  return new Error(`HTTP ${resp.status}${detail ? `: ${detail}` : ""}`);
+}
+
+// Einheitlicher Vertrag für lokalen und eigenen Server:
+//   POST {texts: [...], model?} -> {scores: [0..1, ...]}
+async function postScoreContract(url, texts, model, apiKey, timeoutMs) {
+  const headers = { "Content-Type": "application/json" };
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+  const resp = await fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(model ? { model, texts } : { texts }),
+    signal: AbortSignal.timeout(timeoutMs)
+  });
+  if (!resp.ok) throw await httpError(resp);
+  const data = await resp.json();
+  if (!Array.isArray(data.scores) || data.scores.length !== texts.length) {
+    throw new Error("Antwort enthält kein passendes 'scores'-Array");
+  }
+  return data.scores.map((s) => (typeof s === "number" ? s : null));
+}
+
+const AI_LABEL = /^(ai|fake|machine|generated|ai[-_ ]generated|machine[-_ ]generated|chatgpt|gpt|llm|label_1)$/i;
+const HUMAN_LABEL = /^(human|real|human[-_ ]written|label_0)$/i;
+
+function probabilityFromLabels(labels, aiLabel) {
+  const isAi = aiLabel ? (l) => l.toLowerCase() === aiLabel.toLowerCase() : (l) => AI_LABEL.test(l);
+  const ai = labels.find((x) => isAi(String(x.label)));
+  if (ai) return ai.score;
+  // nur Top-1 zurückgekommen und das war die Mensch-Klasse
+  const human = labels.find((x) => HUMAN_LABEL.test(String(x.label)));
+  if (human && labels.length === 1) return 1 - human.score;
+  return null;
+}
+
+async function scoreHuggingFace(texts, cfg) {
+  if (!cfg.hfModel) throw new Error("Kein Hugging-Face-Modell konfiguriert");
+  const headers = { "Content-Type": "application/json" };
+  if (cfg.hfToken) headers.Authorization = `Bearer ${cfg.hfToken}`;
+  const resp = await fetch(hfUrl(cfg), {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ inputs: texts }),
+    signal: AbortSignal.timeout(REMOTE_TIMEOUT_MS)
+  });
+  if (!resp.ok) throw await httpError(resp);
+  let data = await resp.json();
+
+  // Antwortformen normalisieren: [[{label,score},...], ...] pro Text,
+  // bei einem Einzeltext teils [{label,score},...], bei Top-1 teils flach.
+  if (!Array.isArray(data)) throw new Error("Unerwartete Antwort der Inference API");
+  if (data.length && !Array.isArray(data[0])) {
+    data = texts.length === 1 ? [data] : data.map((x) => [x]);
+  }
+  if (data.length !== texts.length) throw new Error("Anzahl Ergebnisse passt nicht zur Anzahl Texte");
+
+  const scores = data.map((labels) => probabilityFromLabels(labels, cfg.hfAiLabel));
+  if (scores.every((s) => s === null)) {
+    const seen = data[0]?.map((x) => x.label).join(", ");
+    throw new Error(`KI-Label nicht gefunden (Modell liefert: ${seen}) – in den Einstellungen setzen`);
+  }
+  return scores;
+}
+
+function hfUrl(cfg) {
+  return `https://router.huggingface.co/hf-inference/models/${cfg.hfModel}`;
+}
+
+const PROVIDERS = {
+  local: {
+    score: (texts, cfg) =>
+      postScoreContract(`${trimSlash(cfg.localUrl)}/v1/score`, texts, cfg.localModel, null, LOCAL_TIMEOUT_MS)
+  },
+  custom: {
+    score: (texts, cfg) => {
+      if (!cfg.customUrl) throw new Error("Keine Server-URL konfiguriert");
+      return postScoreContract(cfg.customUrl, texts, cfg.customModel, cfg.customApiKey, REMOTE_TIMEOUT_MS);
+    }
+  },
+  huggingface: { score: scoreHuggingFace }
+};
+
+function describeError(err, cfg) {
+  if (err?.name === "TimeoutError") return "Zeitüberschreitung beim Backend";
+  // fetch() meldet DNS-/Verbindungsfehler und fehlende Host-Berechtigung nur als TypeError
+  if (err instanceof TypeError) {
+    return cfg.provider === "local"
+      ? `Lokaler Server nicht erreichbar (${cfg.localUrl}) – läuft shim_server.py?`
+      : "Backend nicht erreichbar (Netzwerk oder fehlende Berechtigung – in den Einstellungen speichern)";
+  }
+  return String(err?.message || err);
+}
+
+function providerSignature(cfg) {
+  return AIVSAI.PROVIDER_KEYS.map((k) => cfg[k]).join("\u0001");
+}
+
+function cachePut(key, value) {
+  cache.delete(key);
+  cache.set(key, value);
+  if (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);
+}
+
+async function scoreBatch(items) {
+  const cfg = await getConfig();
+  if (!cfg.enabled || !items?.length) return { ok: true, scores: {} };
+
+  const provider = PROVIDERS[cfg.provider] || PROVIDERS.local;
+  const sig = providerSignature(cfg);
+  const scores = {};
+  const missing = [];
+  for (const it of items) {
+    const hit = cache.get(`${sig}|${it.id}`);
+    if (hit !== undefined) scores[it.id] = hit;
+    else missing.push(it);
+  }
+  if (!missing.length) return { ok: true, scores };
+
+  try {
+    const result = await provider.score(missing.map((it) => it.text), cfg);
+    missing.forEach((it, i) => {
+      if (typeof result[i] !== "number") return;
+      scores[it.id] = result[i];
+      cachePut(`${sig}|${it.id}`, result[i]);
+    });
+    lastStatus = { ok: true, at: Date.now(), provider: AIVSAI.providerLabel(cfg) };
+    return { ok: true, scores };
+  } catch (err) {
+    const error = describeError(err, cfg);
+    lastStatus = { ok: false, error, at: Date.now(), provider: AIVSAI.providerLabel(cfg) };
+    return { ok: false, error, scores };
+  }
+}
+
+async function testProvider() {
+  const cfg = await getConfig();
+  const provider = PROVIDERS[cfg.provider] || PROVIDERS.local;
+  const started = Date.now();
+  try {
+    const [score] = await provider.score([TEST_TEXT], cfg);
+    return { ok: true, score, ms: Date.now() - started, provider: AIVSAI.providerLabel(cfg) };
+  } catch (err) {
+    return { ok: false, error: describeError(err, cfg), provider: AIVSAI.providerLabel(cfg) };
+  }
+}
+
+// Leichter Check fürs Popup: lokal per /healthz, remote nur der letzte bekannte Stand
+// (ein echter Probe-Request würde bei Cloud-Anbietern Kosten/Quota verbrauchen).
+async function health() {
+  const cfg = await getConfig();
+  const provider = AIVSAI.providerLabel(cfg);
+  if (cfg.provider === "local") {
+    try {
+      const resp = await fetch(`${trimSlash(cfg.localUrl)}/healthz`, { signal: AbortSignal.timeout(3000) });
+      return resp.ok ? { ok: true, provider } : { ok: false, provider, error: `HTTP ${resp.status}` };
+    } catch {
+      return { ok: false, provider, error: "Lokaler Server nicht erreichbar" };
+    }
+  }
+  if (lastStatus?.provider === provider) return lastStatus;
+  return { ok: null, provider };
+}
+
+// ---------------------------------------------------------------------------
+// Badge: Anzahl roter (sonst gelber) Absätze pro Tab, "AUS" wenn deaktiviert
+// ---------------------------------------------------------------------------
+
+async function updateBadge(tabId, stats) {
+  const { enabled } = await chrome.storage.sync.get({ enabled: AIVSAI.DEFAULTS.enabled });
+  let text = "";
+  let color = BADGE_COLORS.off;
+  if (!enabled) {
+    text = "AUS";
+  } else if (stats?.error) {
+    text = "!";
+    color = BADGE_COLORS.error;
+  } else if (stats?.red) {
+    text = String(stats.red);
+    color = BADGE_COLORS.red;
+  } else if (stats?.yellow) {
+    text = String(stats.yellow);
+    color = BADGE_COLORS.yellow;
+  } else if (stats?.green) {
+    text = "✓";
+    color = BADGE_COLORS.green;
+  }
+  const target = tabId === undefined ? {} : { tabId };
+  try {
+    await chrome.action.setBadgeText({ ...target, text });
+    await chrome.action.setBadgeBackgroundColor({ ...target, color });
+  } catch {
+    // Tab wurde inzwischen geschlossen
+  }
+}
+
+async function toggleEnabled() {
+  const { enabled } = await chrome.storage.sync.get({ enabled: AIVSAI.DEFAULTS.enabled });
+  await chrome.storage.sync.set({ enabled: !enabled });
+}
+
+chrome.runtime.onInstalled.addListener(() => updateBadge());
+chrome.runtime.onStartup.addListener(() => updateBadge());
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "sync" && "enabled" in changes) updateBadge();
 });
 
-async function scoreBatch(items, sender) {
-  const config = await getConfig();
-  if (!config.enabled || !items?.length) return { ok: true, scores: {} };
+chrome.commands.onCommand.addListener(async (command) => {
+  if (command === "toggle-enabled") {
+    await toggleEnabled();
+  } else if (command === "scan-page") {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.id) chrome.tabs.sendMessage(tab.id, { type: "SCAN_NOW" }, () => void chrome.runtime.lastError);
+  }
+});
 
-  const hostname = (() => {
-    try {
-      return sender.tab?.url ? new URL(sender.tab.url).hostname : "";
-    } catch {
-      return "";
-    }
-  })();
-
-  const state = {
-    hostname,
-    candidates: items.map((it) => ({ text: it.text }))
-  };
-
-  const questions = {};
-  items.forEach((_, i) => {
-    questions[`c${i}`] = {
-      type: "noul",
-      instructions:
-        `Is candidates[${i}].text primarily generated by an AI/LLM, rather than written ` +
-        `by a human? Judge only the writing style/patterns, not the topic or correctness.`
-    };
-  });
-
-  // fail open: any network/HTTP error just means "no scores this round",
-  // never blocks or breaks the page.
-  const resp = await fetch(`${config.serverUrl}/v1/systemone`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model: config.model, state, questions })
-  });
-  if (!resp.ok) throw new Error(`laya-serve HTTP ${resp.status}`);
-
-  const data = await resp.json();
-  const scores = {};
-  items.forEach((it, i) => {
-    const ans = data.answers?.[`c${i}`];
-    if (ans && typeof ans.noul === "number") scores[it.id] = ans.noul;
-  });
-  return { ok: true, scores };
-}
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  switch (msg?.type) {
+    case "SCORE_BATCH":
+      scoreBatch(msg.items).then(sendResponse);
+      return true; // async response
+    case "STATS":
+      if (sender.tab?.id !== undefined) updateBadge(sender.tab.id, msg.stats);
+      return false;
+    case "HEALTH":
+      health().then(sendResponse);
+      return true;
+    case "TEST_PROVIDER":
+      testProvider().then(sendResponse);
+      return true;
+    default:
+      return false;
+  }
+});
