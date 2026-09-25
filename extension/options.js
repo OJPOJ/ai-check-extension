@@ -287,8 +287,8 @@ function renderScanMode() {
 function renderScale() {
   const y = parseFloat($("yellowFrom").value);
   const r = parseFloat($("redFrom").value);
-  $("yellowFromValue").textContent = `${Math.round(y * 100)}%`;
-  $("redFromValue").textContent = `${Math.round(r * 100)}%`;
+  $("yellowFromValue").textContent = String(Math.round(y * 100));
+  $("redFromValue").textContent = String(Math.round(r * 100));
   $("scale").innerHTML =
     `<div style="width:${y * 100}%;background:var(--green)"></div>` +
     `<div style="width:${Math.max(0, r - y) * 100}%;background:var(--yellow)"></div>` +
@@ -301,7 +301,7 @@ function renderPresetInfo() {
   const same = p.yellowFrom === parseFloat($("yellowFrom").value) && p.redFrom === parseFloat($("redFrom").value);
   $("presetInfo").textContent = same
     ? "entspricht der Empfehlung"
-    : `Empfehlung: gelb ab ${Math.round(p.yellowFrom * 100)} %, rot ab ${Math.round(p.redFrom * 100)} %`;
+    : `Empfehlung: gelb ab ${Math.round(p.yellowFrom * 100)}, rot ab ${Math.round(p.redFrom * 100)}`;
 }
 
 function applyPreset() {
@@ -362,6 +362,11 @@ async function refreshModel() {
 
 function bindModelButtons() {
   $("modelDownload").addEventListener("click", async () => {
+    const { download, askBeforeDownload } = AIVSAI.MODELS[selectedModel()].browser;
+    const question =
+      `Das Modell lädt einmalig ${download} herunter. Bei mobilem Internet oder begrenztem Datenvolumen ` +
+      "besser im WLAN. Jetzt herunterladen?";
+    if (askBeforeDownload && !confirm(question)) return;
     $("modelDownload").hidden = true;
     renderProgress(null);
     const st = await chrome.runtime.sendMessage({ type: "MODEL_DOWNLOAD", model: selectedModel() });

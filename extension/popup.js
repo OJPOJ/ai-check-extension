@@ -22,7 +22,7 @@ function renderScale() {
     `<div style="width:${r - y}%;background:var(--yellow)"></div>` +
     `<div style="width:${100 - r}%;background:var(--red)"></div>`;
   $("scaleLabels").innerHTML =
-    `<span style="left:${y}%">${Math.round(y)}%</span><span style="left:${r}%">${Math.round(r)}%</span>`;
+    `<span style="left:${y}%">${Math.round(y)}</span><span style="left:${r}%">${Math.round(r)}</span>`;
 }
 
 function renderSite() {
@@ -56,13 +56,14 @@ function renderSite() {
 function renderStats(stats) {
   const set = (id, v) => ($(id).textContent = v ?? "–");
   if (!stats) {
-    ["cRed", "cYellow", "cGreen"].forEach((id) => set(id));
+    ["cRed", "cYellow", "cGreen", "cUncertain"].forEach((id) => set(id));
     $("pending").textContent = "";
     return;
   }
   set("cRed", stats.red);
   set("cYellow", stats.yellow);
   set("cGreen", stats.green);
+  set("cUncertain", stats.uncertain);
   $("scanNow").textContent = stats.active ? "Seite neu scannen" : "Diese Seite jetzt scannen";
   // Heuristik aus dem Content-Script - kennt das Popup nicht aus den Einstellungen
   if (stats.blockReason === "sensitive") {
@@ -77,7 +78,12 @@ function renderStats(stats) {
     $("pending").textContent = `${stats.pending} Absatz/Absätze werden geprüft…`;
   } else if (stats.deferred) {
     $("pending").textContent = `${stats.deferred} weitere Absätze werden beim Scrollen geprüft.`;
-  } else if (stats.active && !stats.red && !stats.yellow && !stats.green) {
+  } else if (stats.skipped) {
+    const langs = AIVSAI.languages(config);
+    $("pending").textContent =
+      `${stats.skipped} Absatz/Absätze in anderer Sprache nicht bewertet` +
+      (langs ? ` – das Modell kennt nur ${langs.map(AIVSAI_LANG.name).join(", ")}.` : ".");
+  } else if (stats.active && !stats.red && !stats.yellow && !stats.green && !stats.uncertain) {
     $("pending").textContent = "Keine ausreichend langen Textabsätze gefunden.";
   } else if (stats.blocked) {
     $("pending").textContent = "Keine automatische Prüfung – einzelne Stellen per Rechtsklick.";

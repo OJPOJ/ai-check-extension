@@ -13,13 +13,20 @@ globalThis.AIVSAI_MODELS = {
     title: "Schnell – TMR", // Auswahlkarte in den Einstellungen, darunter `summary`
     summary:
       "RoBERTa-base, 126 MB. ~0,15 s pro Absatz, ~300 MB RAM. " +
-      "Markiert sachliche Texte (z.B. englische Wikipedia) oft fälschlich als KI.",
+      "Hält menschlichen Sachtext öfter für KI als desklib, deshalb strengere Schwellen.",
     // Kontext des Modells und wie viel Text der Auto-Scan dafür schickt (content.js, clipText).
     // TMR ist schnell und profitiert stark von mehr Text: volle 512 Tokens (~2000 Zeichen Englisch).
     maxTokens: 512,
     maxChars: 2000,
-    // Startwerte der Ampel aus training/EVAL_RESULTS.md (kleine Stichprobe, keine Garantie)
-    thresholds: { yellowFrom: 0.6, redFrom: 0.9 },
+    // Startwerte der Ampel (training/EVAL_RESULTS.md, "Fehlalarme auf Wikipedia"): TMR liegt auch bei
+    // menschlichem Sachtext meist hoch - bei 0.9 waren 40 % der Wikipedia-Absätze mit 80-149 Wörtern rot.
+    // Bei 0.98 ab 120 Wörtern ~1 % Fehlalarme, erkannt werden noch ~90 % der ChatGPT-Texte.
+    thresholds: { yellowFrom: 0.95, redFrom: 0.98 },
+    // Darunter wird ein hoher Score "unsicher" statt gelb/rot (config.js, level). Wikipedia-Absätze mit
+    // 80-119 Wörtern: 15 % über 0.98, mit 120-149 Wörtern 1,5 %.
+    reliableWords: 120,
+    // Absätze in anderen Sprachen bewertet der Auto-Scan nicht (lang-detect.js)
+    languages: ["en"],
     browser: {
       // fertige ONNX-Version von onnx-community, lädt transformers.js selbst herunter
       repo: "onnx-community/tmr-ai-text-detector-ONNX",
@@ -56,6 +63,9 @@ globalThis.AIVSAI_MODELS = {
     maxTokens: 768,
     maxChars: 1500,
     thresholds: { yellowFrom: 0.5, redFrom: 0.87 },
+    // Wikipedia-Absätze mit 80-119 Wörtern: ~15 % über 0.87, ab 120 Wörtern 0-2 % (n = 60, grob)
+    reliableWords: 120,
+    languages: ["en"],
     browser: {
       // Gibt es nicht als brauchbares ONNX: Original herunterladen und im Browser umwandeln
       // (desklib_build.js). Die Cache-Einträge liegen unter einer eigenen ID, die es auf Hugging Face nicht gibt.
@@ -64,6 +74,7 @@ globalThis.AIVSAI_MODELS = {
       version: "5fdea97-nbits8b32",
       marker: "onnx/model_quantized.onnx_data",
       download: "1,7 GB",
+      askBeforeDownload: true, // Rückfrage in den Einstellungen (Datenvolumen)
       build: {
         source: "desklib/ai-text-detector-v1.01",
         tokenizerFiles: ["tokenizer.json", "tokenizer_config.json", "special_tokens_map.json", "added_tokens.json"],

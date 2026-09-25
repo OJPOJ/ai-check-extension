@@ -60,10 +60,15 @@ export async function launchExtension({ pages = {}, viewport = { width: 900, hei
     }
     [sw] = ctx.serviceWorkers();
     sw ||= await ctx.waitForEvent("serviceworker");
-    // onInstalled öffnet die Einstellungen (dient als Extension-Kontext für Nachrichten) - mal als
-    // neuen Tab, mal im leeren Starttab. Nicht selbst öffnen: openOptionsPage() würde diesen Tab
-    // wiederverwenden und unsere Navigation abbrechen.
-    options = await until(() => ctx.pages().find((p) => p.url().endsWith("/options.html")), {
+    // onInstalled öffnet die Begrüßung - mal als neuen Tab, mal im leeren Starttab. Von dort weiter zu
+    // den Einstellungen wie ein Nutzer (prüft nebenbei den Link); die Seite dient danach als
+    // Extension-Kontext für Nachrichten.
+    const welcome = await until(() => ctx.pages().find((p) => p.url().endsWith("/welcome.html")), {
+      message: "Begrüßungsseite wurde nicht geöffnet"
+    });
+    await welcome.waitForLoadState();
+    await welcome.click("a[href^='options.html']");
+    options = await until(() => ctx.pages().find((p) => p.url().includes("/options.html")), {
       message: "Einstellungsseite wurde nicht geöffnet"
     });
     await options.waitForLoadState();
@@ -130,5 +135,8 @@ export const storedScores = (page) =>
       })
   );
 
-/** Absatztext mit Kennung, lang genug für den Auto-Scan (>= 40 Wörter). */
-export const longText = (tag) => `${tag} ` + "words about gardening soil water light and patience in the spring ".repeat(5);
+/**
+ * Absatztext mit Kennung, lang genug für den Auto-Scan (>= 40 Wörter) und für gelb/rot statt „unsicher“
+ * (~165 Wörter, AIVSAI.reliableWords).
+ */
+export const longText = (tag) => `${tag} ` + "words about gardening soil water light and patience in the spring ".repeat(15);

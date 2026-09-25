@@ -6,8 +6,10 @@ import path from "node:path";
 import { after, before, describe, it } from "node:test";
 import { ROOT, launchExtension, sleep, startBackend } from "./helpers.mjs";
 
+await import("../../extension/models.js"); // globalThis.AIVSAI_MODELS
+
 const harness = fs.readFileSync(path.join(ROOT, "test", "harness.html"), "utf8");
-const para = (i) => `<p id="p${i}">Paragraph ${i} ` + "lorem ipsum dolor sit amet consectetur adipiscing elit sed do ".repeat(6) + "</p>";
+const para = (i) => `<p id="p${i}">Paragraph ${i} ` + "lorem ipsum dolor sit amet consectetur adipiscing elit sed do ".repeat(16) + "</p>";
 const tall = `<html><body>${Array.from({ length: 60 }, (_, i) => para(i)).join("\n")}</body></html>`;
 const scored = (page) => page.$$eval("[data-aivsai-level]", (els) => els.map((e) => e.dataset.aivsaiLevel));
 
@@ -49,7 +51,10 @@ describe("Scan und Bedienung", () => {
     const levels = await scored(page);
     const count = (l) => levels.filter((x) => x === l).length;
     assert.ok(levels.length >= 4);
-    assert.deepEqual([stats.red, stats.yellow, stats.green], [count("red"), count("yellow"), count("green")]);
+    assert.deepEqual(
+      [stats.red, stats.yellow, stats.green, stats.uncertain],
+      [count("red"), count("yellow"), count("green"), count("uncertain")]
+    );
     assert.ok((await page.$$(".aivsai-badge")).length > 0, "Prozent-Badges fehlen");
   });
 
@@ -66,7 +71,8 @@ describe("Scan und Bedienung", () => {
     await page.evaluate(() => {
       const p = document.createElement("p");
       p.id = "dyn";
-      p.textContent = "Dynamically inserted paragraph ".repeat(12) + " with more words to pass the threshold.";
+      // echtes Englisch - die Harness-Seite ist lang="de", unklare Sprache würde übersprungen
+      p.textContent = "This paragraph was inserted by a script after the page had loaded. ".repeat(4);
       document.body.append(p);
     });
     await page.waitForFunction(() => document.querySelector("#dyn")?.dataset.aivsaiLevel, null, { timeout: 5000 });
@@ -94,13 +100,13 @@ describe("Scan und Bedienung", () => {
   it("prüft markierten Text und zeigt das Ergebnis im Popover", async () => {
     await page.evaluate(() => {
       const r = document.createRange();
-      r.selectNodeContents(document.querySelector("p"));
+      r.selectNodeContents(document.querySelector("#long-example"));
       getSelection().removeAllRanges();
       getSelection().addRange(r);
     });
     await ext.sendToTab("harness.test", { type: "CHECK_SELECTION" });
-    await page.waitForFunction(() => /% KI/.test(document.querySelector("aivsai-popover")?.shadowRoot.textContent || ""));
-    assert.ok(await page.evaluate(() => ["green", "yellow", "red"].some((l) => CSS.highlights.get(`aivsai-${l}`)?.size)));
+    await page.waitForFunction(() => /Hinweis, kein Beweis/.test(document.querySelector("aivsai-popover")?.shadowRoot.textContent || ""));
+    assert.ok(await page.evaluate(() => ["green", "yellow", "red", "uncertain"].some((l) => CSS.highlights.get(`aivsai-${l}`)?.size)));
     await page.keyboard.press("Escape");
     assert.equal(await page.$("aivsai-popover"), null);
   });
@@ -115,7 +121,60 @@ describe("Scan und Bedienung", () => {
     await page.click("#short", { button: "right" });
     await ext.sendToTab("harness.test", { type: "CHECK_ELEMENT" });
     await page.waitForFunction(() => document.querySelector("#short").dataset.aivsaiLevel);
-    assert.match(await page.evaluate(() => document.querySelector("aivsai-popover").shadowRoot.textContent), /Kurzer Text/);
+    // grün mit Hinweis oder - bei hohem Score - „unsicher“ statt gelb/rot
+    assert.match(await page.evaluate(() => document.querySelector("aivsai-popover").shadowRoot.textContent), /Kurzer Text|Nur 8 Wörter/);
+  });
+
+  it("zeigt kurze Absätze mit hohem Score als „unsicher“ statt gelb/rot", async () => {
+    // Provider "Lokal" mit TMR, Schwellen seit dem Test oben 0.6/0.9
+    const min = AIVSAI_MODELS.tmr.reliableWords;
+    const wrong = await page.$$eval(
+      "[data-aivsai-level]",
+      (els, min) =>
+        els
+          .map((el) => ({ level: el.dataset.aivsaiLevel, p: Number(el.dataset.aivsaiScore), words: el.innerText.split(/\s+/).filter(Boolean).length }))
+          .filter(({ level, p, words }) => (words < min && p >= 0.6 ? level !== "uncertain" : level === "uncertain")),
+      min
+    );
+    assert.deepEqual(wrong, []);
+    assert.ok(await page.$(".aivsai-uncertain[data-aivsai-label='unsicher']"), "kein Absatz „unsicher“ im Harness");
+  });
+
+  it("bewertet Absätze in anderer Sprache nicht und nennt sie im Popup-Status", async () => {
+    const stats = await ext.sendToTab("harness.test", { type: "GET_STATS" });
+    assert.equal(stats.skipped, 2); // Einleitung und Beispiel C
+    assert.equal(await page.$$eval("[data-aivsai-skipped='de']", (els) => els.length), 2);
+    assert.ok(!backend.texts.some((t) => t.includes("Wärmeleitfähigkeit")), "deutscher Text ging ans Backend");
+
+    // Polnisch kennt die Funktionswort-Heuristik nicht - erkannt von Chromes CLD3 (chrome.i18n.detectLanguage),
+    // sonst stünde hier das lang-Attribut der Seite ("de")
+    await page.evaluate(() => {
+      const p = document.createElement("p");
+      p.id = "polish";
+      p.textContent =
+        "Biblioteka miejska została przeniesiona do starej giełdy zbożowej w 1962 roku, po długiej dyskusji w radzie " +
+        "miasta o tym, czy budynek z tak małą liczbą okien może być przyjemnym miejscem do czytania. Architekci " +
+        "rozwiązali ten problem, wycinając w dachu rząd świetlików i obniżając stoły, tak aby światło padało na nie po południu.";
+      document.body.append(p);
+    });
+    await page.waitForFunction(() => document.querySelector("#polish")?.dataset.aivsaiSkipped, null, { timeout: 5000 });
+    assert.equal(await page.$eval("#polish", (el) => el.dataset.aivsaiSkipped), "pl");
+    await page.evaluate(() => document.querySelector("#polish").remove());
+
+    // Rechtsklick: erst Hinweis, auf Wunsch trotzdem prüfen - Ergebnis dann „unsicher“, nie rot
+    await page.click("text=Wärmeleitfähigkeit", { button: "right" });
+    await ext.sendToTab("harness.test", { type: "CHECK_ELEMENT" });
+    const popover = () => page.evaluate(() => document.querySelector("aivsai-popover")?.shadowRoot.textContent || "");
+    await page.waitForFunction(() => /Trotzdem prüfen/.test(document.querySelector("aivsai-popover")?.shadowRoot.textContent || ""));
+    assert.match(await popover(), /Text auf Deutsch/);
+    await page.getByRole("button", { name: "Trotzdem prüfen", exact: true }).click();
+    await page.waitForFunction(() => /Nicht bewertbar/.test(document.querySelector("aivsai-popover")?.shadowRoot.textContent || ""));
+    assert.ok(backend.texts.some((t) => t.includes("Wärmeleitfähigkeit")));
+    const levels = await page.$$eval("[data-aivsai-level]", (els) =>
+      els.filter((el) => el.textContent.includes("Wärmeleitfähigkeit")).map((el) => el.dataset.aivsaiLevel)
+    );
+    assert.deepEqual(levels, ["uncertain"]);
+    await page.keyboard.press("Escape");
   });
 
   it("entfernt beim Ausschalten alles und scannt nichts Neues", async () => {
@@ -126,7 +185,7 @@ describe("Scan und Bedienung", () => {
     await page.evaluate(() => {
       const p = document.createElement("p");
       p.id = "off";
-      p.textContent = "Added while disabled paragraph ".repeat(12);
+      p.textContent = "This paragraph was added while the extension was switched off. ".repeat(4);
       document.body.append(p);
     });
     await sleep(1200);

@@ -35,7 +35,7 @@ describe("Feedback", () => {
       getSelection().addRange(r);
     });
     await ext.sendToTab("feedback.test", { type: "CHECK_SELECTION" });
-    await tab.waitForFunction(() => /% KI/.test(document.querySelector("aivsai-popover")?.shadowRoot.textContent || ""));
+    await tab.waitForFunction(() => /Hinweis, kein Beweis/.test(document.querySelector("aivsai-popover")?.shadowRoot.textContent || ""));
   }
 
   before(async () => {
@@ -132,7 +132,7 @@ describe("Feedback", () => {
     const { x, y } = await badgeCenter(auto, "#plain");
     await auto.mouse.click(x, y);
     await auto.waitForFunction(() => /Weißt du, woher/.test(document.querySelector("aivsai-popover")?.shadowRoot.textContent || ""));
-    assert.match(await text(), /97 % KI/);
+    assert.match(await text(), /KI-Score 97/);
     assert.equal(backend.requests, requests, "Details dürfen nicht neu rechnen");
 
     // Feedback-Ablauf wie bei der manuellen Prüfung, Text = was der Auto-Scan bewertet hat

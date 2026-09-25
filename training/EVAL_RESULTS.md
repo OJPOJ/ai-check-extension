@@ -102,3 +102,63 @@ füllt nur noch auf den längsten Text im Batch auf.
 Außerdem: Ein einzelner desklib-Text mit ~650 Tokens kostet auf der CPU ~4,5 s – deshalb schickt der
 Auto-Scan desklib nur bis 1500 Zeichen (~350 Tokens), obwohl das Modell 768 Tokens könnte
 (`extension/config.js`, `maxChars`).
+
+## Fehlalarme auf Wikipedia (2026-09-25)
+
+Frage: Wie oft wird menschlicher Sachtext rot? Anlass: TMR markierte Wikipedia „Photosynthesis“ 50/80 rot
+(Schwellen 0.6/0.9). Mensch: Absätze aus WikiText-2 (Wikipedia „Good“/„Featured“ Articles, vor 2016,
+also sicher ohne LLM), zum Vergleich menschliche HC3-Antworten; KI: ChatGPT-Antworten aus HC3. Texte wie
+im Auto-Scan gekürzt (TMR 2000, desklib 1500 Zeichen), nach Wortzahl aufgeteilt. Reproduzierbar mit
+`evaluate_false_alarms.py` (TMR n = 200, desklib n = 60 pro Zeile).
+
+Anteil mit Score ≥ Schwelle – bei Mensch = Fehlalarm, bei KI = erkannt.
+
+**TMR:**
+
+| Quelle | Wörter | ≥ 0.6 | ≥ 0.9 | ≥ 0.95 | ≥ 0.97 | ≥ 0.98 | ≥ 0.99 |
+|---|---|---|---|---|---|---|---|
+| Wikipedia (Mensch) | 40–79 | 89.5 % | 74.5 % | 59.5 % | 38.5 % | 20.0 % | 0 % |
+| Wikipedia (Mensch) | 80–119 | 66.0 % | 53.0 % | 43.0 % | 32.0 % | 15.5 % | 0 % |
+| Wikipedia (Mensch) | 120–149 | 28.5 % | 19.0 % | 14.5 % | 8.0 % | 1.5 % | 0 % |
+| Wikipedia (Mensch) | 150+ | 13.0 % | 8.5 % | 6.0 % | 2.5 % | 0.5 % | 0 % |
+| HC3 (Mensch) | 40–79 | 80.5 % | 55.5 % | 38.5 % | 21.5 % | 9.5 % | 0 % |
+| HC3 (Mensch) | 80–119 | 55.5 % | 40.5 % | 29.0 % | 19.5 % | 9.5 % | 0 % |
+| HC3 (Mensch) | 120–149 | 25.5 % | 13.5 % | 5.5 % | 2.0 % | 0.5 % | 0 % |
+| HC3 (Mensch) | 150+ | 39.0 % | 29.0 % | 18.5 % | 9.5 % | 2.5 % | 0 % |
+| HC3 ChatGPT (KI) | 40–79 | 100 % | 100 % | 99.5 % | 97.5 % | 81.5 % | 0 % |
+| HC3 ChatGPT (KI) | 80–119 | 99.5 % | 99.0 % | 98.5 % | 96.5 % | 86.5 % | 0 % |
+| HC3 ChatGPT (KI) | 120–149 | 99.5 % | 98.0 % | 96.5 % | 95.0 % | 87.0 % | 0 % |
+| HC3 ChatGPT (KI) | 150+ | 100 % | 100 % | 99.5 % | 98.5 % | 92.0 % | 0 % |
+
+- **Die alten Startwerte 0.6/0.9 waren für Sachtext unbrauchbar:** drei Viertel der kurzen
+  Wikipedia-Absätze rot, bei 80–119 Wörtern die Hälfte. TMR liegt fast immer hoch; die Trennung
+  steckt im schmalen Band 0.97–0.99 (über 0.99 kommt es praktisch nie).
+- **Länge entscheidet:** Selbst bei 0.98 sind 20 % bzw. 15,5 % der Wikipedia-Absätze unter 120 Wörtern
+  rot, darüber 1,5 % bzw. 0,5 %.
+- **Konsequenz (`extension/models.js`):** TMR gelb ab 0.95, rot ab 0.98; unter 120 Wörtern wird ein
+  hoher Score „unsicher“ statt gelb/rot (`reliableWords`). Kosten: rot werden noch ~87–92 % der
+  ChatGPT-Texte statt ~100 %.
+
+**desklib** (n = 60 pro Zeile, entsprechend grob):
+
+| Quelle | Wörter | ≥ 0.5 | ≥ 0.8 | ≥ 0.9 | ≥ 0.95 | ≥ 0.98 |
+|---|---|---|---|---|---|---|
+| Wikipedia (Mensch) | 40–79 | 35.0 % | 8.3 % | 1.7 % | 1.7 % | 1.7 % |
+| Wikipedia (Mensch) | 80–119 | 28.3 % | 16.7 % | 13.3 % | 10.0 % | 6.7 % |
+| Wikipedia (Mensch) | 120–149 | 13.3 % | 1.7 % | 0 % | 0 % | 0 % |
+| Wikipedia (Mensch) | 150+ | 5.0 % | 1.7 % | 0 % | 0 % | 0 % |
+| HC3 (Mensch) | 40–79 | 16.7 % | 6.7 % | 0 % | 0 % | 0 % |
+| HC3 (Mensch) | 80–119 | 3.3 % | 0 % | 0 % | 0 % | 0 % |
+| HC3 (Mensch) | 120–149 | 11.7 % | 6.7 % | 0 % | 0 % | 0 % |
+| HC3 (Mensch) | 150+ | 5.0 % | 5.0 % | 1.7 % | 0 % | 0 % |
+| HC3 ChatGPT (KI) | 40–79 | 98.3 % | 96.7 % | 96.7 % | 81.7 % | 68.3 % |
+| HC3 ChatGPT (KI) | 80–119 | 100 % | 98.3 % | 96.7 % | 93.3 % | 83.3 % |
+| HC3 ChatGPT (KI) | 120–149 | 98.3 % | 98.3 % | 98.3 % | 96.7 % | 95.0 % |
+| HC3 ChatGPT (KI) | 150+ | 100 % | 100 % | 100 % | 100 % | 100 % |
+
+- desklib trennt deutlich besser (bei Rot ab 0.87 werden fast alle KI-Texte erkannt), ist auf
+  Wikipedia unter 120 Wörtern aber auch nicht sauber: 80–119 Wörter ~15 % über der Rot-Schwelle.
+- **Konsequenz:** „unsicher“ unter 120 Wörtern für beide Modelle und als Standard für unbekannte;
+  desklib-Schwellen bleiben 0.5 / 0.87.
+- Einschränkungen: nur Englisch, KI nur ChatGPT 2023 (HC3, womöglich im Training der Modelle – die
+  Erkennungsraten sind eher zu optimistisch; die Fehlalarm-Raten auf Wikipedia betrifft das nicht).

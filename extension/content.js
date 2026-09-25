@@ -25,10 +25,10 @@
     "[role='textbox']";
   // Innerhalb eines Absatzes herausrechnen: Icon-Fonts ("chevron_right"), Code-Blöcke
   const STRIP_SELECTOR = "[aria-hidden='true'], pre";
-  const LEVEL_CLASSES = ["aivsai-green", "aivsai-yellow", "aivsai-red", "aivsai-badge"];
+  const LEVEL_CLASSES = ["aivsai-green", "aivsai-yellow", "aivsai-red", "aivsai-uncertain", "aivsai-badge"];
   // Manuelle Prüfung: auch kurze Texte (Ergebnis dann mit Hinweis)
   const MANUAL_MIN_WORDS = 5;
-  const HIGHLIGHT_STATES = ["pending", "green", "yellow", "red"];
+  const HIGHLIGHT_STATES = ["pending", "green", "yellow", "red", "uncertain"];
   // Heuristik "sensible Seite": sichtbares Passwort-, Zahlungs- oder Einmalcode-Feld. Felder in Dialogen
   // zählen nicht - sonst beendet das Login-Popup einer News-Seite den Scan des Artikels darunter.
   const SENSITIVE_SELECTOR =
@@ -48,10 +48,13 @@
   let sensitive = false; // Heuristik hat angeschlagen - gilt bis zum Neuladen
 
   // Ergebnis-Register - die eine Quelle für Statistik, Neu-Einfärben und später Feedback/Berichte.
-  //   results:      Element -> { hash, text, p, model, source: "auto" | "manual", at }
-  //   manualRanges: Range   -> { text, p, model, at } bzw. null, solange die Prüfung läuft
+  //   results:      Element -> { hash, text, truncated, words, p, model, source: "auto" | "manual", at, foreign? }
+  //   manualRanges: Range   -> { text, truncated, words, p, model, at, foreign? } bzw. null, solange die Prüfung läuft
+  //   skipped:      Element -> Sprache ("de", ...): vom Auto-Scan nicht bewertet, das Modell kennt sie nicht
+  // words = Wortzahl des ganzen Texts (-> Stufe "uncertain"), foreign = Sprache, falls trotzdem geprüft
   const results = new Map();
   const manualRanges = new Map();
+  const skipped = new Map();
   const seen = new Map(); // textHash -> { p, model }, damit gleiche Absätze nur einmal bewertet werden
 
   // Warteschlange: textHash -> { id, text, els, near }
@@ -264,11 +267,35 @@
   }
 
   function isQueuedOrScored(el) {
-    return results.has(el) || el.classList.contains("aivsai-pending") || el.classList.contains("aivsai-deferred");
+    return (
+      results.has(el) || skipped.has(el) || el.classList.contains("aivsai-pending") || el.classList.contains("aivsai-deferred")
+    );
   }
 
-  function collectCandidates(root) {
+  // lang-Attribut um `el` ("de-AT" -> "de"), "" wenn keins
+  const attrLang = (el) => (el?.closest("[lang]")?.lang || "").toLowerCase().split("-")[0];
+
+  // Sprache von `text`, falls das Modell sie nicht kennt (AIVSAI.languages), sonst "". Ist die Sprache
+  // unklar (gemischt, keine der erkannten Sprachen), entscheidet beim Auto-Scan das lang-Attribut (`attr`).
+  // Das Attribut allein reicht nicht: fehlt oft, steht auf dem Vorlagen-Standard "en" oder gilt nicht für
+  // den einzelnen Absatz. Manuelle Prüfung ohne `attr`: nur die Erkennung - dort ist der Text oft kurz und
+  // das Attribut der Seite kein guter Hinweis, und der Nutzer hat ausdrücklich gefragt.
+  async function foreignLang(text, attr = "") {
+    const langs = AIVSAI.languages(config);
+    if (!langs) return "";
+    const lang = (await AIVSAI_LANG.detectAsync(text)) || attr;
+    return lang && !langs.includes(lang) ? lang : "";
+  }
+
+  const langList = (langs) => langs.map(AIVSAI_LANG.name).join(", ");
+
+  // Absätze, deren Sprache gerade erkannt wird: Element -> Hash (verhindert doppeltes Einreihen, wenn
+  // währenddessen ein weiterer Scan läuft)
+  const detecting = new Map();
+
+  async function collectCandidates(root) {
     if (!root || root.nodeType !== Node.ELEMENT_NODE) return;
+    const gen = generation;
 
     // Phase 1 nur lesen. innerText braucht aktuelle Styles - würden zwischen den Lesezugriffen
     // Klassen geändert, müsste der Browser für jeden Absatz neu rechnen (Layout-Thrashing).
@@ -278,38 +305,57 @@
       if ((el.textContent || "").length < MIN_WORDS) continue;
       if (el.closest(EXCLUDE_SELECTOR) || hasLongCandidateChild(el)) continue;
       const text = readText(el);
-      if (!text || wordCount(text) < MIN_WORDS) continue;
+      const words = text ? wordCount(text) : 0;
+      if (words < MIN_WORDS) continue;
       const hash = hashText(text);
-      if (el.dataset.aivsaiHash === hash && isQueuedOrScored(el)) continue;
-      found.push({ el, text, hash });
+      if ((el.dataset.aivsaiHash === hash && isQueuedOrScored(el)) || detecting.get(el) === hash) continue;
+      detecting.set(el, hash);
+      found.push({ el, text, hash, words, attr: attrLang(el) });
     }
+    if (!found.length) return;
+
+    // Sprache erkennen - für jeden Absatz einzeln, und zwar genau den Ausschnitt, den das Modell sähe
+    // (clipText). Asynchron, schreibt nichts; danach verworfen, falls inzwischen alles zurückgesetzt wurde
+    // oder ein neuerer Scan denselben Absatz mit anderem Text übernommen hat. Nachgeladene oder geänderte
+    // Absätze laufen über den MutationObserver erneut hier durch.
+    const foreign = await Promise.all(found.map((f) => foreignLang(clipText(f.text), f.attr)));
+    if (gen !== generation) return;
 
     // Phase 2 nur schreiben
-    for (const { el, text, hash } of found) {
+    for (const [i, { el, text, hash, words }] of found.entries()) {
+      if (detecting.get(el) !== hash) continue;
+      detecting.delete(el);
       el.dataset.aivsaiHash = hash;
       unstyle(el); // Text hat sich geändert - alte Bewertung gilt nicht mehr
+      if (foreign[i]) {
+        // Nicht bewerten: In fremder Sprache sind Scores Rauschen und oft zu hoch (deutscher Fachtext: 78).
+        // Keine Markierung am Absatz, das Popup nennt die Zahl; per Rechtsklick lässt er sich trotzdem prüfen.
+        skipped.set(el, foreign[i]);
+        el.dataset.aivsaiSkipped = foreign[i];
+        continue;
+      }
 
       const clipped = clipText(text);
       const truncated = clipped.length < text.length;
       const known = seen.get(hash);
       if (known) {
-        applyScore(el, { hash, text: clipped, truncated, ...known, source: "auto" });
+        applyScore(el, { hash, text: clipped, truncated, words, ...known, source: "auto" });
         continue;
       }
       const entry = inFlight.get(hash) || pending.get(hash);
       if (entry) {
         entry.els.push(el);
       } else {
-        pending.set(hash, { id: hash, text: clipped, truncated, els: [el], near: true });
+        pending.set(hash, { id: hash, text: clipped, truncated, words, els: [el], near: true });
       }
       el.classList.add("aivsai-pending");
     }
   }
 
-  function scanAndQueue(root) {
+  async function scanAndQueue(root) {
     if (!isActive()) return;
-    collectCandidates(root);
-    if (pending.size) {
+    await collectCandidates(root);
+    if (pending.size && isActive()) {
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(pump, DEBOUNCE_MS);
     }
@@ -428,7 +474,8 @@
       if (typeof p === "number") {
         const known = { p, model: resp.model };
         seen.set(b.id, known);
-        b.els.forEach((el) => applyScore(el, { hash: b.id, text: b.text, truncated: b.truncated, ...known, source: "auto" }));
+        const record = { hash: b.id, text: b.text, truncated: b.truncated, words: b.words, ...known, source: "auto" };
+        b.els.forEach((el) => applyScore(el, record));
       } else {
         b.els.forEach((el) => el.classList.remove("aivsai-pending"));
       }
@@ -442,14 +489,28 @@
     style(el);
   }
 
+  // Stufe eines Ergebnisses: kurzer Text oder fremde Sprache -> "uncertain" statt gelb/rot
+  function levelOf({ p, words, foreign }) {
+    return foreign ? "uncertain" : AIVSAI.level(p, config, words);
+  }
+
+  // Überschrift zu einem Ergebnis, bei "uncertain" mit Grund
+  function levelTitle(rec, level) {
+    if (level !== "uncertain") return AIVSAI.LEVEL_TEXT[level];
+    return rec.foreign ? `Nicht bewertbar – ${AIVSAI_LANG.name(rec.foreign)}` : AIVSAI.LEVEL_TEXT.uncertain;
+  }
+
+  // KI-Score als Zahl von 0 bis 100, bewusst nicht als Prozent: nicht kalibriert, keine Wahrscheinlichkeit
+  const scoreText = (p) => `KI-Score ${Math.round(p * 100)}`;
+
   function style(el) {
-    const { p } = results.get(el);
+    const rec = results.get(el);
+    const { p } = rec;
     // vor allen Schreibzugriffen lesen, sonst erzwingt getComputedStyle eine Neuberechnung
     if (config.showBadge && !staticPosition.has(el)) {
       staticPosition.set(el, getComputedStyle(el).position === "static");
     }
-    const level = AIVSAI.level(p, config);
-    const pct = Math.round(p * 100);
+    const level = levelOf(rec);
     el.classList.remove(...LEVEL_CLASSES, "aivsai-pos");
     // nur als Hook für Tests/Debugging - der Code selbst liest aus `results`
     el.dataset.aivsaiScore = String(p);
@@ -459,7 +520,7 @@
     if (visible) {
       el.classList.add(`aivsai-${level}`);
       if (config.showBadge) {
-        el.dataset.aivsaiLabel = `${pct}% KI`;
+        el.dataset.aivsaiLabel = level === "uncertain" ? "unsicher" : scoreText(p);
         el.classList.add("aivsai-badge");
         // Badge wird per ::after absolut positioniert und braucht dafür einen Bezugsrahmen
         if (staticPosition.get(el)) el.classList.add("aivsai-pos");
@@ -469,8 +530,8 @@
     // bestehende title-Attribute der Seite nicht überschreiben
     if (visible && (!el.hasAttribute("title") || el.dataset.aivsaiTitle)) {
       el.title =
-        `${AIVSAI.LEVEL_TEXT[level]} – ${pct}% KI-Wahrscheinlichkeit ` +
-        `(${AIVSAI.providerLabel(config)}; Schätzung, kann falsch liegen)` +
+        `${levelTitle(rec, level)} – ${scoreText(p)} von 100 ` +
+        `(${AIVSAI.providerLabel(config)}; Hinweis, kein Beweis)` +
         (config.showBadge ? " · Klick aufs Badge: Details und Feedback" : "");
       el.dataset.aivsaiTitle = "1";
     } else if (!visible && el.dataset.aivsaiTitle) {
@@ -481,17 +542,18 @@
 
   function unstyle(el) {
     results.delete(el);
+    skipped.delete(el);
     nearObserver.unobserve(el);
     el.classList.remove(...LEVEL_CLASSES, "aivsai-pending", "aivsai-deferred", "aivsai-pos");
     if (el.dataset.aivsaiTitle) el.removeAttribute("title");
-    for (const key of ["aivsaiScore", "aivsaiLevel", "aivsaiLabel", "aivsaiTitle"]) delete el.dataset[key];
+    for (const key of ["aivsaiScore", "aivsaiLevel", "aivsaiLabel", "aivsaiTitle", "aivsaiSkipped"]) delete el.dataset[key];
   }
 
   function restyleAll() {
     for (const el of results.keys()) {
       if (el.isConnected) style(el);
     }
-    for (const [range, rec] of manualRanges) highlightRange(range, rec ? rec.p : null);
+    for (const [range, rec] of manualRanges) highlightRange(range, rec);
   }
 
   function clearAll() {
@@ -505,6 +567,8 @@
       delete el.dataset.aivsaiHash;
     });
     results.clear();
+    detecting.clear();
+    skipped.clear();
     lastError = null;
     for (const range of manualRanges.keys()) highlightRange(range, undefined);
     manualRanges.clear();
@@ -518,14 +582,16 @@
   }
 
   function stats() {
-    const counts = { red: 0, yellow: 0, green: 0 };
+    const counts = { red: 0, yellow: 0, green: 0, uncertain: 0 };
     for (const [el, rec] of results) {
       // entfernte Absätze (SPA, Infinite Scroll) nicht mehr zählen und nicht im Speicher halten
       if (!el.isConnected) results.delete(el);
-      else counts[AIVSAI.level(rec.p, config)]++;
+      else counts[levelOf(rec)]++;
     }
+    for (const el of skipped.keys()) if (!el.isConnected) skipped.delete(el);
     return {
       ...counts,
+      skipped: skipped.size, // andere Sprache, nicht bewertet
       pending: pendingEls.length,
       deferred: deferredEls.length,
       active: isActive(),
@@ -597,7 +663,7 @@
   async function showDetails(el) {
     const rec = results.get(el);
     const token = Popover.claim();
-    const view = resultView(rec.p, wordCount(rec.text), rec.truncated ? rec.text.length : 0);
+    const view = resultView(rec);
     const scored = { text: rec.text, p: rec.p, model: rec.model, source: rec.source };
     await openWithFeedback({ target: { el }, token, view, scored });
   }
@@ -644,7 +710,8 @@
     return `Zu wenig Text (${words} ${words === 1 ? "Wort" : "Wörter"}) – mindestens ${MANUAL_MIN_WORDS} Wörter nötig.`;
   }
 
-  async function checkManual(fullText, target) {
+  // force: auch in einer Sprache prüfen, die das Modell nicht kennt (Knopf „Trotzdem prüfen“)
+  async function checkManual(fullText, target, force = false) {
     const token = Popover.claim();
     const words = wordCount(fullText);
     if (!config.enabled) {
@@ -653,6 +720,19 @@
     }
     if (words < MANUAL_MIN_WORDS) {
       Popover.show(target, token, { error: tooShort(words) });
+      return;
+    }
+    const foreign = await foreignLang(fullText);
+    if (foreign && !force) {
+      Popover.show(target, token, {
+        pill: { text: "nicht geprüft", level: "uncertain" },
+        title: `Text auf ${AIVSAI_LANG.name(foreign)}`,
+        notes: [
+          `Das Modell kennt nur ${langList(AIVSAI.languages(config))}. In anderen Sprachen sind die Scores ` +
+            "nicht aussagekräftig und oft zu hoch – deutscher Fachtext kam z.B. auf 78 von 100."
+        ],
+        buttons: [{ text: "Trotzdem prüfen", onClick: () => checkManual(fullText, target, true) }]
+      });
       return;
     }
     const text = clipText(fullText);
@@ -671,21 +751,43 @@
       return;
     }
     const truncated = text.length < fullText.length;
-    markManual(target, { text, truncated, p, model: resp.model, at: Date.now() });
-    const view = resultView(p, words, truncated ? text.length : 0);
+    const record = { text, truncated, words, p, model: resp.model, at: Date.now(), ...(foreign && { foreign }) };
+    markManual(target, record);
+    const view = resultView(record);
     const scored = { text, p, model: resp.model, source: target.range ? "selection" : "manual" };
     await openWithFeedback({ target, token, view, scored });
     reportStats();
   }
 
-  // clippedAt: Länge des bewerteten Ausschnitts, falls gekürzt wurde, sonst 0
-  function resultView(p, words, clippedAt) {
-    const level = AIVSAI.level(p, config);
+  // Ergebnisansicht fürs Popover. Bei "uncertain" steht statt der Zahl der Grund vorn, der Rohwert nur im Text.
+  function resultView(rec) {
+    const { p, words } = rec;
+    const level = levelOf(rec);
+    const raw = `Rohwert ${Math.round(p * 100)} von 100`;
     const notes = [];
-    if (words < MIN_WORDS) notes.push(`Kurzer Text (${words} Wörter) – Ergebnis wenig verlässlich.`);
-    if (clippedAt) notes.push(`Bewertet wurden die ersten ${clippedAt} Zeichen (bis zum Satzende) – mehr sieht das Modell nicht.`);
-    notes.push(`${AIVSAI.providerLabel(config)} · Schätzung, kann falsch liegen`, ...blockedNotes());
-    return { pill: { text: `${Math.round(p * 100)} % KI`, level }, title: AIVSAI.LEVEL_TEXT[level], notes };
+    if (rec.foreign) {
+      notes.push(
+        `Das Modell kennt nur ${langList(AIVSAI.languages(config))} – ${raw}, in dieser Sprache nicht aussagekräftig.`
+      );
+    } else if (level === "uncertain") {
+      notes.push(
+        `Nur ${words} Wörter – unter ${AIVSAI.reliableWords(config)} Wörtern liegt das Modell zu oft daneben, ` +
+          `um einen Text als auffällig zu markieren. ${raw}.`
+      );
+    } else if (words < MIN_WORDS) {
+      notes.push(`Kurzer Text (${words} Wörter) – Ergebnis wenig verlässlich.`);
+    }
+    if (rec.truncated) {
+      notes.push(`Bewertet wurden die ersten ${rec.text.length} Zeichen (bis zum Satzende) – mehr sieht das Modell nicht.`);
+    }
+    notes.push(
+      "Hinweis, kein Beweis: Der KI-Score zeigt, wie sehr der Text dem ähnelt, was das Modell als KI-Text gelernt " +
+        "hat – keine Wahrscheinlichkeit. Auch menschliche Texte können hoch liegen.",
+      AIVSAI.providerLabel(config),
+      ...blockedNotes()
+    );
+    const pill = level === "uncertain" ? "unsicher" : scoreText(p);
+    return { pill: { text: pill, level }, title: levelTitle(rec, level), notes };
   }
 
   // Auf gesperrten Seiten ist nur die Einzelprüfung erlaubt - dann transparent machen, was passiert ist
@@ -870,7 +972,7 @@
     if (range) {
       if (record === undefined) manualRanges.delete(range);
       else manualRanges.set(range, record);
-      highlightRange(range, record === undefined ? undefined : record ? record.p : null);
+      highlightRange(range, record);
     }
     if (el) {
       if (record === null) {
@@ -885,12 +987,12 @@
   }
 
   // CSS Custom Highlight API: färbt beliebige Textbereiche, ohne das DOM der Seite anzufassen.
-  // probability: Zahl = Ergebnis, null = wird geprüft, undefined = Markierung entfernen
-  function highlightRange(range, probability) {
+  // record: Ergebnis, null = wird geprüft, undefined = Markierung entfernen
+  function highlightRange(range, record) {
     if (!window.CSS?.highlights) return;
     for (const state of HIGHLIGHT_STATES) CSS.highlights.get(`aivsai-${state}`)?.delete(range);
-    if (probability === undefined) return;
-    const name = `aivsai-${probability === null ? "pending" : AIVSAI.level(probability, config)}`;
+    if (record === undefined) return;
+    const name = `aivsai-${record === null ? "pending" : levelOf(record)}`;
     if (!CSS.highlights.has(name)) CSS.highlights.set(name, new Highlight());
     CSS.highlights.get(name).add(range);
   }

@@ -44,6 +44,7 @@
         "generated/blocklist.js",
         "models.js",
         "config.js",
+        "lang-detect.js",
         "content-popover.js",
         "content.js"
       ],

@@ -20,6 +20,27 @@ describe("level", () => {
     assert.equal(A.level(0.9, c), "red");
     assert.equal(A.level(1, c), "red");
   });
+
+  it("kurzer Text: gelb/rot werden „unsicher“, grün bleibt grün", () => {
+    const c = cfg({ yellowFrom: 0.6, redFrom: 0.9 });
+    const min = A.reliableWords(c);
+    assert.equal(A.level(0.95, c, min - 1), "uncertain");
+    assert.equal(A.level(0.7, c, min - 1), "uncertain");
+    assert.equal(A.level(0.2, c, min - 1), "green");
+    assert.equal(A.level(0.95, c, min), "red");
+    assert.equal(A.level(0.95, c), "red"); // ohne Wortzahl wie bisher
+  });
+
+  it("Mindestlänge und Sprachen kommen vom Modell, bei unbekannten Modellen Standard bzw. keine Angabe", () => {
+    for (const key of ["tmr", "desklib"]) {
+      const c = cfg({ provider: "browser", browserModel: key });
+      assert.equal(A.reliableWords(c), A.MODELS[key].reliableWords);
+      assert.deepEqual(A.languages(c), ["en"]);
+    }
+    const custom = cfg({ provider: "custom", customUrl: "https://x.example/v1/score" });
+    assert.equal(A.reliableWords(custom), 120);
+    assert.equal(A.languages(custom), null);
+  });
 });
 
 describe("siteMatches", () => {

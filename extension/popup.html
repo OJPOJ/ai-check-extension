@@ -14,12 +14,13 @@
   .link { padding: 0; border: 0; background: none; color: var(--muted); font: inherit; text-decoration: underline; cursor: pointer; }
   .link:hover { color: inherit; }
 
-  .counts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .counts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
   .count { background: var(--surface); border-radius: 8px; padding: 8px; text-align: center; }
   .count b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; line-height: 1.2; }
   .count.red b { color: var(--red); }
   .count.yellow b { color: var(--yellow); }
   .count.green b { color: var(--green); }
+  .count.uncertain b { color: var(--muted); }
   .count span { font-size: 11px; color: var(--muted); }
   .pending { margin-top: 8px; min-height: 16px; }
 
@@ -65,9 +66,10 @@
   <section>
     <h2>Diese Seite</h2>
     <div class="counts">
-      <div class="count red"><b id="cRed">–</b><span>wahrsch. KI</span></div>
+      <div class="count red" title="Ähnelt KI-Text"><b id="cRed">–</b><span>auffällig</span></div>
       <div class="count yellow"><b id="cYellow">–</b><span>unklar</span></div>
-      <div class="count green"><b id="cGreen">–</b><span>wahrsch. Mensch</span></div>
+      <div class="count green"><b id="cGreen">–</b><span>unauffällig</span></div>
+      <div class="count uncertain" title="Hoher Score, aber zu kurzer Text für eine Aussage"><b id="cUncertain">–</b><span>unsicher</span></div>
     </div>
     <div class="pending small muted" id="pending"></div>
 
@@ -86,13 +88,14 @@
   </section>
 
   <footer>
-    <span class="small muted">Scores sind Schätzungen, keine Beweise.</span>
+    <span class="small muted">Scores sind Hinweise, keine Beweise.</span>
     <button id="openOptions">Einstellungen</button>
   </footer>
 
   <script src="generated/blocklist.js"></script>
   <script src="models.js"></script>
   <script src="config.js"></script>
+  <script src="lang-detect.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

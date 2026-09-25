@@ -24,6 +24,7 @@ globalThis.AIVSAIPopover = (() => {
     .green { background: #15803d; }
     .yellow { background: #a16207; }
     .red { background: #dc2626; }
+    .uncertain { background: #6b7280; }
     .note { margin-top: 4px; color: var(--muted); font-size: 12px; }
     .error { color: var(--error); }
     .prompt { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); font-weight: 600; font-size: 12px; }

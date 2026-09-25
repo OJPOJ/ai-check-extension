@@ -1,6 +1,6 @@
 /* Rein visuelle Marker - kein Einfluss auf Layout oder Text-Selektion; anklickbar ist nur das Badge.
    Die Stufen unterscheiden sich auch ohne Farbwahrnehmung: grün dünn/durchgezogen,
-   gelb gestrichelt, rot kräftig mit Glow - plus Prozentwert in der Badge. */
+   gelb gestrichelt, rot kräftig mit Glow, grau gestrichelt = unsicher - plus KI-Score bzw. "unsicher" im Badge. */
 
 .aivsai-pending {
   outline: 2px dotted rgba(148, 163, 184, 0.8) !important;
@@ -28,6 +28,13 @@
     0 0 8px 2px rgba(220, 38, 38, 0.5),
     0 0 20px 4px rgba(220, 38, 38, 0.2);
   animation: aivsai-pulse 2.4s ease-in-out infinite;
+}
+
+/* Zu kurz oder fremde Sprache: hoher Score, aber keine Aussage - bewusst neutral, keine Warnfarbe */
+.aivsai-uncertain {
+  outline: 2px dashed rgba(107, 114, 128, 0.7) !important;
+  outline-offset: 3px !important;
+  border-radius: 6px;
 }
 
 @keyframes aivsai-pulse {
@@ -70,6 +77,7 @@
 .aivsai-green.aivsai-badge::after { background: #15803d !important; }
 .aivsai-yellow.aivsai-badge::after { background: #a16207 !important; }
 .aivsai-red.aivsai-badge::after { background: #dc2626 !important; }
+.aivsai-uncertain.aivsai-badge::after { background: #6b7280 !important; }
 
 /* Manuell geprüfter markierter Text (CSS Custom Highlight API, kein Eingriff ins DOM).
    Auch hier ohne Farbwahrnehmung unterscheidbar: gepunktet / durchgezogen / gestrichelt / wellig. */
@@ -91,6 +99,11 @@
 ::highlight(aivsai-red) {
   background-color: rgba(220, 38, 38, 0.22);
   text-decoration: underline wavy rgba(220, 38, 38, 0.95);
+}
+
+::highlight(aivsai-uncertain) {
+  background-color: rgba(107, 114, 128, 0.2);
+  text-decoration: underline dashed rgba(107, 114, 128, 0.9);
 }
 
 @media (prefers-reduced-motion: reduce) {

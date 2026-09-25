@@ -47,7 +47,7 @@ describe("Textlänge", () => {
     const requests = backend.requests;
     await tab.click("#longp", { button: "right", position: { x: 20, y: 20 } });
     await ext.sendToTab("length.test", { type: "CHECK_ELEMENT" });
-    await tab.waitForFunction(() => /% KI/.test(document.querySelector("aivsai-popover")?.shadowRoot.textContent || ""));
+    await tab.waitForFunction(() => /Hinweis, kein Beweis/.test(document.querySelector("aivsai-popover")?.shadowRoot.textContent || ""));
     assert.equal(backend.requests, requests, "gleicher Text → Treffer im Score-Cache");
     const popover = await tab.evaluate(() => document.querySelector("aivsai-popover").shadowRoot.textContent);
     assert.match(popover, /Bewertet wurden die ersten \d+ Zeichen \(bis zum Satzende\)/);

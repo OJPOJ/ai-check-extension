@@ -75,6 +75,7 @@ for (const f of inZip) {
 }
 // Dateien, die per chrome.runtime.getURL geladen werden (offscreen-client.js, offscreen.js)
 ref("offscreen.html", "bg/offscreen-client.js");
+ref("welcome.html", "background.js");
 for (const m of Object.values(await loadModels())) {
   for (const p of Object.values(m.browser?.build?.shipped ?? {})) ref(p, "models.js");
   ref(m.browser?.build?.recipe, "models.js");

@@ -12,7 +12,8 @@ Vertrag in `server/README.md`). Offen:
   Router-Antwortformen, KI-Label aus `id2label`). Bisher nur gemockt (`providers.test.mjs`,
   `model-check.test.mjs`).
 - **`lang` im Betrieb mitschicken:** Der Vertrag kennt `lang`, die Extension schickt es bisher nur
-  bei der Prüfung („en“). Hängt an Punkt 2 (Spracherkennung) und 6.
+  bei der Prüfung („en“). Die Spracherkennung pro Absatz gibt es inzwischen (`lang-detect.js`, im
+  Content-Script `foreignLang`); fehlt noch, sie mit dem Absatz zu verschicken. Siehe auch Punkt 6.
 - **Referenzset verbreitern**, sobald die Eval-Suite (Punkt 3) steht: bisher nur HC3 (ChatGPT 2023).
 - **Später – eigenes ONNX im Browser:**
   - HF-Repo mit `onnx/` + Tokenizer.
@@ -24,17 +25,25 @@ Vertrag in `server/README.md`). Offen:
 
 Der größte Schaden ist Rot auf einem menschlichen Text.
 
-- **Nicht-englische Absätze** nicht bewerten bzw. grau mit Hinweis „Modell kennt nur Englisch“
-  (`lang` der Seite, ggf. einfache Spracherkennung). Deutscher Fachtext im Harness: 78 % →
-  Fehlalarm.
-- **Default-Modell/-Schwellen überdenken:** TMR markiert Wikipedia „Photosynthesis“ 50/80 rot.
-  - Option A: desklib als Empfehlung, TMR als „Schnell“.
-  - Option B: TMR mit strengerer Rot-Schwelle.
-- **Stufe „unsicher / zu kurz“** statt einer Zahl.
-- **Popover-Text:** „Hinweis, kein Beweis“; Prozentwert nicht als Wahrscheinlichkeit darstellen,
-  solange nicht kalibriert.
-- **Onboarding beim ersten Start:** was Grün/Gelb/Rot bedeuten und was nicht; Hinweis vor dem
-  1,7-GB-Download (Datenvolumen).
+Erledigt: Sprache pro Absatz, Stufe „unsicher“, strengere TMR-Schwellen, Wortwahl, Begrüßung (README,
+„Weniger Fehlalarme“; Messung in `training/EVAL_RESULTS.md`, „Fehlalarme auf Wikipedia“). Offen:
+
+- **Kurze Absätze zusammen bewerten:** Absätze unter 120 Wörtern sind jetzt grün oder „unsicher“ –
+  auf typischen Nachrichtenseiten der Großteil. Idee: benachbarte kurze Absätze
+  desselben Artikels als ein Text bewerten (mehr Kontext senkt die Fehler stark, siehe „Textlänge“)
+  und das Ergebnis allen zuordnen.
+- **Default-Modell:** desklib als Empfehlung statt TMR? Genauer, aber 1,7 GB Download und ~1,3 s pro
+  Absatz. Entscheidung nach Punkt 3 (breitere Eval) und Rückmeldungen zur Geschwindigkeit.
+- **Spracherkennung auf echten Seiten prüfen:** Funktionswörter (en/de/fr/es/it/nl/pt) zuerst, dann
+  die Browser-Erkennung `i18n.detectLanguage` (CLD3 in Chromium, CLD2 in Firefox), dann `lang`-Attribut.
+  CLD3 irrt bei ungewöhnlichem Text auch „verlässlich“ (wiederholter englischer Testtext →
+  Luxemburgisch) – deshalb nur als Lückenfüller. Offen: Quote auf echten Seiten, gemischte Absätze,
+  Firefox tatsächlich testen (Extension läuft dort noch nicht, siehe Punkt 4).
+  Alternativen, falls die Browser-API nicht reicht: `franc`/`franc-min` (Trigramme, MIT, schwach bei
+  kurzem Text), `eld` (n-Gramme, schnell, ~1 MB), fastText `lid.176.ftz` (917 KB, sehr genau, bräuchte
+  WASM-Laufzeit), Chromes `LanguageDetector` (Built-in-AI-API, nur neuere Chrome-Versionen).
+- **Übersprungene Absätze sichtbar machen?** Bisher nur als Zahl im Popup. Falls Nutzer denken, die
+  Seite sei nicht gescannt: dezente Markierung oder Hinweis beim ersten Mal.
 
 ## 3. Eval-Suite verbreitern
 

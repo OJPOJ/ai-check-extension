@@ -120,9 +120,8 @@ globalThis.AIVSAI = (() => {
     provider: "browser",
     ...defaultsOf(providerFields(false)),
 
-    // Ampel: score < yellowFrom = grün, < redFrom = gelb, sonst rot
-    yellowFrom: 0.6,
-    redFrom: 0.9,
+    // Ampel: score < yellowFrom = grün, < redFrom = gelb, sonst rot (Startwerte des Default-Modells TMR)
+    ...MODELS.tmr.thresholds,
     showGreen: true,
     showBadge: true,
 
@@ -152,16 +151,30 @@ globalThis.AIVSAI = (() => {
   // Modelle, die ein Abschnitt aus models.js ("browser", "server") anbietet: [[key, model], ...]
   const catalog = (section) => Object.entries(MODELS).filter(([, m]) => m[section]);
 
+  // Bewusst keine Wahrscheinlichkeit („wahrscheinlich KI“): Die Scores sind nicht kalibriert
+  // (TODO.md, Punkt 5), und ein Detektor liefert Hinweise, keine Beweise.
   const LEVEL_TEXT = {
-    red: "Wahrscheinlich KI-generiert",
+    red: "Auffällig – ähnelt KI-Text",
     yellow: "Unklar",
-    green: "Wahrscheinlich menschlich"
+    green: "Unauffällig",
+    uncertain: "Zu kurz für eine Aussage"
   };
 
-  function level(p, cfg) {
-    if (p >= cfg.redFrom) return "red";
-    if (p >= cfg.yellowFrom) return "yellow";
-    return "green";
+  // Unter so vielen Wörtern kein Gelb/Rot, wenn das Modell nichts eigenes angibt - TMR und desklib brauchen
+  // beide ~120 Wörter für wenige Fehlalarme (training/EVAL_RESULTS.md, "Fehlalarme auf Wikipedia")
+  const RELIABLE_WORDS = 120;
+
+  // Ab wie vielen Wörtern die Ampel einem hohen Score traut (models.js, reliableWords)
+  function reliableWords(cfg) {
+    return family(cfg)?.reliableWords ?? RELIABLE_WORDS;
+  }
+
+  // words (optional): Länge des bewerteten Texts. Kurze Texte mit hohem Score werden "uncertain" statt
+  // gelb/rot - der größte Schaden ist Rot auf einem menschlichen Text, und kurze Texte trennt das Modell
+  // deutlich schlechter (training/EVAL_RESULTS.md, "Fehlalarme auf Wikipedia"). Grün bleibt grün.
+  function level(p, cfg, words) {
+    const base = p >= cfg.redFrom ? "red" : p >= cfg.yellowFrom ? "yellow" : "green";
+    return base !== "green" && words !== undefined && words < reliableWords(cfg) ? "uncertain" : base;
   }
 
   function siteMatches(host, sites) {
@@ -229,6 +242,12 @@ globalThis.AIVSAI = (() => {
     return `${cfg.provider}:${providerDef(cfg)?.model(cfg) ?? ""}${version ? `@${version}` : ""}`;
   }
 
+  // Sprachen, die das Modell kennt (ISO-639-1), oder null = unbekannt, dann wird alles bewertet.
+  // Eigene Modelle: Angabe aus „Modell prüfen“ (GET /v1/info).
+  function languages(cfg) {
+    return family(cfg)?.languages ?? modelCheck(cfg)?.info?.languages ?? null;
+  }
+
   // Wie viel Text pro Absatz ans Modell geht - mehr als der Kontext des Modells bringt nichts.
   // Unbekannte Modelle (eigener Server, Hugging Face): Angabe des Servers, sonst 2000 Zeichen, typisch
   // für 512-Token-Encoder.
@@ -279,6 +298,8 @@ globalThis.AIVSAI = (() => {
     LEVEL_TEXT,
     catalog,
     level,
+    reliableWords,
+    languages,
     siteMatches,
     builtinMatch,
     blockReason,

@@ -80,9 +80,22 @@ chrome.runtime.onInstalled.addListener(({ reason }) => {
   updateBadge();
   createMenus();
   schedulePrune();
-  // Erstinstallation: Einstellungen öffnen, damit das Modell heruntergeladen werden kann
-  if (reason === "install") chrome.runtime.openOptionsPage();
+  // Erstinstallation: Begrüßung (was die Farben bedeuten und was nicht, Download-Größe), von dort weiter
+  // zu den Einstellungen, wo das Modell heruntergeladen wird
+  if (reason === "install") chrome.tabs.create({ url: chrome.runtime.getURL("welcome.html") });
+  if (reason === "update") migrateThresholds().catch((err) => console.warn("Schwellen nicht angepasst", err));
 });
+
+// Bis v0.5 waren 0.6/0.9 die Startwerte für TMR - damit war die Mehrheit kurzer menschlicher Sachtexte rot
+// (training/EVAL_RESULTS.md, "Fehlalarme auf Wikipedia"). Wer sie gespeichert, aber nie geändert hat,
+// bekommt die neuen aus models.js; eigene Werte bleiben.
+async function migrateThresholds() {
+  const stored = await chrome.storage.sync.get(["yellowFrom", "redFrom"]);
+  const tmr = AIVSAI.MODELS.tmr.thresholds;
+  if (stored.yellowFrom === 0.6 && stored.redFrom === 0.9 && AIVSAI.presetFor(await getConfig()) === tmr) {
+    await chrome.storage.sync.set(tmr);
+  }
+}
 chrome.runtime.onStartup.addListener(() => {
   updateBadge();
   schedulePrune();

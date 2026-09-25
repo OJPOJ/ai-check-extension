@@ -102,9 +102,9 @@
 <div class="layout">
   <nav class="toc" aria-label="Abschnitte">
     <a href="#detection">Erkennung</a>
+    <a href="#display">Anzeige</a>
     <a href="#scanning">Scannen</a>
     <a href="#blocklist">Sperrliste</a>
-    <a href="#display">Anzeige</a>
     <a href="#data">Daten &amp; Datenschutz</a>
   </nav>
 
@@ -124,6 +124,39 @@
         <b id="privacyTarget"></b> gesendet. Nutze „Nur auf Knopfdruck“ oder eine Seitenliste, wenn du das nicht
         für jede Seite willst.
       </p>
+    </section>
+
+    <section class="card" id="display">
+      <h2>Anzeige</h2>
+      <p class="lead">Ab welchem Score ein Absatz gelb bzw. rot markiert wird.</p>
+      <div class="slider-row">
+        <label for="yellowFrom">Gelb ab</label>
+        <input type="range" id="yellowFrom" min="0.05" max="0.98" step="0.01" />
+        <output id="yellowFromValue"></output>
+      </div>
+      <div class="slider-row">
+        <label for="redFrom">Rot ab</label>
+        <input type="range" id="redFrom" min="0.06" max="0.99" step="0.01" />
+        <output id="redFromValue"></output>
+      </div>
+      <div class="scale" id="scale" aria-hidden="true"></div>
+      <div class="scale-legend">
+        <span><i class="dot green"></i>unauffällig</span>
+        <span><i class="dot yellow"></i>unklar</span>
+        <span><i class="dot red"></i>auffällig (ähnelt KI-Text)</span>
+      </div>
+      <div class="hint">Der Score (0–100) ist ein Rohwert des Modells, keine Wahrscheinlichkeit. Kurze Absätze
+        (unter 120 Wörtern) werden nie gelb oder rot, sondern grau „unsicher“; Absätze in Sprachen, die das
+        Modell nicht kennt, werden nicht bewertet.</div>
+      <div class="row" style="margin-top:12px;justify-content:flex-start">
+        <button id="applyPreset">Empfohlene Werte fürs gewählte Modell</button>
+        <span class="hint" id="presetInfo" style="margin:0"></span>
+      </div>
+
+      <label class="check"><input type="checkbox" id="showGreen" />
+        <div>Auch unauffällige Absätze grün markieren<div class="hint">So siehst du, was geprüft und <i>nicht</i> als KI erkannt wurde.</div></div></label>
+      <label class="check"><input type="checkbox" id="showBadge" />
+        <div>Score als Badge am Absatz anzeigen („KI-Score 97“)<div class="hint">Ohne Badge steht der Score weiterhin im Tooltip.</div></div></label>
     </section>
 
     <section class="card" id="scanning">
@@ -176,36 +209,6 @@
       </div>
       <div class="hint">Eine Domain pro Zeile, Subdomains sind eingeschlossen. Beides geht auch per Popup
         („Hier nie scannen“ / „Von der Sperrliste nehmen“).</div>
-    </section>
-
-    <section class="card" id="display">
-      <h2>Anzeige</h2>
-      <p class="lead">Ab welchem Score ein Absatz gelb bzw. rot markiert wird.</p>
-      <div class="slider-row">
-        <label for="yellowFrom">Gelb ab</label>
-        <input type="range" id="yellowFrom" min="0.05" max="0.98" step="0.01" />
-        <output id="yellowFromValue"></output>
-      </div>
-      <div class="slider-row">
-        <label for="redFrom">Rot ab</label>
-        <input type="range" id="redFrom" min="0.06" max="0.99" step="0.01" />
-        <output id="redFromValue"></output>
-      </div>
-      <div class="scale" id="scale" aria-hidden="true"></div>
-      <div class="scale-legend">
-        <span><i class="dot green"></i>wahrscheinlich menschlich</span>
-        <span><i class="dot yellow"></i>unklar</span>
-        <span><i class="dot red"></i>wahrscheinlich KI</span>
-      </div>
-      <div class="row" style="margin-top:12px;justify-content:flex-start">
-        <button id="applyPreset">Empfohlene Werte fürs gewählte Modell</button>
-        <span class="hint" id="presetInfo" style="margin:0"></span>
-      </div>
-
-      <label class="check"><input type="checkbox" id="showGreen" />
-        <div>Auch unauffällige Absätze grün markieren<div class="hint">So siehst du, was geprüft und <i>nicht</i> als KI erkannt wurde.</div></div></label>
-      <label class="check"><input type="checkbox" id="showBadge" />
-        <div>Score als Prozent-Badge am Absatz anzeigen<div class="hint">Ohne Badge steht der Score weiterhin im Tooltip.</div></div></label>
     </section>
 
     <section class="card" id="data">

@@ -1,7 +1,7 @@
 # AI Content Flag — Browser-Extension
 
 Bewertet längere Textabsätze auf Webseiten mit einem KI-Text-Klassifikator und markiert sie als
-Ampel (grün / gelb / rot) mit Prozent-Badge. Das Modell läuft standardmäßig **direkt im Browser**
+Ampel (grün / gelb / rot) mit KI-Score. Das Modell läuft standardmäßig **direkt im Browser**
 (WebAssembly, kein Server, Texte verlassen den Rechner nicht). Alternativ: lokaler Server
 (`server/shim_server.py`), eigener Server/Cloud oder Hugging Face Inference API.
 
@@ -114,9 +114,28 @@ Hugging-Face-Provider mit echtem Token (nur gemockt, siehe `providers.test.mjs`)
   String `"\nd1\nd2\n…\n"` vor und wird pro Host mit allen Eltern-Domains durchsucht – kein Set mit
   14.000 Einträgen in jedem Tab (233 KB pro Content-Script).
 - **Ampel:** zwei Schwellen (Gelb ab / Rot ab, Presets pro Modell), grün = geprüft und *nicht* als
-  KI erkannt (abschaltbar), Prozent-Badge, auch ohne Farbwahrnehmung unterscheidbar
+  KI erkannt (abschaltbar), Badge „KI-Score 97“, auch ohne Farbwahrnehmung unterscheidbar
   (dünn / gestrichelt / kräftig). Popup mit Zählern pro Seite und Backend-Status; Icon-Badge mit
   Anzahl roter (sonst gelber) Absätze, „!“ bei Fehler.
+- **Weniger Fehlalarme** (der größte Schaden ist Rot auf einem menschlichen Text; Messung:
+  `training/EVAL_RESULTS.md`, „Fehlalarme auf Wikipedia“):
+  - *Stufe „unsicher“ (grau):* Unter einer Mindestlänge pro Modell (`reliableWords` in `models.js`,
+    derzeit überall 120 Wörter) wird ein hoher Score nicht gelb/rot, sondern
+    „unsicher“ – Badge ohne Zahl, der Rohwert steht nur im Popover. Grün bleibt grün.
+  - *Andere Sprachen:* Die mitgelieferten Modelle kennen nur Englisch (`languages`). Absätze in
+    anderen Sprachen bewertet der Auto-Scan nicht (keine Markierung, Zahl im Popup); die Einzelprüfung
+    fragt erst nach („Trotzdem prüfen“), das Ergebnis ist dann immer „unsicher“. Erkennung pro Absatz
+    in `extension/lang-detect.js`: erst Funktionswörter (en/de/fr/es/it/nl/pt) und Schrift; ist das
+    unklar, die eingebaute Erkennung des Browsers (`i18n.detectLanguage`: CLD3 in Chrome/Edge & Co.,
+    CLD2 in Firefox, >100 Sprachen, kein Download); dann das `lang`-Attribut. Geprüft wird genau der
+    Ausschnitt, den das Modell sähe, für jeden Absatz einzeln – auch nachgeladene. Eigene Modelle: Sprachen aus `GET /v1/info`, ohne Angabe wird alles bewertet.
+  - *TMR-Schwellen 0.95 / 0.98* statt 0.6 / 0.9 (gespeicherte alte Standardwerte werden beim Update
+    übernommen, eigene bleiben).
+  - *Wortwahl:* „Auffällig – ähnelt KI-Text“ / „Unklar“ / „Unauffällig“ statt „wahrscheinlich KI“,
+    Score 0–100 statt Prozent, im Popover „Hinweis, kein Beweis … keine Wahrscheinlichkeit“ – die
+    Scores sind nicht kalibriert.
+  - *Begrüßung nach der Installation* (`welcome.html`): was die Farben bedeuten und was nicht, Grenzen,
+    Download-Größen; vor dem 1,7-GB-Download von desklib fragen die Einstellungen nach.
 - **Sichtbarer Bereich zuerst:** Batches bis 5 Absätze bzw. 2500 Zeichen, nacheinander (Browser/lokal 1, remote 2 parallel).
   Die Reihenfolge wird erst beim Absenden bestimmt – nach einem Scroll springt die Priorität mit.
 - **Lazy-Scan (Default an):** nur Absätze bis 1,5 Bildschirmhöhen um den sichtbaren Bereich, der
@@ -127,7 +146,7 @@ Hugging-Face-Provider mit echtem Token (nur gemockt, siehe `providers.test.mjs`)
 - **Bewertungen merken (Default 30 Tage, einstellbar bis 1 Jahr oder „nicht speichern“):**
   bekannte Absätze werden sofort markiert, ohne neu zu rechnen – auch nach Browser-Neustart und
   auf anderen Seiten mit demselben Text.
-- **Feedback (Stufe 1 – nur lokal):** Klick aufs Prozent-Badge eines markierten Absatzes öffnet
+- **Feedback (Stufe 1 – nur lokal):** Klick aufs Badge eines markierten Absatzes öffnet
   Details (ohne neu zu rechnen); dort und im Ergebnis der manuellen Prüfung: „Weißt du, woher der Text stammt?“ → Mensch/KI →
   *woher* man es weiß: selbst geschrieben bzw. Autor:in bekannt, vor 2023 veröffentlicht, als KI
   gekennzeichnet oder „nur mein Eindruck“. Vor dem ersten Speichern Einwilligung im Popover, danach
@@ -175,6 +194,8 @@ Ausschnitt – also gleicher Score-Speicher-Eintrag und gleicher Feedback-Eintra
   Dialoge (`dialog`, `role=dialog` – meist Cookie-Banner), Code (`pre`), Eingaben (`textarea`,
   `input`, `contenteditable` …), `template`, nicht gerenderte Absätze (`display:none`, `hidden`,
   zugeklappt – sie kommen nach, sobald sie sichtbar werden).
+- **Übersprungen, per Rechtsklick trotzdem prüfbar:** Absätze in Sprachen, die das Modell nicht kennt
+  (`data-aivsai-skipped="de"` am Element, Zahl im Popup).
 - **Aus dem Text herausgerechnet:** Icon-Fonts und andere `aria-hidden`-Teile, Code-Blöcke.
 - **Bewusst trotzdem bewertet:** Absätze unter `aria-hidden`-Vorfahren (viele Seiten verstecken so
   den ganzen Inhalt, solange ein Modal offen ist), `form` (ASP.NET packt ganze Seiten in ein
@@ -238,11 +259,12 @@ Veröffentlichung im Web Store: Kontakt eintragen und die Seite zusätzlich öff
 
 ```
 extension/
-  models.js             Modellkatalog: Name, Kontext, Ampel-Presets, Browser-Download (Revision/Version),
-                        Server-Angaben – eine Stelle pro Modell
+  models.js             Modellkatalog: Name, Kontext, Ampel-Presets, Mindestlänge für gelb/rot, Sprachen,
+                        Browser-Download (Revision/Version), Server-Angaben – eine Stelle pro Modell
   config.js             Defaults + gemeinsame Regeln für alle Teile: Provider-Registry (PROVIDERS),
                         scanPolicy/blockReason (darf gescannt werden?), modelKey (Modell + Version),
-                        Presets, Ampel-Stufen
+                        Presets, Ampel-Stufen (inkl. „unsicher“)
+  lang-detect.js        Spracherkennung pro Absatz (Funktionswörter, Schrift)
   background.js         Service Worker (ES-Modul): verdrahtet Events und Nachrichten mit bg/
   bg/providers.js       Backends (Anfrage, Health-Check, Modellinfo je Provider)
   bg/model-check.js     „Modell prüfen“: eigenes Modell gegen das Referenzset testen
@@ -259,6 +281,7 @@ extension/
                         (`results`: Element → Score, Text, Modell, Quelle – Basis für Feedback/Berichte)
   content-popover.js    Ergebnis-Popover der manuellen Prüfung (Shadow DOM)
   popup.*, options.*    Oberfläche; das Popup bekommt STATS gepusht statt zu pollen
+  welcome.*             Begrüßung nach der Installation (Bedeutung der Farben, Grenzen, Download)
   privacy.html          Datenschutzerklärung
   models/desklib/       Graph ohne Gewichte + Bauanleitung
   vendor/               per `npm run vendor` (nicht im Git)
@@ -306,6 +329,9 @@ Statistik aus dem Register statt Dokument-Scans.
   JSONL-Export, `training/import_feedback.py`.
 - BYOM-Rahmen: Vertrag mit `lang` und `GET /v1/info` (Shim mit gepinnten Revisionen), „Modell prüfen“
   gegen ein Referenzset, Hugging-Face-Metadaten statt Raten, Version im Modellschlüssel.
+
+- Weniger Fehlalarme: andere Sprachen nicht bewerten (Erkennung pro Absatz), Stufe „unsicher“ für kurze
+  Texte, TMR-Schwellen 0.95/0.98 nach Messung auf Wikipedia, „KI-Score“ statt Prozent, Begrüßungsseite.
 
 **Offen:** siehe `TODO.md`.
 

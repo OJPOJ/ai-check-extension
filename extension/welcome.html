@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI Content Flag – Willkommen</title>
+<link rel="stylesheet" href="ui.css" />
+<style>
+  body { background: var(--surface); }
+  main { max-width: 680px; margin: 0 auto; padding: 32px 16px 48px; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .lead { margin: 0 0 20px; color: var(--muted); font-size: 14px; }
+  .card { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+  .card > h2 { margin-bottom: 12px; }
+  p { margin: 8px 0 0; }
+  ul { margin: 8px 0 0; padding-left: 20px; }
+  li + li { margin-top: 4px; }
+  .levels { display: grid; gap: 10px; }
+  .level { display: grid; grid-template-columns: 96px 1fr; gap: 12px; align-items: start; }
+  .pill { display: inline-block; padding: 0 8px; border-radius: 999px; color: #fff; font-weight: 600; font-size: 12px; line-height: 20px; text-align: center; }
+  .pill.red { background: #dc2626; }
+  .pill.yellow { background: #a16207; }
+  .pill.green { background: #15803d; }
+  .pill.uncertain { background: #6b7280; }
+  .not { margin-top: 14px; }
+  .downloads { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin-top: 10px; }
+  .downloads b { white-space: nowrap; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 20px; }
+  a.button { display: inline-block; text-decoration: none; padding: 7px 12px; border-radius: 8px; }
+  a.primary { background: var(--accent); color: var(--on-accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>AI Content Flag</h1>
+  <p class="lead">Markiert längere Textabsätze danach, wie sehr sie KI-generiertem Text ähneln. Bevor es losgeht,
+    das Wichtigste in zwei Minuten.</p>
+
+  <section class="card">
+    <h2>Was die Farben bedeuten</h2>
+    <div class="levels">
+      <div class="level"><span class="pill red">KI-Score 97</span>
+        <div><b>Auffällig</b> – der Absatz ähnelt stark dem, was das Modell als KI-Text gelernt hat.</div></div>
+      <div class="level"><span class="pill yellow">KI-Score 75</span>
+        <div><b>Unklar</b> – einige Merkmale, keine klare Tendenz.</div></div>
+      <div class="level"><span class="pill green">KI-Score 12</span>
+        <div><b>Unauffällig</b> – nichts Typisches gefunden.</div></div>
+      <div class="level"><span class="pill uncertain">unsicher</span>
+        <div><b>Zu kurz für eine Aussage</b> – hoher Score, aber bei so wenig Text liegt das Modell zu oft
+          daneben.</div></div>
+    </div>
+
+    <div class="warn not">
+      <b>Was die Farben nicht bedeuten:</b>
+      <ul>
+        <li><b>Kein Beweis.</b> Auch menschliche Texte werden rot markiert – besonders sachliche, formelhafte
+          oder sehr glatt redigierte (z.B. Lexikon-Artikel, Pressemitteilungen, Anleitungen).</li>
+        <li><b>Keine Wahrscheinlichkeit.</b> „KI-Score 97“ heißt nicht „zu 97 % von einer KI“. Die Zahl ist ein
+          Rohwert des Modells und nicht kalibriert.</li>
+        <li><b>Kein Urteil über Menschen.</b> Bitte niemandem allein auf dieser Grundlage KI-Nutzung vorwerfen –
+          etwa in Schule, Studium oder Beruf.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Grenzen</h2>
+    <ul>
+      <li><b>Nur Englisch.</b> Die mitgelieferten Modelle kennen nur englischen Text. Absätze in anderen Sprachen
+        werden deshalb nicht bewertet; per Rechtsklick lassen sie sich trotzdem prüfen, das Ergebnis ist dann
+        aber nicht aussagekräftig.</li>
+      <li><b>Kurze Texte</b> (Kommentare, Bildunterschriften, Listen) werden nicht automatisch bewertet.</li>
+      <li><b>Überarbeiteter KI-Text</b> und neuere Modelle werden schlechter erkannt.</li>
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2>Modell herunterladen</h2>
+    <p>Die Bewertung läuft direkt in deinem Browser, Texte verlassen den Rechner nicht. Dafür wird einmalig ein
+      Modell von Hugging Face geladen – bei mobilem Internet oder begrenztem Datenvolumen besser im WLAN:</p>
+    <div class="downloads" id="downloads"></div>
+    <p class="small muted">Welches Modell, wann gescannt wird und welche Seiten tabu sind (Online-Banking, Mail),
+      stellst du in den Einstellungen ein. Standard: gescannt wird nur auf Seiten, die du selbst im Popup
+      einschaltest.</p>
+    <div class="actions">
+      <a class="button primary" href="options.html#detection">Weiter zu den Einstellungen</a>
+      <a class="small muted" href="privacy.html" target="_blank">Datenschutzerklärung</a>
+    </div>
+  </section>
+</main>
+
+<script src="models.js"></script>
+<script src="welcome.js"></script>
+</body>
+</html>
