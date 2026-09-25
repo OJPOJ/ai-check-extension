@@ -16,7 +16,7 @@ Hintergrund/Architektur: `RESOURCES.md`.
   Prüfung. Stufen auch ohne Farbwahrnehmung unterscheidbar (dünn / gestrichelt / kräftig).
 - **Popup:** Zähler rot/gelb/grün für die aktuelle Seite, Backend-Status, Skala der
   Schwellen. Icon-Badge zeigt Anzahl roter (sonst gelber) Absätze pro Tab, „!“ bei Fehler.
-- **Provider-Abstraktion** (`extension/background.js`, `PROVIDERS`): Lokal
+- **Provider-Abstraktion** (`extension/bg/providers.js`, `PROVIDERS`): Lokal
   (`shim_server.py`), Eigener Server (Vertrag `POST {texts, model?} -> {scores}` mit
   optionalem Bearer-Key), Hugging Face Inference API (Label-Mapping automatisch oder
   manuell). Host-Berechtigungen für Remote-Backends werden erst beim Speichern angefragt;
@@ -145,7 +145,17 @@ uv pip install --python .venv -r requirements_shim.txt
 
 - `server/` — `shim_server.py` (Backend-Umschalter, Port 8787, TMR+desklib lokal) +
   optionales `laya-serve`-Docker-Setup (Port 11500, aktuell ungenutzt) + README
-- `extension/` — die Browser-Extension selbst (Manifest V3); `vendor/` wird per
+- `extension/` — die Browser-Extension selbst (Manifest V3):
+  - `config.js` — Defaults und gemeinsame Regeln für alle Teile (`scanPolicy` = ob gescannt
+    werden darf, `modelKey` = stabile Modellkennung für Cache/Presets/Kalibrierung,
+    Modell-Metadaten, Ampel-Stufen)
+  - `background.js` (Service Worker, ES-Modul) verdrahtet Events/Nachrichten mit `bg/`:
+    `providers.js` (Backends), `scoring.js` (Konfig- und Score-Cache, Test, Status),
+    `badge.js`, `offscreen-client.js` (Brücke zu `offscreen.js` mit dem Browser-Modell)
+  - `content.js` — Scan, Warteschlange/Priorisierung, Ergebnis-Register (`results`: Element →
+    Score, Text, Modell, Quelle – Basis für Statistik, Feedback und Berichte);
+    `content-popover.js` — Ergebnis-Popover der manuellen Prüfung
+  - `vendor/` wird per
   `npm run vendor` (`scripts/vendor.mjs`) erzeugt; `models/desklib/` = desklib-Graph ohne
   Gewichte + Bauanleitung (neu erzeugen mit `scripts/build_desklib_skeleton.py`, braucht die
   Python-Umgebung aus `server/` plus `onnx onnxruntime onnxscript`)

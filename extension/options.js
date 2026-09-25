@@ -11,17 +11,6 @@ const LOCAL_MODEL_INFO = {
     "AUROC 0.998 im Test. Deutlich genauer, aber langsam – eher für „Nur auf Knopfdruck“."
 };
 
-const BROWSER_MODEL_INFO = {
-  tmr:
-    "Einmaliger Download von Hugging Face (126 MB, öffentlich, kein Konto/Token nötig), danach offline " +
-    "nutzbar – bewertet werden die Texte nur lokal. Englisch trainiert – deutsche Texte können falsch " +
-    "eingestuft werden. MIT-Lizenz, Details in THIRD_PARTY_NOTICES.md.",
-  desklib:
-    "Lädt einmalig das Originalmodell von Hugging Face (1,7 GB, öffentlich, kein Konto/Token nötig) und " +
-    "wandelt es direkt im Browser in eine kompakte 8-Bit-Version um (~475 MB auf der Platte, gleiche " +
-    "Genauigkeit). Danach offline nutzbar. Englisch trainiert. MIT-Lizenz, Details in THIRD_PARTY_NOTICES.md."
-};
-
 const TEXT_FIELDS = ["localUrl", "customUrl", "customModel", "hfModel", "hfAiLabel"];
 const SECRET_FIELDS = ["customApiKey", "hfToken"];
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost"]);
@@ -121,7 +110,7 @@ function renderProvider() {
   const provider = radioValue("provider");
   document.querySelectorAll(".provider-fields").forEach((el) => (el.hidden = el.dataset.provider !== provider));
   $("localModelInfo").innerHTML = LOCAL_MODEL_INFO[$("localModel").value] || "";
-  $("browserModelInfo").textContent = BROWSER_MODEL_INFO[radioValue("browserModel")] || "";
+  $("browserModelInfo").textContent = AIVSAI.BROWSER_MODELS[radioValue("browserModel")]?.info || "";
 
   let target = null;
   if (provider === "huggingface") target = "Hugging Face (router.huggingface.co)";
@@ -161,7 +150,7 @@ function renderProgress(p) {
     return;
   }
   $("modelProgress").value = p.loaded / p.total;
-  const verb = selectedModel() === "desklib" ? "Lade und wandle um…" : "Lade herunter…";
+  const verb = AIVSAI.BROWSER_MODELS[selectedModel()]?.builds ? "Lade und wandle um…" : "Lade herunter…";
   $("modelStatus").textContent = `${verb} ${formatMB(p.loaded)} von ${formatMB(p.total)}`;
 }
 
@@ -234,13 +223,11 @@ function renderScale() {
 }
 
 function applyPreset() {
-  const provider = radioValue("provider");
-  const preset =
-    provider === "local"
-      ? AIVSAI.PRESETS[$("localModel").value]
-      : provider === "browser"
-        ? AIVSAI.PRESETS[selectedModel()]
-        : AIVSAI.PRESETS.generic;
+  const preset = AIVSAI.presetFor({
+    provider: radioValue("provider"),
+    browserModel: selectedModel(),
+    localModel: $("localModel").value
+  });
   $("yellowFrom").value = preset.yellowFrom;
   $("redFrom").value = preset.redFrom;
   renderScale();

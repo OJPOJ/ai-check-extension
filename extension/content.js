@@ -18,24 +18,36 @@
   const MANUAL_MAX_CHARS = 2000;
   const HIGHLIGHT_STATES = ["pending", "green", "yellow", "red"];
   const host = location.hostname;
+  const Popover = AIVSAIPopover;
 
   let config = { ...AIVSAI.DEFAULTS };
   let manualScan = false; // "Diese Seite scannen" aus Popup/Tastenkürzel, gilt bis zum Neuladen
   let generation = 0; // erhöht bei jedem Neu-Scan, damit veraltete Antworten verworfen werden
   let lastError = null;
-  const seen = new Map(); // textHash -> probability
-  const pending = new Map(); // textHash -> { id, text, els }
-  const inFlight = new Map(); // textHash -> { id, text, els }
+
+  // Ergebnis-Register - die eine Quelle für Statistik, Neu-Einfärben und später Feedback/Berichte.
+  //   results:      Element -> { hash, text, p, model, source: "auto" | "manual", at }
+  //   manualRanges: Range   -> { text, p, model, at } bzw. null, solange die Prüfung läuft
+  const results = new Map();
+  const manualRanges = new Map();
+  const seen = new Map(); // textHash -> { p, model }, damit gleiche Absätze nur einmal bewertet werden
+
+  // Warteschlange: textHash -> { id, text, els, near }
+  const pending = new Map();
+  const inFlight = new Map();
   let batchesInFlight = 0;
+
   let debounceTimer = null;
   let mutationTimer = null;
   let statsTimer = null;
-  const addedNodes = new Set();
   let pumpTimer = null;
+  const addedNodes = new Set();
   let contextTarget = null; // Element unter dem letzten Rechtsklick
-  const manualRanges = new Map(); // Range -> probability (null = wird geprüft)
-  let popover = null;
-  let popoverToken = 0;
+  const staticPosition = new WeakMap(); // Element -> position: static? (getComputedStyle nur einmal)
+
+  // Live-Collections: Zählen ohne Dokument-Scan
+  const pendingEls = document.getElementsByClassName("aivsai-pending");
+  const deferredEls = document.getElementsByClassName("aivsai-deferred");
 
   // Meldet, wenn ein zurückgestellter Absatz in die Nähe des sichtbaren Bereichs kommt -
   // deckt Scrollen, Fenstergröße und aufgeklappte Inhalte ab, ohne Scroll-Listener.
@@ -46,8 +58,27 @@
     { rootMargin: `${NEAR_SCREENS * 100}% 0px` }
   );
 
+  // Nachgeladene Inhalte (Infinite Scroll, SPAs) - Knoten über die Debounce-Zeit sammeln,
+  // damit keine Mutationen verloren gehen, wenn der Timer neu startet.
+  // Läuft nur, solange auf der Seite gescannt wird (siehe syncObserver).
+  const mutationObserver = new MutationObserver((mutations) => {
+    for (const m of mutations) {
+      m.addedNodes.forEach((node) => {
+        if (node.nodeType === Node.ELEMENT_NODE) addedNodes.add(node);
+        else if (node.parentElement) addedNodes.add(node.parentElement);
+      });
+    }
+    clearTimeout(mutationTimer);
+    mutationTimer = setTimeout(() => {
+      const nodes = Array.from(addedNodes).filter((n) => n.isConnected);
+      addedNodes.clear();
+      nodes.forEach(scanAndQueue);
+    }, DEBOUNCE_MS);
+  });
+
   chrome.storage.sync.get(AIVSAI.DEFAULTS, (stored) => {
     config = { ...AIVSAI.DEFAULTS, ...stored };
+    syncObserver();
     if (isActive()) scanAndQueue(document.body);
     reportStats();
   });
@@ -56,6 +87,7 @@
     if (area !== "sync") return;
     const wasActive = isActive();
     for (const [key, change] of Object.entries(changes)) config[key] = change.newValue ?? AIVSAI.DEFAULTS[key];
+    syncObserver();
 
     if (!isActive()) {
       // beim Ausschalten auch manuell geprüfte Stellen entfernen, die es ohne Auto-Scan geben kann
@@ -69,26 +101,41 @@
     reportStats();
   });
 
-  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-    if (msg?.type === "SCAN_NOW") {
+  const MESSAGE_HANDLERS = {
+    SCAN_NOW: () => {
       manualScan = true;
+      syncObserver();
       rescanAll();
-      sendResponse(stats());
-    } else if (msg?.type === "MODEL_READY") {
+      return stats();
+    },
+    MODEL_READY: () => {
       if (isActive() && lastError) rescanAll();
-    } else if (msg?.type === "GET_STATS") {
-      sendResponse(stats());
-    } else if (msg?.type === "CHECK_SELECTION") {
-      checkSelection();
-    } else if (msg?.type === "CHECK_ELEMENT") {
-      checkElement();
-    }
+    },
+    GET_STATS: () => stats(),
+    CHECK_SELECTION: () => checkSelection(),
+    CHECK_ELEMENT: () => checkElement()
+  };
+
+  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    const handler = MESSAGE_HANDLERS[msg?.type];
+    if (!handler) return;
+    const result = handler(msg);
+    if (result !== undefined) sendResponse(result);
   });
 
   function isActive() {
-    if (!config.enabled) return false;
-    if (manualScan || config.scanMode === "all") return true;
-    return config.scanMode === "sites" && AIVSAI.siteMatches(host, config.sites || []);
+    const policy = AIVSAI.scanPolicy(host, config);
+    return policy === "auto" || (manualScan && policy !== "off");
+  }
+
+  function syncObserver() {
+    if (isActive()) {
+      mutationObserver.observe(document.documentElement, { childList: true, subtree: true });
+    } else {
+      mutationObserver.disconnect();
+      clearTimeout(mutationTimer);
+      addedNodes.clear();
+    }
   }
 
   function hashText(text) {
@@ -119,34 +166,45 @@
     return nodes;
   }
 
+  function isQueuedOrScored(el) {
+    return results.has(el) || el.classList.contains("aivsai-pending") || el.classList.contains("aivsai-deferred");
+  }
+
   function collectCandidates(root) {
     if (!root || root.nodeType !== Node.ELEMENT_NODE) return;
+
+    // Phase 1 nur lesen. innerText braucht aktuelle Styles - würden zwischen den Lesezugriffen
+    // Klassen geändert, müsste der Browser für jeden Absatz neu rechnen (Layout-Thrashing).
+    const found = [];
     for (const el of candidatesIn(root)) {
+      // billiger Vorfilter ohne Layout: 40 Wörter brauchen mindestens 40 Zeichen
+      if ((el.textContent || "").length < MIN_WORDS) continue;
       if (el.closest(EXCLUDE_SELECTOR) || hasLongCandidateChild(el)) continue;
       const text = (el.innerText || "").trim();
       if (!text || wordCount(text) < MIN_WORDS) continue;
-
       const hash = hashText(text);
       if (el.dataset.aivsaiHash === hash && isQueuedOrScored(el)) continue;
+      found.push({ el, text, hash });
+    }
+
+    // Phase 2 nur schreiben
+    for (const { el, text, hash } of found) {
       el.dataset.aivsaiHash = hash;
       unstyle(el); // Text hat sich geändert - alte Bewertung gilt nicht mehr
 
-      if (seen.has(hash)) {
-        applyScore(el, seen.get(hash));
+      const known = seen.get(hash);
+      if (known) {
+        applyScore(el, { hash, text: text.slice(0, MAX_CHARS), ...known, source: "auto" });
         continue;
       }
       const entry = inFlight.get(hash) || pending.get(hash);
       if (entry) {
         entry.els.push(el);
       } else {
-        pending.set(hash, { id: hash, text: text.slice(0, MAX_CHARS), els: [el] });
+        pending.set(hash, { id: hash, text: text.slice(0, MAX_CHARS), els: [el], near: true });
       }
       el.classList.add("aivsai-pending");
     }
-  }
-
-  function isQueuedOrScored(el) {
-    return el.dataset.aivsaiScore || el.classList.contains("aivsai-pending") || el.classList.contains("aivsai-deferred");
   }
 
   function scanAndQueue(root) {
@@ -159,18 +217,31 @@
     reportStats();
   }
 
-  // Abstand zum sichtbaren Bereich in px (0 = sichtbar). Unsichtbare/abgehängte
-  // Elemente kommen ganz nach hinten.
+  // Abstand zum sichtbaren Bereich in px (0 = sichtbar) und Position des nächsten Elements.
+  // Unsichtbare/abgehängte Elemente kommen ganz nach hinten.
   function viewportDistance(entry) {
-    let best = Infinity;
+    let dist = Infinity;
+    let top = Infinity;
     for (const el of entry.els) {
       if (!el.isConnected) continue;
       const r = el.getBoundingClientRect();
       if (!r.width && !r.height) continue;
       const d = r.bottom < 0 ? -r.bottom : r.top > innerHeight ? r.top - innerHeight : 0;
-      best = Math.min(best, d);
+      if (d < dist) {
+        dist = d;
+        top = r.top;
+      }
     }
-    return best;
+    return { dist, top };
+  }
+
+  function markQueued(entry) {
+    for (const el of entry.els) {
+      el.classList.toggle("aivsai-pending", entry.near);
+      el.classList.toggle("aivsai-deferred", !entry.near);
+      if (entry.near) nearObserver.unobserve(el);
+      else nearObserver.observe(el);
+    }
   }
 
   // Priorität wird erst beim Absenden bestimmt, nicht beim Einreihen: so bekommt nach
@@ -178,32 +249,32 @@
   // Ohne Scrollen ergibt das einfach "von oben nach unten".
   function takeNextBatch() {
     const limit = config.lazyScan ? NEAR_SCREENS * innerHeight : Infinity;
+
+    // Phase 1 lesen: Positionen aller wartenden Absätze
     const ranked = [];
     for (const entry of pending.values()) {
       if (!entry.els.some((el) => el.isConnected)) {
         pending.delete(entry.id); // SPA hat den Absatz inzwischen entfernt
         continue;
       }
-      const dist = viewportDistance(entry);
-      const near = dist <= limit;
-      for (const el of entry.els) {
-        el.classList.toggle("aivsai-pending", near);
-        el.classList.toggle("aivsai-deferred", !near);
-        if (near) nearObserver.unobserve(el);
-        else nearObserver.observe(el);
-      }
-      if (near) ranked.push({ entry, dist, top: entry.els[0].getBoundingClientRect().top });
+      const { dist, top } = viewportDistance(entry);
+      entry.near = dist <= limit;
+      if (entry.near) ranked.push({ entry, dist, top });
     }
     ranked.sort((a, b) => a.dist - b.dist || a.top - b.top);
     const batch = ranked.slice(0, BATCH_SIZE).map((r) => r.entry);
     batch.forEach((b) => pending.delete(b.id));
+
+    // Phase 2 schreiben: Markierung "wird geprüft" bzw. "beim Scrollen"
+    pending.forEach(markQueued);
+    batch.forEach(markQueued);
     return batch;
   }
 
   // Batches nacheinander statt alle auf einmal - sonst rechnet der Server alles parallel
   // und die Priorisierung hätte keinen Effekt.
   function pump() {
-    const maxInFlight = config.provider === "local" || config.provider === "browser" ? 1 : 2;
+    const maxInFlight = AIVSAI.maxInFlight(config);
     while (batchesInFlight < maxInFlight && pending.size && isActive()) {
       const batch = takeNextBatch();
       if (!batch.length) break; // alles Übrige ist zurückgestellt, bis gescrollt wird
@@ -247,8 +318,9 @@
     for (const b of batch) {
       const p = resp?.scores?.[b.id];
       if (typeof p === "number") {
-        seen.set(b.id, p);
-        b.els.forEach((el) => applyScore(el, p));
+        const known = { p, model: resp.model };
+        seen.set(b.id, known);
+        b.els.forEach((el) => applyScore(el, { hash: b.id, text: b.text, ...known, source: "auto" }));
       } else {
         b.els.forEach((el) => el.classList.remove("aivsai-pending"));
       }
@@ -256,17 +328,23 @@
     reportStats();
   }
 
-  function applyScore(el, probability) {
+  function applyScore(el, record) {
+    results.set(el, { ...record, at: record.at ?? Date.now() });
     el.classList.remove("aivsai-pending");
-    el.dataset.aivsaiScore = String(probability);
     style(el);
   }
 
   function style(el) {
-    const p = parseFloat(el.dataset.aivsaiScore);
+    const { p } = results.get(el);
+    // vor allen Schreibzugriffen lesen, sonst erzwingt getComputedStyle eine Neuberechnung
+    if (config.showBadge && !staticPosition.has(el)) {
+      staticPosition.set(el, getComputedStyle(el).position === "static");
+    }
     const level = AIVSAI.level(p, config);
     const pct = Math.round(p * 100);
     el.classList.remove(...LEVEL_CLASSES, "aivsai-pos");
+    // nur als Hook für Tests/Debugging - der Code selbst liest aus `results`
+    el.dataset.aivsaiScore = String(p);
     el.dataset.aivsaiLevel = level;
 
     const visible = level !== "green" || config.showGreen;
@@ -276,7 +354,7 @@
         el.dataset.aivsaiLabel = `${pct}% KI`;
         el.classList.add("aivsai-badge");
         // Badge wird per ::after absolut positioniert und braucht dafür einen Bezugsrahmen
-        if (getComputedStyle(el).position === "static") el.classList.add("aivsai-pos");
+        if (staticPosition.get(el)) el.classList.add("aivsai-pos");
       }
     }
 
@@ -293,6 +371,7 @@
   }
 
   function unstyle(el) {
+    results.delete(el);
     nearObserver.unobserve(el);
     el.classList.remove(...LEVEL_CLASSES, "aivsai-pending", "aivsai-deferred", "aivsai-pos");
     if (el.dataset.aivsaiTitle) el.removeAttribute("title");
@@ -300,8 +379,10 @@
   }
 
   function restyleAll() {
-    document.querySelectorAll("[data-aivsai-score]").forEach(style);
-    for (const [range, p] of manualRanges) highlightRange(range, p);
+    for (const el of results.keys()) {
+      if (el.isConnected) style(el);
+    }
+    for (const [range, rec] of manualRanges) highlightRange(range, rec ? rec.p : null);
   }
 
   function clearAll() {
@@ -314,10 +395,11 @@
       unstyle(el);
       delete el.dataset.aivsaiHash;
     });
+    results.clear();
     lastError = null;
     for (const range of manualRanges.keys()) highlightRange(range, undefined);
     manualRanges.clear();
-    hidePopover();
+    Popover.hide();
   }
 
   function rescanAll() {
@@ -327,13 +409,24 @@
   }
 
   function stats() {
-    const counts = { red: 0, yellow: 0, green: 0, pending: 0 };
-    document.querySelectorAll("[data-aivsai-level]").forEach((el) => counts[el.dataset.aivsaiLevel]++);
-    counts.pending = document.querySelectorAll(".aivsai-pending").length;
-    counts.deferred = document.querySelectorAll(".aivsai-deferred").length;
-    return { ...counts, active: isActive(), manualScan, error: lastError, host };
+    const counts = { red: 0, yellow: 0, green: 0 };
+    for (const [el, rec] of results) {
+      // entfernte Absätze (SPA, Infinite Scroll) nicht mehr zählen und nicht im Speicher halten
+      if (!el.isConnected) results.delete(el);
+      else counts[AIVSAI.level(rec.p, config)]++;
+    }
+    return {
+      ...counts,
+      pending: pendingEls.length,
+      deferred: deferredEls.length,
+      active: isActive(),
+      manualScan,
+      error: lastError,
+      host
+    };
   }
 
+  // Geht an Background (Icon-Badge) und ein offenes Popup
   function reportStats() {
     clearTimeout(statsTimer);
     statsTimer = setTimeout(() => {
@@ -357,7 +450,7 @@
     const sel = getSelection();
     const text = sel && !sel.isCollapsed ? sel.toString().replace(/\s+/g, " ").trim() : "";
     if (!text) {
-      showPopover({}, ++popoverToken, { error: "Kein Text markiert." });
+      Popover.show({}, Popover.claim(), { error: "Kein Text markiert." });
       return;
     }
     const range = sel.getRangeAt(0).cloneRange();
@@ -379,7 +472,7 @@
     const el = blockFor(target);
     if (!el) {
       const words = wordCount(target?.innerText || target?.textContent || "");
-      showPopover({ el: target }, ++popoverToken, { error: tooShort(words) });
+      Popover.show({ el: target }, Popover.claim(), { error: tooShort(words) });
       return;
     }
     // Hash wie beim Auto-Scan, damit der Absatz dort nicht noch einmal eingereiht wird
@@ -387,7 +480,7 @@
     const hash = hashText(text);
     pending.delete(hash);
     el.dataset.aivsaiHash = hash;
-    checkManual(text, { el });
+    checkManual(text, { el, hash });
   }
 
   function tooShort(words) {
@@ -395,21 +488,21 @@
   }
 
   async function checkManual(fullText, target) {
-    const token = ++popoverToken;
+    const token = Popover.claim();
     const words = wordCount(fullText);
     if (!config.enabled) {
-      showPopover(target, token, { error: "Die Extension ist ausgeschaltet." });
+      Popover.show(target, token, { error: "Die Extension ist ausgeschaltet." });
       return;
     }
     if (words < MANUAL_MIN_WORDS) {
-      showPopover(target, token, { error: tooShort(words) });
+      Popover.show(target, token, { error: tooShort(words) });
       return;
     }
     const text = fullText.slice(0, MANUAL_MAX_CHARS);
     const id = `m_${hashText(text)}`;
     const gen = generation;
     markManual(target, null);
-    showPopover(target, token, { loading: true });
+    Popover.show(target, token, { title: "Wird auf KI geprüft…", notes: [AIVSAI.providerLabel(config)] });
 
     const resp = await requestScores([{ id, text }]);
     if (gen !== generation) return;
@@ -417,34 +510,44 @@
     if (typeof p !== "number") {
       markManual(target, undefined);
       const error = resp?.error || (resp ? "Keine Bewertung erhalten." : "Extension nicht erreichbar – Seite neu laden.");
-      showPopover(target, token, { error });
+      Popover.show(target, token, { error });
       return;
     }
-    markManual(target, p);
-    showPopover(target, token, { p, words, truncated: fullText.length > MANUAL_MAX_CHARS });
+    markManual(target, { text, p, model: resp.model, at: Date.now() });
+    Popover.show(target, token, resultView(p, words, fullText.length > MANUAL_MAX_CHARS));
     reportStats();
   }
 
-  // probability: Zahl = Ergebnis, null = wird geprüft, undefined = Markierung entfernen
-  function markManual({ range, el }, probability) {
+  function resultView(p, words, truncated) {
+    const level = AIVSAI.level(p, config);
+    const notes = [];
+    if (words < MIN_WORDS) notes.push(`Kurzer Text (${words} Wörter) – Ergebnis wenig verlässlich.`);
+    if (truncated) notes.push(`Nur die ersten ${MANUAL_MAX_CHARS} Zeichen bewertet.`);
+    notes.push(`${AIVSAI.providerLabel(config)} · Schätzung, kann falsch liegen`);
+    return { pill: { text: `${Math.round(p * 100)} % KI`, level }, title: AIVSAI.LEVEL_TEXT[level], notes };
+  }
+
+  // record: Ergebnis-Objekt, null = wird geprüft, undefined = Markierung entfernen
+  function markManual({ range, el, hash }, record) {
     if (range) {
-      if (probability === undefined) manualRanges.delete(range);
-      else manualRanges.set(range, probability);
-      highlightRange(range, probability);
+      if (record === undefined) manualRanges.delete(range);
+      else manualRanges.set(range, record);
+      highlightRange(range, record === undefined ? undefined : record ? record.p : null);
     }
     if (el) {
-      if (probability === null) {
+      if (record === null) {
         unstyle(el);
         el.classList.add("aivsai-pending");
-      } else if (probability === undefined) {
+      } else if (record === undefined) {
         el.classList.remove("aivsai-pending");
       } else {
-        applyScore(el, probability);
+        applyScore(el, { ...record, hash, source: "manual" });
       }
     }
   }
 
-  // CSS Custom Highlight API: färbt beliebige Textbereiche, ohne das DOM der Seite anzufassen
+  // CSS Custom Highlight API: färbt beliebige Textbereiche, ohne das DOM der Seite anzufassen.
+  // probability: Zahl = Ergebnis, null = wird geprüft, undefined = Markierung entfernen
   function highlightRange(range, probability) {
     if (!window.CSS?.highlights) return;
     for (const state of HIGHLIGHT_STATES) CSS.highlights.get(`aivsai-${state}`)?.delete(range);
@@ -453,116 +556,4 @@
     if (!CSS.highlights.has(name)) CSS.highlights.set(name, new Highlight());
     CSS.highlights.get(name).add(range);
   }
-
-  const POPOVER_CSS = `
-    :host { all: initial; position: absolute; z-index: 2147483647; }
-    .box {
-      --bg: #fff; --fg: #1f2937; --muted: #6b7280; --border: rgba(0, 0, 0, 0.12); --error: #dc2626;
-      box-sizing: border-box; width: 280px; max-width: calc(100vw - 16px); position: relative;
-      padding: 10px 30px 10px 12px; border: 1px solid var(--border); border-radius: 10px;
-      background: var(--bg); color: var(--fg); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
-      font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
-    }
-    @media (prefers-color-scheme: dark) {
-      .box { --bg: #1f2937; --fg: #f3f4f6; --muted: #9ca3af; --border: rgba(255, 255, 255, 0.15); --error: #f87171; }
-    }
-    .close {
-      position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; padding: 0;
-      border: 0; border-radius: 6px; background: none; color: var(--muted);
-      font: 16px/22px system-ui, sans-serif; cursor: pointer;
-    }
-    .close:hover { background: var(--border); color: var(--fg); }
-    .head { display: flex; align-items: center; gap: 8px; font-weight: 600; }
-    .pill { padding: 0 7px; border-radius: 999px; color: #fff; font-size: 12px; line-height: 19px; white-space: nowrap; }
-    .green { background: #15803d; }
-    .yellow { background: #a16207; }
-    .red { background: #dc2626; }
-    .note { margin-top: 4px; color: var(--muted); font-size: 12px; }
-    .error { color: var(--error); }
-  `;
-
-  function showPopover(target, token, state) {
-    if (token !== popoverToken) return; // eine neuere Prüfung hat das Popover übernommen
-    if (!popover) {
-      popover = document.createElement("aivsai-popover");
-      const shadow = popover.attachShadow({ mode: "open" });
-      shadow.innerHTML =
-        `<style>${POPOVER_CSS}</style>` +
-        `<div class="box" role="status" aria-live="polite">` +
-        `<button class="close" type="button" aria-label="Schließen" title="Schließen">×</button>` +
-        `<div class="body"></div></div>`;
-      shadow.querySelector(".close").addEventListener("click", hidePopover);
-    }
-    const div = (cls, text) => {
-      const node = document.createElement(cls === "pill" ? "span" : "div");
-      node.className = cls;
-      node.textContent = text;
-      return node;
-    };
-    const body = popover.shadowRoot.querySelector(".body");
-    body.replaceChildren();
-
-    if (state.loading) {
-      body.append(div("head", "Wird auf KI geprüft…"), div("note", AIVSAI.providerLabel(config)));
-    } else if (state.error) {
-      body.append(div("error", state.error));
-    } else {
-      const level = AIVSAI.level(state.p, config);
-      const pill = div("pill", `${Math.round(state.p * 100)} % KI`);
-      pill.classList.add(level);
-      const head = div("head", "");
-      head.append(pill, AIVSAI.LEVEL_TEXT[level]);
-      body.append(head);
-      if (state.words < MIN_WORDS) {
-        body.append(div("note", `Kurzer Text (${state.words} Wörter) – Ergebnis wenig verlässlich.`));
-      }
-      if (state.truncated) body.append(div("note", `Nur die ersten ${MANUAL_MAX_CHARS} Zeichen bewertet.`));
-      body.append(div("note", `${AIVSAI.providerLabel(config)} · Schätzung, kann falsch liegen`));
-    }
-
-    if (!popover.isConnected) document.documentElement.append(popover);
-    positionPopover(target);
-  }
-
-  // Unter den geprüften Text, aber immer im sichtbaren Bereich - lange Absätze ragen oft darüber hinaus
-  function positionPopover({ range, el }) {
-    const anchor = range || (el?.isConnected ? el : null);
-    const rect = anchor?.getBoundingClientRect();
-    const box = popover.getBoundingClientRect();
-    const x = Math.max(8, Math.min(rect ? rect.left : innerWidth, innerWidth - box.width - 8));
-    const y = Math.max(8, Math.min(rect ? rect.bottom + 8 : 8, innerHeight - box.height - 8));
-    popover.style.left = `${x + scrollX}px`;
-    popover.style.top = `${y + scrollY}px`;
-  }
-
-  function hidePopover() {
-    popoverToken++;
-    popover?.remove();
-  }
-
-  document.addEventListener("keydown", (e) => e.key === "Escape" && popover?.isConnected && hidePopover(), true);
-  document.addEventListener(
-    "mousedown",
-    (e) => popover?.isConnected && !e.composedPath().includes(popover) && hidePopover(),
-    true
-  );
-
-  // Nachgeladene Inhalte (Infinite Scroll, SPAs) - Knoten über die Debounce-Zeit sammeln,
-  // damit keine Mutationen verloren gehen, wenn der Timer neu startet.
-  const observer = new MutationObserver((mutations) => {
-    if (!isActive()) return;
-    for (const m of mutations) {
-      m.addedNodes.forEach((node) => {
-        if (node.nodeType === Node.ELEMENT_NODE) addedNodes.add(node);
-        else if (node.parentElement) addedNodes.add(node.parentElement);
-      });
-    }
-    clearTimeout(mutationTimer);
-    mutationTimer = setTimeout(() => {
-      const nodes = Array.from(addedNodes).filter((n) => n.isConnected);
-      addedNodes.clear();
-      nodes.forEach(scanAndQueue);
-    }, DEBOUNCE_MS);
-  });
-  observer.observe(document.documentElement, { childList: true, subtree: true });
 })();

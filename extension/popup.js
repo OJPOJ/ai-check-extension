@@ -105,14 +105,17 @@ async function init() {
   render();
   refreshStats();
   refreshHealth();
-  setInterval(refreshStats, 1000);
 }
+
+// Das Content-Script meldet jede Änderung selbst (STATS geht an Background und Popup) - kein Polling
+chrome.runtime.onMessage.addListener((msg, sender) => {
+  if (msg?.type === "STATS" && tab?.id !== undefined && sender.tab?.id === tab.id) renderStats(msg.stats);
+});
 
 $("enabled").addEventListener("change", async (e) => {
   config.enabled = e.target.checked;
   await chrome.storage.sync.set({ enabled: config.enabled });
   render();
-  setTimeout(refreshStats, 300);
 });
 
 $("siteAuto").addEventListener("change", async (e) => {
@@ -120,7 +123,6 @@ $("siteAuto").addEventListener("change", async (e) => {
   config.sites = e.target.checked ? [...others, host] : others;
   await chrome.storage.sync.set({ sites: config.sites });
   renderSite();
-  setTimeout(refreshStats, 300);
 });
 
 $("scanNow").addEventListener("click", async () => {
