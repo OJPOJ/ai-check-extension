@@ -11,6 +11,8 @@
   .site { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .site-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #scanNow { width: 100%; margin-top: 10px; }
+  .link { padding: 0; border: 0; background: none; color: var(--muted); font: inherit; text-decoration: underline; cursor: pointer; }
+  .link:hover { color: inherit; }
 
   .counts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
   .count { background: var(--surface); border-radius: 8px; padding: 8px; text-align: center; }
@@ -57,6 +59,7 @@
     <div class="small muted" style="margin-top:6px">
       Einzelne Stellen: Text markieren oder Absatz rechtsklicken → „Auf KI prüfen“ (<kbd>Alt+Shift+C</kbd>)
     </div>
+    <div class="small" style="margin-top:6px"><button id="blockToggle" class="link" hidden></button></div>
   </section>
 
   <section>
@@ -87,6 +90,7 @@
     <button id="openOptions">Einstellungen</button>
   </footer>
 
+  <script src="generated/blocklist.js"></script>
   <script src="config.js"></script>
   <script src="popup.js"></script>
 </body>

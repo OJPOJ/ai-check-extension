@@ -13,6 +13,9 @@ const LOCAL_MODEL_INFO = {
 
 const TEXT_FIELDS = ["localUrl", "customUrl", "customModel", "hfModel", "hfAiLabel"];
 const SECRET_FIELDS = ["customApiKey", "hfToken"];
+// Domainlisten (Textarea, eine pro Zeile) - das Popup ändert sie auch, siehe storage.onChanged unten
+const SITE_FIELDS = ["sites", "blockedSites", "unblockedSites"];
+const CHECK_FIELDS = ["builtinBlocklist", "sensitiveHeuristic", "showGreen", "showBadge", "lazyScan", "feedbackButtons"];
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost"]);
 
 const radioValue = (name) => document.querySelector(`input[name="${name}"]:checked`)?.value;
@@ -38,19 +41,16 @@ function readForm() {
   const cfg = {
     enabled: $("enabled").checked,
     scanMode: radioValue("scanMode"),
-    sites: parseSites($("sites").value),
     provider: radioValue("provider"),
     browserModel: radioValue("browserModel") || AIVSAI.DEFAULTS.browserModel,
     localModel: $("localModel").value,
     yellowFrom: parseFloat($("yellowFrom").value),
     redFrom: parseFloat($("redFrom").value),
-    showGreen: $("showGreen").checked,
-    showBadge: $("showBadge").checked,
-    feedbackButtons: $("feedbackButtons").checked,
-    lazyScan: $("lazyScan").checked,
     scoreRetentionDays: parseInt($("scoreRetentionDays").value, 10)
   };
   for (const f of TEXT_FIELDS) cfg[f] = $(f).value.trim();
+  for (const f of SITE_FIELDS) cfg[f] = parseSites($(f).value);
+  for (const f of CHECK_FIELDS) cfg[f] = $(f).checked;
   cfg.localUrl ||= AIVSAI.DEFAULTS.localUrl;
   const secrets = {};
   for (const f of SECRET_FIELDS) secrets[f] = $(f).value.trim();
@@ -103,7 +103,7 @@ function saveFromClick() {
       return false;
     }
     await Promise.all([chrome.storage.sync.set(cfg), chrome.storage.local.set(secrets)]);
-    $("sites").value = cfg.sites.join("\n");
+    for (const f of SITE_FIELDS) $(f).value = cfg[f].join("\n");
     return true;
   });
 }
@@ -114,23 +114,7 @@ function renderProvider() {
   $("localModelInfo").innerHTML = LOCAL_MODEL_INFO[$("localModel").value] || "";
   $("browserModelInfo").textContent = AIVSAI.BROWSER_MODELS[radioValue("browserModel")]?.info || "";
 
-  let target = null;
-  if (provider === "huggingface") target = "Hugging Face (router.huggingface.co)";
-  if (provider === "custom") {
-    try {
-      target = new URL($("customUrl").value).host;
-    } catch {
-      target = "den eingetragenen Server";
-    }
-  }
-  if (provider === "local") {
-    try {
-      const h = new URL($("localUrl").value || AIVSAI.DEFAULTS.localUrl).hostname;
-      if (!LOOPBACK_HOSTS.has(h)) target = h;
-    } catch {
-      // ungültige URL wird beim Speichern gemeldet
-    }
-  }
+  const target = AIVSAI.remoteTarget({ provider, customUrl: $("customUrl").value, localUrl: $("localUrl").value });
   $("privacyWarn").hidden = !target;
   $("privacyTarget").textContent = target || "";
 }
@@ -299,7 +283,7 @@ async function init() {
   ]);
   $("enabled").checked = cfg.enabled;
   setRadio("scanMode", cfg.scanMode);
-  $("sites").value = cfg.sites.join("\n");
+  for (const f of SITE_FIELDS) $(f).value = cfg[f].join("\n");
   setRadio("provider", cfg.provider);
   setRadio("browserModel", cfg.browserModel);
   $("localModel").value = cfg.localModel;
@@ -307,27 +291,39 @@ async function init() {
   for (const f of SECRET_FIELDS) $(f).value = secrets[f];
   $("yellowFrom").value = cfg.yellowFrom;
   $("redFrom").value = cfg.redFrom;
-  $("showGreen").checked = cfg.showGreen;
-  $("showBadge").checked = cfg.showBadge;
-  $("feedbackButtons").checked = cfg.feedbackButtons;
-  $("lazyScan").checked = cfg.lazyScan;
+  for (const f of CHECK_FIELDS) $(f).checked = cfg[f];
   $("scoreRetentionDays").value = String(cfg.scoreRetentionDays);
   renderProvider();
   renderScanMode();
   renderScale();
   refreshModel();
   refreshStore();
+  renderBuiltinInfo();
   refreshFeedback();
 }
 
-// Popup und Tastenkürzel ändern "enabled"/"sites", während diese Seite offen sein kann -
+function renderBuiltinInfo() {
+  const list = globalThis.AIVSAI_BLOCKLIST;
+  if (!list) {
+    $("builtinInfo").textContent = "Liste fehlt – npm run build:blocklist ausführen.";
+    return;
+  }
+  const date = new Date(list.generated).toLocaleDateString("de-DE");
+  $("builtinInfo").textContent =
+    `${list.count.toLocaleString("de-DE")} Domains, Stand ${date}. Quellen: UT1-Blacklists (Université Toulouse ` +
+    `Capitole, CC BY-SA 4.0), FDIC BankFind (US-Banken) und eine handverlesene Liste.`;
+}
+
+// Popup und Tastenkürzel ändern "enabled" und die Domainlisten, während diese Seite offen sein kann -
 // ohne Abgleich würde der nächste Klick auf Speichern den alten Formularstand zurückschreiben.
 chrome.storage.onChanged.addListener((changes, area) => {
   // Einwilligung kommt aus dem Popover auf einer Webseite
   if (area === "local" && "feedbackConsentAt" in changes) refreshFeedback();
   if (area !== "sync") return;
   if ("enabled" in changes) $("enabled").checked = changes.enabled.newValue;
-  if ("sites" in changes) $("sites").value = (changes.sites.newValue || []).join("\n");
+  for (const f of SITE_FIELDS) {
+    if (f in changes) $(f).value = (changes[f].newValue ?? AIVSAI.DEFAULTS[f]).join("\n");
+  }
 });
 
 document.querySelectorAll('input[name="provider"]').forEach((el) => el.addEventListener("change", renderProvider));

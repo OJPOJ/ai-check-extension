@@ -45,6 +45,31 @@ Repo: https://github.com/realZachi/typesafe-adblock — fast 1:1 übertragbares 
 - **RAID**: größter/umfassendster Benchmark-Datensatz, >10 Mio. Dokumente, 11 LLMs, 11 Genres, 4 Decoding-Strategien, 12 adversariale Angriffe (Paraphrasierung etc.) — HF: https://huggingface.co/datasets/liamdugan/raid
 - Paper zu RAID: https://arxiv.org/html/2405.07940v1
 
+## Quellen für die Sperrliste (Stand 2026-09-25)
+
+Es gibt keine offizielle API „sensible Seiten“. Brauchbar zum Erzeugen einer statischen Liste beim
+Build (ausliefern statt zur Laufzeit abfragen – sonst verrät die Abfrage das Surfverhalten).
+**Eingebaut** (`scripts/build-blocklist.mjs`): UT1 `bank` + `webmail` (offizielles tar.gz, nicht der
+GitHub-Spiegel), FDIC, handverlesene Liste. Erster Lauf: UT1 bank 6.645, webmail 404, FDIC 4.147,
+handverlesen 87 → 10.384 Domains nach Zusammenfassen. UT1 `financial` bewusst nicht: das sind
+überwiegend Börsen-/Finanz-*News*. Ausgeschlossen, weil Portale mit Inhalt: `web.de`, `gmx.net`
+(dafür nur deren Mail-Subdomains), `bankrate.com`.
+
+- **UT1-Blacklists** (Université Toulouse Capitole): Kategorien u.a. `bank` und `webmail`,
+  international, regelmäßig gepflegt, **CC BY-SA** (Namensnennung + Weitergabe unter gleicher Lizenz
+  für die abgeleitete Liste). https://dsi.ut-capitole.fr/blacklists/index_en.php, Spiegel:
+  https://github.com/olbat/ut1-blacklists. Qualität für DE/UK/US vor Einbau stichprobenartig prüfen.
+- **FDIC BankFind API** (USA): alle US-Banken inkl. Web-Adresse (Feld `WEBADDR`), ohne API-Key.
+  https://api.fdic.gov/banks/docs/
+- **Wikidata (SPARQL)**: Banken/Mail-Dienste mit offizieller Website (P856) pro Land, CC0 – deckt DE
+  und UK ab, aber lückenhaft und teils veraltete Domains.
+- **Chrome Topics API Override-Liste** (~50k Top-Hosts mit Kategorie, u.a. Finanzen): nur aus dem
+  Chrome-Profil extrahierbar, Lizenz unklar – eher nicht.
+- Nicht mehr gepflegt: Shalla-Liste (2020 eingestellt), DMOZ/Curlie-Dumps.
+
+Keine Liste ist vollständig (Sparkassen/Volksbanken haben hunderte Domains) → ergänzend Heuristik
+auf der Seite (Passwort-/Kreditkartenfeld → nicht automatisch scannen).
+
 ## Offene Fragen / nicht verifiziert
 
 - Exaktes Trainingsdaten-Schema für Laya-Fine-Tuning (Spaltennamen etc.) nicht öffentlich klar dokumentiert — muss beim Öffnen des Kaggle-Notebooks geprüft werden.

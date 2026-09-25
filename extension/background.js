@@ -5,6 +5,7 @@
 //   bg/feedback-store.js   Feedback-Sammlung mit Text (nur nach Einwilligung, nur lokal)
 //   bg/badge.js            Icon-Badge pro Tab
 //   bg/offscreen-client.js Brücke zum Offscreen-Dokument mit dem Browser-Modell
+import "./generated/blocklist.js";
 import "./config.js";
 import { updateBadge } from "./bg/badge.js";
 import * as feedback from "./bg/feedback-store.js";
@@ -116,7 +117,13 @@ const OFFSCREEN_COMMANDS = { MODEL_STATUS: "status", MODEL_DOWNLOAD: "download",
 
 // Handler liefern eine Antwort (auch als Promise) oder undefined für "keine Antwort"
 const HANDLERS = {
-  SCORE_BATCH: (msg) => scoreBatch(msg.items),
+  SCORE_BATCH: async (msg, sender) => {
+    // Zweite Absicherung zur Sperrliste (die erste ist content.js): von dort nur Einzelprüfungen
+    if (!msg.manual && (await isBlocked(sender))) {
+      return { ok: false, scores: {}, error: "Seite steht auf der Sperrliste" };
+    }
+    return scoreBatch(msg.items);
+  },
   STATS: (msg, sender) => {
     if (sender.tab?.id !== undefined) updateBadge(sender.tab.id, msg.stats);
   },
@@ -141,6 +148,16 @@ const HANDLERS = {
     fromExtensionPage(sender) &&
     withError(feedback.clear().then(() => chrome.storage.local.remove(FEEDBACK_CONSENT)).then(feedbackInfo))
 };
+
+async function isBlocked(sender) {
+  let host;
+  try {
+    host = new URL(sender.url).hostname;
+  } catch {
+    return false; // Extension-Seiten
+  }
+  return AIVSAI.scanPolicy(host, await getConfig()) === "blocked";
+}
 
 const fromExtensionPage = (sender) => !!sender.url?.startsWith(chrome.runtime.getURL(""));
 

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<title>AI Content Flag – Datenschutzerklärung</title>
+<link rel="stylesheet" href="ui.css" />
+<style>
+  body { background: var(--surface); }
+  main { max-width: 680px; margin: 0 auto; padding: 24px 16px 48px; font-size: 14px; line-height: 1.55; }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  h2 { margin-top: 28px; }
+  li { margin: 4px 0; }
+  code { font-size: 12.5px; background: var(--bg); padding: 1px 4px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Datenschutzerklärung</h1>
+  <p class="muted">AI Content Flag (Browser-Extension) · Stand: 25.09.2026</p>
+
+  <p>Die Extension bewertet Textabsätze auf Webseiten mit einem KI-Text-Klassifikator. Sie erhebt keine
+    Nutzungsstatistiken, enthält keine Werbung oder Tracker und verkauft oder überträgt keine Daten an Dritte –
+    außer an das Erkennungs-Backend, das du selbst auswählst (siehe unten).</p>
+
+  <h2>Welche Daten verarbeitet werden</h2>
+  <ul>
+    <li><b>Seitentext:</b> Von gescannten Seiten werden sichtbare Textabsätze gelesen (bis 500 Zeichen pro Absatz,
+      bei manueller Prüfung bis 2000 Zeichen). Kein HTML, keine Formulareingaben, keine Passwörter.</li>
+    <li><b>Einstellungen:</b> gewählte Optionen, Seitenliste und Sperrliste. Sie liegen in
+      <code>chrome.storage.sync</code> und werden – falls im Browser aktiviert – über dein Browser-Konto
+      synchronisiert.</li>
+    <li><b>Zugangsdaten</b> für eigene Server bzw. Hugging Face (API-Key, Token) liegen nur lokal in diesem
+      Browser (<code>chrome.storage.local</code>) und werden nicht synchronisiert.</li>
+    <li><b>Gespeicherte Bewertungen:</b> pro Absatz ein Fingerabdruck (128-Bit-Hash), Score, Modell und
+      Zeitpunkt – <b>kein Text und keine Adresse</b>. Nur lokal (IndexedDB), standardmäßig 30 Tage, einstellbar
+      bis „Nicht speichern“, jederzeit löschbar.</li>
+    <li><b>Feedback (freiwillig):</b> Wenn du im Prüfergebnis angibst, woher ein Text stammt, und dem Speichern
+      zustimmst, speichert die Extension den geprüften <b>Text</b> (bis 2000 Zeichen), deine Angabe, Score, Modell,
+      die Sprache der Seite und den Zeitpunkt – <b>keine Adresse</b>. Nur lokal (IndexedDB), ohne Löschfrist, wird
+      nie übertragen. Auf Seiten der Sperrliste und auf Seiten mit Passwort- oder Zahlungsfeld wird kein Feedback
+      angeboten. Export, Löschen und Widerruf der Einwilligung: Einstellungen → Feedback.</li>
+  </ul>
+
+  <h2>Wohin Texte gesendet werden</h2>
+  <ul>
+    <li><b>Im Browser</b> (Standard) und <b>Lokal</b> (Server auf diesem Rechner): Texte verlassen den Rechner
+      nicht. Einzige Verbindung nach außen ist der einmalige Modell-Download von Hugging Face; dabei werden keine
+      Seiteninhalte übertragen.</li>
+    <li><b>Eigener Server / Cloud:</b> Die Absätze gehen an die von dir eingetragene Adresse. Für die dortige
+      Verarbeitung ist der Betreiber dieses Servers verantwortlich.</li>
+    <li><b>Hugging Face Inference API:</b> Die Absätze gehen an Hugging Face (router.huggingface.co). Es gilt die
+      Datenschutzerklärung von Hugging Face.</li>
+  </ul>
+  <p>Die Einstellungen zeigen einen Hinweis, sobald ein Backend Texte vom Rechner schickt.</p>
+
+  <h2>Wann gescannt wird</h2>
+  <ul>
+    <li>Standardmäßig nur auf Seiten, die du ausdrücklich freigibst. Ohne Freigabe liest die Extension keinen
+      Text und beobachtet die Seite nicht.</li>
+    <li><b>Sperrliste:</b> Webmail, Online-Banking, Zahlungsdienste und Behördenportale mit Login werden nie
+      automatisch oder per „Seite jetzt scannen“ geprüft. Die mitgelieferte Liste (rund 10.000 Domains) ist
+      fest in der Extension enthalten und wird nicht aus dem Netz nachgeladen – es wird also nirgendwohin
+      gemeldet, welche Seiten du besuchst. Eigene Einträge und Ausnahmen sind in den Einstellungen und im Popup
+      möglich.</li>
+    <li><b>Passwort- und Zahlungsfelder:</b> Zeigt eine Seite ein Passwort-, Kreditkarten- oder Einmalcode-Feld,
+      wird sie ebenfalls nicht gescannt (abschaltbar). Die Extension liest dafür nur, <i>ob</i> es ein solches
+      Feld gibt – nie dessen Inhalt.</li>
+    <li>Auf gesperrten Seiten lassen sich einzelne Stellen nur durch bewusstes Markieren bzw. Rechtsklick
+      prüfen – die Extension weist dann darauf hin und nennt bei externen Backends das Ziel.</li>
+    <li>Der Hauptschalter (<kbd>Alt+Shift+A</kbd>) stoppt jede Verarbeitung.</li>
+  </ul>
+
+  <h2>Berechtigungen</h2>
+  <ul>
+    <li><b>Zugriff auf Webseiten</b> (Content-Script): um Absätze zu lesen und farbig zu markieren.</li>
+    <li><b>Tabs:</b> Adresse des aktiven Tabs für Popup, Freigabe und Sperrliste.</li>
+    <li><b>Speicher, Alarme:</b> Einstellungen und gespeicherte Bewertungen, tägliches Aufräumen.</li>
+    <li><b>Kontextmenü, Offscreen-Dokument:</b> Rechtsklick-Prüfung bzw. Modell im Browser.</li>
+    <li><b>Host-Zugriff auf externe Backends</b> wird erst angefragt, wenn du ein solches Backend speicherst.</li>
+  </ul>
+
+  <h2>Löschen</h2>
+  <p>„Alle löschen“ unter „Gespeicherte Bewertungen“ entfernt alle Scores, „Löschen“ beim Modell den Download,
+    „Löschen und Einwilligung widerrufen“ unter „Feedback“ die Feedback-Sammlung.
+    Beim Deinstallieren der Extension entfernt der Browser sämtliche lokal gespeicherten Daten.</p>
+
+  <h2>Kontakt</h2>
+  <p>[Name und Kontaktadresse des Anbieters vor der Veröffentlichung eintragen]</p>
+</main>
+</body>
+</html>

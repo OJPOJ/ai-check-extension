@@ -96,6 +96,14 @@ describe("Feedback", () => {
     assert.equal((await info()).count, 0);
   });
 
+  it("bietet auf Seiten der Sperrliste kein Feedback an", async () => {
+    await ext.configure({ blockedSites: ["feedback.test"] });
+    await checkParagraph();
+    assert.match(await popoverText(), /Sperrliste/);
+    assert.doesNotMatch(await popoverText(), /Weißt du/);
+    await ext.configure({ blockedSites: [] });
+  });
+
   it("zeigt keine Feedback-Knöpfe, wenn sie abgeschaltet sind", async () => {
     await ext.configure({ feedbackButtons: false });
     await checkParagraph();

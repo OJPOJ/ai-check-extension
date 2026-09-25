@@ -85,6 +85,30 @@
       <div class="hint">Eine Domain pro Zeile, Subdomains sind eingeschlossen.</div>
     </div>
 
+    <div class="field">
+      <div class="label">Nie scannen (Sperrliste)</div>
+      <div class="hint" style="margin-top:0">Gesperrte Seiten werden weder automatisch noch per „Seite jetzt scannen“
+        geprüft – das gilt vor allen anderen Einstellungen. Einzelne Stellen kannst du dort weiterhin bewusst per
+        Auswahl oder Rechtsklick prüfen.</div>
+      <label class="check"><input type="checkbox" id="builtinBlocklist" />
+        <div>Mitgelieferte Liste verwenden (Online-Banking, Webmail, Zahlungsdienste, Behördenportale)
+          <div class="hint" id="builtinInfo"></div></div></label>
+      <label class="check"><input type="checkbox" id="sensitiveHeuristic" />
+        <div>Seiten mit Passwort- oder Zahlungsfeld nicht scannen
+          <div class="hint">Fängt Login- und Bezahlseiten ab, die in keiner Liste stehen. Felder in Pop-ups
+            (z.B. Login-Fenster einer Nachrichtenseite) zählen nicht.</div></div></label>
+    </div>
+    <div class="field">
+      <label for="blockedSites">Zusätzlich sperren</label>
+      <textarea id="blockedSites" rows="3" placeholder="intranet.example.com"></textarea>
+    </div>
+    <div class="field">
+      <label for="unblockedSites">Ausnahmen von der mitgelieferten Liste</label>
+      <textarea id="unblockedSites" rows="2" placeholder="blog.bank.example"></textarea>
+      <div class="hint">Eine Domain pro Zeile, Subdomains sind eingeschlossen. Beides geht auch per Popup
+        („Hier nie scannen“ / „Von der Sperrliste nehmen“).</div>
+    </div>
+
     <label class="check"><input type="checkbox" id="lazyScan" />
       <div>Nur Absätze in der Nähe des sichtbaren Bereichs bewerten
         <div class="hint">Bis 1,5 Bildschirmhöhen über/unter der aktuellen Position, der Rest beim Scrollen.
@@ -251,6 +275,7 @@
     </div>
   </div>
 
+  <p class="small muted"><a href="privacy.html" target="_blank">Datenschutzerklärung</a></p>
   <p class="small muted">Messwerte der lokalen Modelle: training/EVAL_RESULTS.md. Laya ist absichtlich nicht wählbar,
     bis ein fine-getunter Checkpoint existiert (training/README.md).</p>
 </main>
@@ -263,6 +288,7 @@
   </div>
 </div>
 
+<script src="generated/blocklist.js"></script>
 <script src="config.js"></script>
 <script src="options.js"></script>
 </body>

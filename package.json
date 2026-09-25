@@ -1,9 +1,11 @@
 {
   "name": "aivsai",
   "private": true,
-  "description": "Build- und Test-Helfer für die Browser-Extension (vendor: transformers.js + ONNX-Runtime nach extension/vendor/, test: E2E mit Playwright)",
+  "description": "Build- und Test-Helfer für die Browser-Extension (build: vendor = transformers.js + ONNX-Runtime nach extension/vendor/, build:blocklist = Sperrliste nach extension/generated/; test: E2E mit Playwright)",
   "scripts": {
     "vendor": "node scripts/vendor.mjs",
+    "build:blocklist": "node scripts/build-blocklist.mjs",
+    "build": "npm run vendor && npm run build:blocklist",
     "test:setup": "playwright install chromium",
     "pretest": "npm run vendor",
     "test": "node --test --test-concurrency=1 --test-timeout=120000 --test-reporter=spec \"test/e2e/*.test.mjs\""

@@ -14,6 +14,12 @@ npm install        # transformers.js (für vendor) + Playwright (für Tests)
 npm run vendor     # transformers.js + ONNX-Runtime-WASM nach extension/vendor/ (nicht im Git)
 ```
 
+**Vor jeder Auslieferung** (Web Store, Zip für andere): `npm run build` – macht `vendor` und
+`build:blocklist` (lädt die aktuelle Sperrliste, schreibt `extension/generated/blocklist.js`, braucht
+Internet, ~10 s). Die erzeugte Liste liegt im Git: Änderungen im Diff gegenlesen und mit committen.
+Das Skript bricht ab, wenn eine Quelle nicht erreichbar ist oder deutlich weniger Einträge liefert
+als erwartet – dann wird keine halb leere Liste ausgeliefert.
+
 In Chrome/Edge:
 
 1. `chrome://extensions` → „Entwicklermodus“ an → „Entpackte Erweiterung laden“ → `extension/`.
@@ -45,7 +51,7 @@ und jeden gesendeten Text mitschreibt (zufälliger Port, ein laufender `shim_ser
 
 | Datei | Prüft |
 |---|---|
-| `scan.test.mjs` | Auto-Scan, Popup-Zähler, Icon-Badge, nachgeladene Absätze, Cache, Schwellen, Auswahl-/Rechtsklick-Prüfung, An/Aus, Lazy-Scan, Freigabe pro Seite, Backend-Status, Einstellungen |
+| `scan.test.mjs` | Auto-Scan, Popup-Zähler, Icon-Badge, nachgeladene Absätze, Cache, Schwellen, Auswahl-/Rechtsklick-Prüfung, An/Aus, Lazy-Scan, Freigabe pro Seite, Sperrliste (eigene Einträge, mitgelieferte Liste, Ausnahmen, Passwortfeld-Heuristik), Backend-Status, Einstellungen |
 | `extraction.test.mjs` | Was ans Modell geht: 23 Grenzfälle (Navigation, Cookie-Banner, versteckte Absätze, Code, Icon-Fonts, Formulare …), mit und ohne Lazy-Scan |
 | `feedback.test.mjs` | Feedback im Popover: Einwilligung vor dem ersten Speichern, Rückgängig, Export ohne Adresse, Widerruf, Abschalten |
 | `score-store.test.mjs` | Dauerhafter Speicher: SW-Neustart, Zuordnung über Seiten, Modellwechsel, Aufbewahrung, „Nicht speichern“ |
@@ -59,6 +65,24 @@ Hugging-Face-Provider mit echtem Token.
   wird „nur auf Knopfdruck“ (`Alt+Shift+S`), „auf ausgewählten Seiten“ (Default, Schalter pro
   Domain im Popup) oder „auf allen Seiten“. Ohne Freigabe verschickt das Content-Script keinen
   Text und beobachtet die Seite nicht.
+- **Sperrliste „nie scannen“:** gilt vor jedem Scan-Modus, auch „Seite jetzt scannen“ ist dort
+  gesperrt. Erlaubt bleibt die bewusste Einzelprüfung per Auswahl/Rechtsklick – das Popover weist
+  dann auf die Sperre hin und nennt bei externen Backends, wohin der Text ging. Drei Bausteine:
+  - *Mitgelieferte Liste* (`builtinBlocklist`, ~10.400 Domains: Online-Banking weltweit mit
+    Schwerpunkt DE/UK/US, Webmail, Zahlungsdienste, Behördenportale mit Login) – erzeugt von
+    `scripts/build-blocklist.mjs` aus UT1-Blacklists, FDIC BankFind und einer handverlesenen Liste.
+  - *Eigene Einträge* (`blockedSites`) und *Ausnahmen* von der mitgelieferten Liste
+    (`unblockedSites`) – in den Einstellungen oder per „Hier nie scannen“ / „Von der Sperrliste
+    nehmen“ im Popup.
+  - *Heuristik* (`sensitiveHeuristic`): sichtbares Passwort-, Kreditkarten- oder Einmalcode-Feld
+    (`autocomplete="cc-*"`, `one-time-code`) → Seite gilt als gesperrt, bis sie neu geladen wird.
+    Auch wenn das Feld erst später erscheint (SPA) – dann werden die Markierungen entfernt. Felder
+    in Dialogen zählen nicht (Login-Popups auf News-Seiten).
+
+  Doppelt abgesichert: `content.js` entscheidet, der Service Worker lehnt Auto-Batches von Seiten
+  der Listen zusätzlich ab (die Heuristik kennt nur das Content-Script). Die Liste liegt als ein
+  String `"\nd1\nd2\n…\n"` vor und wird pro Host mit allen Eltern-Domains durchsucht – kein Set mit
+  10.000 Einträgen in jedem Tab (171 KB pro Content-Script).
 - **Ampel:** zwei Schwellen (Gelb ab / Rot ab, Presets pro Modell), grün = geprüft und *nicht* als
   KI erkannt (abschaltbar), Prozent-Badge, auch ohne Farbwahrnehmung unterscheidbar
   (dünn / gestrichelt / kräftig). Popup mit Zählern pro Seite und Backend-Status; Icon-Badge mit
@@ -78,7 +102,7 @@ Hugging-Face-Provider mit echtem Token.
   *woher* man es weiß: selbst geschrieben bzw. Autor:in bekannt, vor 2023 veröffentlicht, als KI
   gekennzeichnet oder „nur mein Eindruck“. Vor dem ersten Speichern Einwilligung im Popover, danach
   „Rückgängig“. Einstellungen → Feedback: Zähler, Export als JSONL, Löschen + Widerruf, Knöpfe
-  abschaltbar. Auf Seiten der Sperrliste keine Feedback-Knöpfe. Weiterverarbeitung:
+  abschaltbar. Auf gesperrten Seiten (Sperrliste, Passwort-/Zahlungsfeld) keine Feedback-Knöpfe. Weiterverarbeitung:
   `training/import_feedback.py`, Begründung und Grenzen: `training/README.md` („Feedback als Datenquelle“).
 - **Backends** (`extension/bg/providers.js`): Im Browser (TMR oder desklib), Lokal
   (`shim_server.py`), Eigener Server (Vertrag `POST {texts, model?} -> {scores}`, optional Bearer-Key),
@@ -106,6 +130,10 @@ kein Script/Style-Inhalt).
 - **Nicht erreicht:** Shadow DOM, iframes.
 
 ## Datenschutz und Speicher
+
+Datenschutzerklärung: `extension/privacy.html` (verlinkt in den Einstellungen). Vor einer
+Veröffentlichung im Web Store: Kontakt eintragen und die Seite zusätzlich öffentlich hosten
+(der Store verlangt eine URL).
 
 - Provider „Im Browser“ und „Lokal“: Texte verlassen den Rechner nicht. Einziger Netzwerkzugriff ist
   der einmalige Modell-Download von Hugging Face.
@@ -153,12 +181,13 @@ kein Script/Style-Inhalt).
 ```
 extension/
   config.js             Defaults + gemeinsame Regeln für alle Teile:
-                        scanPolicy (darf gescannt werden?), modelKey (Modell + Version),
+                        scanPolicy/blockReason (darf gescannt werden?), modelKey (Modell + Version),
                         Modell-Metadaten/Revisionen, Presets, Ampel-Stufen
   background.js         Service Worker (ES-Modul): verdrahtet Events und Nachrichten mit bg/
   bg/providers.js       Backends
   bg/scoring.js         Konfig-Cache, Score-Cache (Arbeitsspeicher → IndexedDB → Modell), Test, Status
   bg/score-store.js     dauerhafter Score-Speicher mit Aufbewahrungsdauer
+  bg/feedback-store.js  Feedback-Sammlung (mit Text, nur nach Einwilligung, nur lokal)
   bg/badge.js           Icon-Badge pro Tab
   bg/offscreen-client.js  Brücke zum Offscreen-Dokument
   offscreen.js          Modell per transformers.js/WASM (Service Worker hat keine Worker-Threads)
@@ -167,12 +196,14 @@ extension/
                         (`results`: Element → Score, Text, Modell, Quelle – Basis für Feedback/Berichte)
   content-popover.js    Ergebnis-Popover der manuellen Prüfung (Shadow DOM)
   popup.*, options.*    Oberfläche; das Popup bekommt STATS gepusht statt zu pollen
+  privacy.html          Datenschutzerklärung
   models/desklib/       Graph ohne Gewichte + Bauanleitung
   vendor/               per `npm run vendor` (nicht im Git)
+  generated/            per `npm run build:blocklist` (im Git): blocklist.js = mitgelieferte Sperrliste
 server/                 shim_server.py (TMR/desklib per PyTorch, optional Laya-Proxy), Port 8787
 test/                   harness.html (Testseite), e2e/ (Playwright-Tests)
 training/               Datensatz-Aufbereitung (HC3), Backend-Vergleich, Messergebnisse
-scripts/                vendor.mjs, build_desklib_skeleton.py
+scripts/                vendor.mjs, build-blocklist.mjs, build_desklib_skeleton.py
 ```
 
 Performance-Grundsätze im Content-Script: Beim Einsammeln und Priorisieren erst alles lesen, dann
@@ -191,30 +222,29 @@ Statistik aus dem Register statt Dokument-Scans.
   modularer Service Worker), Performance im Content-Script, dauerhafter Score-Speicher mit
   Aufbewahrungsdauer, Modellversion im Schlüssel, genauere Textauswahl (Navigation per Rolle,
   Dialoge, Code, Icon-Fonts, unsichtbare Absätze), E2E-Tests im Repo (`npm test`).
+- Sperrliste „nie scannen“ (`scanPolicy` → `"blocked"`): mitgelieferte Liste per Build-Skript
+  (UT1 + FDIC + handverlesen), eigene Einträge, Ausnahmen, Passwortfeld-Heuristik;
+  Datenschutzerklärung.
+- Feedback Stufe 1: „Weißt du, woher der Text stammt?“ im Prüfergebnis, nur lokal, mit Einwilligung,
+  JSONL-Export, `training/import_feedback.py`.
 
 **Als Nächstes (Reihenfolge = Priorität)**
 
-1. **Sperrliste „nie scannen“** (Banking, Mail, …) + Datenschutzerklärung – Web-Store-Pflicht.
-   Andockpunkt: `AIVSAI.scanPolicy` → neuer Wert `"blocked"`: kein Auto-Scan, auch nicht per
-   „Seite jetzt scannen“. **Entschieden:** Die manuelle Prüfung (Auswahl/Rechtsklick) bleibt
-   erlaubt – sie ist immer eine bewusste Einzelaktion –, das Popover zeigt dann aber einen Hinweis
-   („Diese Seite steht auf der Sperrliste – geprüft, weil du es ausdrücklich angefordert hast“,
-   bei Remote-Backends zusätzlich, wohin der Text gesendet wurde).
-2. **Feedback:** Stufe 1 (lokal sammeln, Einwilligung, Export) erledigt, siehe „Funktionen“.
+1. **Feedback:** Stufe 1 (lokal sammeln, Einwilligung, Export) erledigt, siehe „Funktionen“.
    Offen, nur bei Bedarf: Stufe 2 = freiwilliger Upload an einen eigenen Sammel-Server – braucht
    Verantwortlichen/Impressum, Löschweg pro Einsender (Pseudonym-ID), Schutz gegen absichtlich falsche
    Labels (Data Poisoning) und eine erweiterte Datenschutzerklärung. Fürs Training wichtiger sind
    generierte Daten mehrerer LLMs (`training/README.md`, „Feedback als Datenquelle“).
-3. **Score-Kalibrierung pro Modell**, damit Schwellen modellübergreifend dasselbe bedeuten. In
+2. **Score-Kalibrierung pro Modell**, damit Schwellen modellübergreifend dasselbe bedeuten. In
    `bg/scoring.js` pro `modelKey` auf den Rohwert anwenden – gespeichert werden Rohwerte, eine neue
    Kalibrierung braucht also kein Neu-Bewerten.
-4. **Deutsch/mehrsprachig:** Fine-Tuning eines mehrsprachigen Encoders (mDeBERTa-v3/XLM-R) ähnlich
+3. **Deutsch/mehrsprachig:** Fine-Tuning eines mehrsprachigen Encoders (mDeBERTa-v3/XLM-R) ähnlich
    desklib; Content-Script schickt dann `lang` pro Absatz mit, der Provider wählt das Modell.
    Vorarbeit: Laya-Datensatz liegt fertig (`training/data/`, 142k Beispiele), Training offen
    (`training/README.md`).
-5. **Berichte pro Seite exportieren/importieren** (URL, Absätze, Scores, Modell, Zeitpunkt) aus dem
+4. **Berichte pro Seite exportieren/importieren** (URL, Absätze, Scores, Modell, Zeitpunkt) aus dem
    Ergebnis-Register; Ausbaustufe Konto/Sync/Teilen → Datenschutz/Einwilligung.
-6. **Zurückgestellt:** Hugging-Face-Provider mit echtem Token testen (bisher nur gemockt).
+5. **Zurückgestellt:** Hugging-Face-Provider mit echtem Token testen (bisher nur gemockt).
 
 **Technische Punkte aus der v0.5-Analyse**
 
@@ -222,6 +252,9 @@ Statistik aus dem Register statt Dokument-Scans.
   ~5 s, in der Zeit reagiert die Priorisierung nicht aufs Scrollen.
 - Server-Backends: Modellversion vom Server abfragen (z.B. `/healthz`) und in den Schlüssel nehmen.
 - Gleichzeitige Anfragen für denselben Absatz aus mehreren Tabs im Service Worker zusammenfassen.
+- Sperrliste: UK-Banken sind in UT1 dünn (~60 `.uk`-Domains) – bei Bedarf FCA-Register als Quelle
+  prüfen (Zugang und Lizenz noch nicht geklärt). Deutsche Genossenschaftsbanken/Sparkassen haben teils eigene Domains, die in
+  keiner Liste stehen; die Passwortfeld-Heuristik fängt deren Login-Seiten ab.
 
 ## Stolpersteine (gelöst)
 
