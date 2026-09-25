@@ -545,7 +545,9 @@
       return;
     }
     markManual(target, { text, p, model: resp.model, at: Date.now() });
-    Popover.show(target, token, resultView(p, words, fullText.length > MANUAL_MAX_CHARS));
+    const view = resultView(p, words, fullText.length > MANUAL_MAX_CHARS);
+    const scored = { text, p, model: resp.model, source: target.range ? "selection" : "manual" };
+    Popover.show(target, token, withFeedback({ target, token, view, scored }));
     reportStats();
   }
 
@@ -556,6 +558,116 @@
     if (truncated) notes.push(`Nur die ersten ${MANUAL_MAX_CHARS} Zeichen bewertet.`);
     notes.push(`${AIVSAI.providerLabel(config)} · Schätzung, kann falsch liegen`);
     return { pill: { text: `${Math.round(p * 100)} % KI`, level }, title: AIVSAI.LEVEL_TEXT[level], notes };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Feedback im Ergebnis-Popover: Woher stammt der Text wirklich? Menschen erkennen KI-Text am Stil
+  // kaum besser als per Zufall - deshalb wird zusätzlich gefragt, *woher* man es weiß, und reine
+  // Eindrücke werden als solche markiert (zählen beim Training nicht als gesichertes Label).
+  // Gespeichert wird nur nach Einwilligung, nur lokal (bg/feedback-store.js).
+  // ---------------------------------------------------------------------------
+
+  const FEEDBACK_CONSENT = "feedbackConsentAt";
+  const FEEDBACK_LABELS = { human: "von einem Menschen", ai: "von einer KI" };
+  const FEEDBACK_BASES = {
+    human: [
+      ["own", "Selbst geschrieben / Autor:in bekannt"],
+      ["date", "Vor 2023 veröffentlicht"],
+      ["guess", "Nur mein Eindruck"]
+    ],
+    ai: [
+      ["own", "Selbst mit KI erzeugt"],
+      ["marked", "Als KI-Text gekennzeichnet"],
+      ["guess", "Nur mein Eindruck"]
+    ]
+  };
+
+  function sendMessage(msg) {
+    return new Promise((resolve) => {
+      try {
+        chrome.runtime.sendMessage(msg, (resp) => resolve(chrome.runtime.lastError ? null : resp));
+      } catch {
+        resolve(null); // verwaistes Content-Script nach Extension-Reload
+      }
+    });
+  }
+
+  // fb: { target, token, view (Ergebnisansicht), scored: { text, p, model, source } }
+  function withFeedback(fb) {
+    // Sperrliste (Mail, Banking): dort keine Texte sammeln, auch nicht lokal
+    if (!config.feedbackButtons || AIVSAI.scanPolicy(host, config) === "blocked") return fb.view;
+    return {
+      ...fb.view,
+      prompt: "Weißt du, woher der Text stammt?",
+      buttons: [
+        { text: "Von einem Menschen", onClick: () => askBasis(fb, "human") },
+        { text: "Von einer KI", onClick: () => askBasis(fb, "ai") }
+      ]
+    };
+  }
+
+  function showFeedback(fb, extra) {
+    Popover.show(fb.target, fb.token, { ...fb.view, ...extra });
+  }
+
+  function askBasis(fb, label) {
+    showFeedback(fb, {
+      prompt: `Text ${FEEDBACK_LABELS[label]} – woher weißt du das?`,
+      buttons: [
+        ...FEEDBACK_BASES[label].map(([basis, text]) => ({ text, onClick: () => saveFeedback(fb, label, basis) })),
+        { text: "Zurück", onClick: () => Popover.show(fb.target, fb.token, withFeedback(fb)) }
+      ]
+    });
+  }
+
+  async function saveFeedback(fb, label, basis) {
+    const { [FEEDBACK_CONSENT]: consentAt } = await chrome.storage.local.get(FEEDBACK_CONSENT);
+    if (!consentAt) return askConsent(fb, label, basis);
+    const entry = { ...fb.scored, label, basis, lang: document.documentElement.lang || "" };
+    const resp = await sendMessage({ type: "FEEDBACK_SAVE", entry });
+    if (!resp?.ok) {
+      showFeedback(fb, { prompt: `Nicht gespeichert: ${resp?.error || "Extension nicht erreichbar"}`, buttons: [] });
+      return;
+    }
+    const notes = [
+      ...fb.view.notes,
+      `Nur in diesem Browser gespeichert (${resp.count} ${resp.count === 1 ? "Eintrag" : "Einträge"}). ` +
+        "Export und Löschen: Einstellungen → Feedback."
+    ];
+    if (basis === "guess") notes.push("Als Eindruck vermerkt – zählt beim Training nicht als gesichertes Label.");
+    showFeedback(fb, {
+      notes,
+      prompt: `Danke! Gespeichert: ${FEEDBACK_LABELS[label]}.`,
+      buttons: [{ text: "Rückgängig", onClick: () => undoFeedback(fb, resp.id) }]
+    });
+  }
+
+  async function undoFeedback(fb, id) {
+    await sendMessage({ type: "FEEDBACK_DELETE", id });
+    Popover.show(fb.target, fb.token, withFeedback(fb));
+  }
+
+  function askConsent(fb, label, basis) {
+    showFeedback(fb, {
+      prompt: "Feedback speichern?",
+      notes: [
+        "Gespeichert werden der geprüfte Text (bis 2000 Zeichen), deine Angabe, Score, Modell und die Sprache " +
+          "der Seite – keine Adresse. Nur in diesem Browser, es wird nichts gesendet.",
+        "Du kannst die Sammlung in den Einstellungen exportieren (z.B. für eigenes Training) oder jederzeit " +
+          "löschen und die Einwilligung widerrufen."
+      ],
+      buttons: [
+        {
+          text: "Einverstanden, speichern",
+          primary: true,
+          onClick: async () => {
+            await chrome.storage.local.set({ [FEEDBACK_CONSENT]: Date.now() });
+            saveFeedback(fb, label, basis);
+          }
+        },
+        { text: "Abbrechen", onClick: () => Popover.show(fb.target, fb.token, withFeedback(fb)) }
+      ]
+    });
   }
 
   // record: Ergebnis-Objekt, null = wird geprüft, undefined = Markierung entfernen

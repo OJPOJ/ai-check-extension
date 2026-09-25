@@ -118,3 +118,51 @@ gesprengt.
 - Genauigkeit auf `holdout.jsonl` gegen die Zero-Shot-Baseline vergleichen
   (Baseline: faktisch keine Trennschärfe, siehe oben).
 - Schwellenwert in `extension/options.html` anhand der echten Kalibrierung neu setzen.
+
+## Feedback als Datenquelle – und warum generierte Daten wichtiger sind
+
+Stand 2026-09-25. Die Extension sammelt auf Wunsch lokal Feedback („Weißt du, woher der Text
+stammt?“, siehe `../README.md`). `import_feedback.py` macht aus dem JSONL-Export ein Eval-Set und
+Zeilen im Laya-Schema (weiche Labels je nach Grundlage).
+
+**Menschen sind schlechte Richter über KI-Text – aber gute Zeugen für die Herkunft.** Studien
+(aus dem Gedächtnis zusammengefasst, vor Zitat im Original prüfen): Laien liegen beim Unterscheiden
+von Mensch- und LLM-Text nahe am Zufall (Clark et al. 2021, GPT-3: ~50 %, mit Training kaum besser;
+Jakesch et al. 2023, PNAS: Heuristiken wie „flüssig = KI“, „Ich-Form = Mensch“ führen in die Irre).
+Fachgutachter:innen erkannten ChatGPT-Abstracts nur zu ~68 % und hielten ~14 % der echten für
+generiert (Gao et al. 2023). Ausnahme: Leute, die selbst viel mit LLMs schreiben, sind als Gruppe
+sehr treffsicher (Russell et al. 2025) – einzeln aber auch nicht fehlerfrei. Folgerungen:
+
+- Ein Urteil nach Stil („klingt nach KI“) ist als Label nichts wert und teils schädlich: Es
+  bestätigt genau die Vorurteile (glatter, formeller Text = KI), die schon die Fehlalarme der Modelle
+  verursachen. Deshalb fragt die Extension nach der *Grundlage*, und `guess` bleibt standardmäßig
+  draußen.
+- Wertvoll ist Feedback, wenn die Herkunft *bekannt* ist: eigener Text, bekannte Autor:in, Text von
+  vor 2023, gekennzeichneter KI-Text. Das sind fast immer **Fehlalarme auf menschlichem Text** aus
+  genau den Domänen, in denen die Person surft – das kann ein generierter Datensatz nicht liefern.
+- Einzelne Personen liefern wenige, einseitige Beispiele. Deshalb vor allem als **Eval-Set** und für
+  die **Kalibrierung** (Roadmap 3) verwenden; im Training nur als kleiner, hoch gewichteter Zusatz.
+
+**Hauptquelle fürs Training: gepaarte, selbst generierte Daten mehrerer LLMs**
+
+1. Menschliche Texte mit gesicherter Herkunft: Stände *vor* Ende 2022 (Wikipedia-Dumps 2021,
+   Nachrichtenarchive, Foren-Dumps, Rezensionen), Deutsch und Englisch, nach Domänen gemischt
+   (Nachrichten, Blog, Forum, Doku, Rezension, Wissenschaft).
+2. Pro Text ein oder mehrere KI-Gegenstücke zum *selben Thema* (sonst lernt das Modell das Thema statt
+   des Stils): „schreibe einen Absatz über …“, „setze fort“, „formuliere um“, „schreibe menschlicher“.
+   Mehrere aktuelle Modellfamilien (Claude, GPT, Gemini, Llama, Mistral, Qwen …), verschiedene
+   Temperaturen, Längen wie im Browser (40 Wörter bis 500 Zeichen).
+3. Vorhandene Datensätze dazunehmen: HC3 (liegt bereit), RAID (Paraphrasen, Angriffe), M4/M4GT,
+   MAGE – ältere Generatoren, aber gut gegen Überanpassung an einzelne Modelle.
+4. Auswertung **leave-one-generator-out**: eine Modellfamilie komplett im Test halten. Nur so sieht
+   man, ob das Modell auch KI-Text erkennt, der von einem neuen LLM stammt.
+5. Wiederholen, sobald neue LLM-Generationen erscheinen (Datensatz versionieren, `version` in
+   `extension/config.js` hochzählen).
+
+Kosten grob: 20.000 Paare × ~150 Tokens Ausgabe über 6 Modelle sind ~3 Mio. Ausgabe-Tokens –
+per API je nach Modell im niedrigen zweistelligen Dollarbereich, mit offenen Modellen lokal gratis.
+Rechtlich: Nutzungsbedingungen der Anbieter prüfen (manche verbieten, Ausgaben zum Training
+konkurrierender Modelle zu verwenden – ein Detektor ist das nicht, trotzdem nachlesen), Lizenzen der
+menschlichen Quellen (CC-BY-SA → Namensnennung/Weitergabe), bei Web-Texten § 44b UrhG (Text- und
+Data-Mining erlaubt, außer bei maschinenlesbarem Nutzungsvorbehalt; Kopien löschen, wenn nicht mehr
+nötig).

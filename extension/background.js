@@ -2,10 +2,12 @@
 //   bg/providers.js        Backends (Browser-Modell, lokaler/eigener Server, Hugging Face)
 //   bg/scoring.js          Konfiguration, Score-Cache, Verbindungstest, Status
 //   bg/score-store.js      dauerhafter Score-Speicher (IndexedDB) mit Aufbewahrungsdauer
+//   bg/feedback-store.js   Feedback-Sammlung mit Text (nur nach Einwilligung, nur lokal)
 //   bg/badge.js            Icon-Badge pro Tab
 //   bg/offscreen-client.js Brücke zum Offscreen-Dokument mit dem Browser-Modell
 import "./config.js";
 import { updateBadge } from "./bg/badge.js";
+import * as feedback from "./bg/feedback-store.js";
 import { callOffscreen } from "./bg/offscreen-client.js";
 import { clearStore, getConfig, health, pruneStore, scoreBatch, storeInfo, testProvider } from "./bg/scoring.js";
 
@@ -128,8 +130,36 @@ const HANDLERS = {
   MODEL_DELETE: (msg) => modelCommand(msg),
   MODEL_DONE: (msg) => {
     if (msg.ok) notifyTabs({ type: "MODEL_READY" });
-  }
+  },
+  FEEDBACK_SAVE: (msg) => withError(saveFeedback(msg.entry)),
+  FEEDBACK_DELETE: (msg) => withError(feedback.remove(msg.id).then(feedbackInfo)),
+  FEEDBACK_INFO: () => withError(feedbackInfo()),
+  // Export und Widerruf nur aus den Einstellungen, nie aus einem Content-Script
+  FEEDBACK_EXPORT: (msg, sender) =>
+    fromExtensionPage(sender) && withError(feedback.all().then((rows) => ({ ok: true, rows }))),
+  FEEDBACK_CLEAR: (msg, sender) =>
+    fromExtensionPage(sender) &&
+    withError(feedback.clear().then(() => chrome.storage.local.remove(FEEDBACK_CONSENT)).then(feedbackInfo))
 };
+
+const fromExtensionPage = (sender) => !!sender.url?.startsWith(chrome.runtime.getURL(""));
+
+const withError = (promise) => promise.catch((err) => ({ ok: false, error: String(err?.message || err) }));
+
+// Zweite Absicherung zur Einwilligungsabfrage im Content-Script
+const FEEDBACK_CONSENT = "feedbackConsentAt";
+
+async function saveFeedback(entry) {
+  const { [FEEDBACK_CONSENT]: consentAt } = await chrome.storage.local.get(FEEDBACK_CONSENT);
+  if (!consentAt) return { ok: false, error: "Keine Einwilligung zum Speichern" };
+  const id = await feedback.put(entry);
+  return { ...(await feedbackInfo()), id };
+}
+
+async function feedbackInfo() {
+  const { [FEEDBACK_CONSENT]: consentAt = null } = await chrome.storage.local.get(FEEDBACK_CONSENT);
+  return { ok: true, consentAt, ...(await feedback.info()) };
+}
 
 function modelCommand(msg) {
   return callOffscreen(OFFSCREEN_COMMANDS[msg.type], { model: msg.model }).catch((err) => ({

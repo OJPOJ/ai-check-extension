@@ -46,6 +46,7 @@ function readForm() {
     redFrom: parseFloat($("redFrom").value),
     showGreen: $("showGreen").checked,
     showBadge: $("showBadge").checked,
+    feedbackButtons: $("feedbackButtons").checked,
     lazyScan: $("lazyScan").checked,
     scoreRetentionDays: parseInt($("scoreRetentionDays").value, 10)
   };
@@ -229,6 +230,42 @@ $("storeClear").addEventListener("click", async () => {
   refreshStore();
 });
 
+// --- Feedback-Sammlung ---
+
+async function refreshFeedback() {
+  const r = await chrome.runtime.sendMessage({ type: "FEEDBACK_INFO" });
+  $("feedbackExport").disabled = !r?.count;
+  $("feedbackClear").disabled = !r?.count && !r?.consentAt;
+  if (!r?.ok) {
+    $("feedbackStatus").textContent = `Fehler: ${r?.error ?? "keine Antwort"}`;
+    return;
+  }
+  const consent = r.consentAt
+    ? `Einwilligung vom ${new Date(r.consentAt).toLocaleDateString("de-DE")}`
+    : "Keine Einwilligung erteilt";
+  $("feedbackStatus").textContent = r.count
+    ? `${r.count} ${r.count === 1 ? "Eintrag" : "Einträge"} (${r.human} Mensch, ${r.ai} KI; ` +
+      `${r.guess} nur Eindruck; Modell lag ${r.disagree}× daneben) · ca. ${formatMB(r.bytes)} · ${consent}`
+    : `Keine Einträge · ${consent}`;
+}
+
+$("feedbackExport").addEventListener("click", async () => {
+  const r = await chrome.runtime.sendMessage({ type: "FEEDBACK_EXPORT" });
+  if (!r?.ok) return showStatus(`Export fehlgeschlagen: ${r?.error ?? "keine Antwort"}`, "err");
+  const jsonl = r.rows.map((row) => `${JSON.stringify(row)}\n`).join("");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([jsonl], { type: "application/x-ndjson" }));
+  a.download = `aivsai-feedback-${new Date().toISOString().slice(0, 10)}.jsonl`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+});
+
+$("feedbackClear").addEventListener("click", async () => {
+  if (!confirm("Alle Feedback-Einträge löschen und die Einwilligung widerrufen?")) return;
+  await chrome.runtime.sendMessage({ type: "FEEDBACK_CLEAR" });
+  refreshFeedback();
+});
+
 function renderScanMode() {
   $("sitesField").hidden = radioValue("scanMode") !== "sites";
 }
@@ -272,6 +309,7 @@ async function init() {
   $("redFrom").value = cfg.redFrom;
   $("showGreen").checked = cfg.showGreen;
   $("showBadge").checked = cfg.showBadge;
+  $("feedbackButtons").checked = cfg.feedbackButtons;
   $("lazyScan").checked = cfg.lazyScan;
   $("scoreRetentionDays").value = String(cfg.scoreRetentionDays);
   renderProvider();
@@ -279,11 +317,14 @@ async function init() {
   renderScale();
   refreshModel();
   refreshStore();
+  refreshFeedback();
 }
 
 // Popup und Tastenkürzel ändern "enabled"/"sites", während diese Seite offen sein kann -
 // ohne Abgleich würde der nächste Klick auf Speichern den alten Formularstand zurückschreiben.
 chrome.storage.onChanged.addListener((changes, area) => {
+  // Einwilligung kommt aus dem Popover auf einer Webseite
+  if (area === "local" && "feedbackConsentAt" in changes) refreshFeedback();
   if (area !== "sync") return;
   if ("enabled" in changes) $("enabled").checked = changes.enabled.newValue;
   if ("sites" in changes) $("sites").value = (changes.sites.newValue || []).join("\n");

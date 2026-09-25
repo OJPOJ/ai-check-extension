@@ -231,6 +231,26 @@
     </div>
   </div>
 
+  <div class="card">
+    <h2>Feedback</h2>
+    <label class="check" style="margin-top:0"><input type="checkbox" id="feedbackButtons" />
+      <div>Im Prüfergebnis fragen, woher der Text wirklich stammt<div class="hint">Nach einer Prüfung per
+        Markierung oder Rechtsklick (auch auf bereits markierte Absätze) kannst du angeben, ob der Text von
+        einem Menschen oder einer KI stammt – und woher du das weißt. Beim ersten Mal wirst du gefragt, ob
+        der Text dafür gespeichert werden darf.</div></div></label>
+    <div class="hint">Die Sammlung enthält den <b>Text</b> (bis 2000 Zeichen), deine Angabe, Score, Modell und
+      die Sprache der Seite – keine Adresse. Sie bleibt in diesem Browser; die Extension sendet sie nirgendwohin.
+      Als JSONL exportiert dient sie als Testmaterial bzw. Trainingsdaten (<code>training/import_feedback.py</code>).
+      Einträge „nur mein Eindruck“ werden dort standardmäßig nicht als Trainingslabel verwendet.</div>
+    <div class="row field">
+      <div class="hint" id="feedbackStatus" style="margin:0">Prüfe…</div>
+      <div style="display:flex;gap:8px">
+        <button id="feedbackExport">Exportieren</button>
+        <button id="feedbackClear">Löschen und Einwilligung widerrufen</button>
+      </div>
+    </div>
+  </div>
+
   <p class="small muted">Messwerte der lokalen Modelle: training/EVAL_RESULTS.md. Laya ist absichtlich nicht wählbar,
     bis ein fine-getunter Checkpoint existiert (training/README.md).</p>
 </main>

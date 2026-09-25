@@ -47,6 +47,7 @@ und jeden gesendeten Text mitschreibt (zufälliger Port, ein laufender `shim_ser
 |---|---|
 | `scan.test.mjs` | Auto-Scan, Popup-Zähler, Icon-Badge, nachgeladene Absätze, Cache, Schwellen, Auswahl-/Rechtsklick-Prüfung, An/Aus, Lazy-Scan, Freigabe pro Seite, Backend-Status, Einstellungen |
 | `extraction.test.mjs` | Was ans Modell geht: 23 Grenzfälle (Navigation, Cookie-Banner, versteckte Absätze, Code, Icon-Fonts, Formulare …), mit und ohne Lazy-Scan |
+| `feedback.test.mjs` | Feedback im Popover: Einwilligung vor dem ersten Speichern, Rückgängig, Export ohne Adresse, Widerruf, Abschalten |
 | `score-store.test.mjs` | Dauerhafter Speicher: SW-Neustart, Zuordnung über Seiten, Modellwechsel, Aufbewahrung, „Nicht speichern“ |
 
 Nicht abgedeckt: Bewertung mit dem echten Browser-Modell (bräuchte den Modell-Download) und der
@@ -72,6 +73,13 @@ Hugging-Face-Provider mit echtem Token.
 - **Bewertungen merken (Default 30 Tage, einstellbar bis 1 Jahr oder „nicht speichern“):**
   bekannte Absätze werden sofort markiert, ohne neu zu rechnen – auch nach Browser-Neustart und
   auf anderen Seiten mit demselben Text.
+- **Feedback (Roadmap 2, Stufe 1 – nur lokal):** Im Ergebnis-Popover der manuellen Prüfung (auch
+  Rechtsklick auf einen schon markierten Absatz) „Weißt du, woher der Text stammt?“ → Mensch/KI →
+  *woher* man es weiß: selbst geschrieben bzw. Autor:in bekannt, vor 2023 veröffentlicht, als KI
+  gekennzeichnet oder „nur mein Eindruck“. Vor dem ersten Speichern Einwilligung im Popover, danach
+  „Rückgängig“. Einstellungen → Feedback: Zähler, Export als JSONL, Löschen + Widerruf, Knöpfe
+  abschaltbar. Auf Seiten der Sperrliste keine Feedback-Knöpfe. Weiterverarbeitung:
+  `training/import_feedback.py`, Begründung und Grenzen: `training/README.md` („Feedback als Datenquelle“).
 - **Backends** (`extension/bg/providers.js`): Im Browser (TMR oder desklib), Lokal
   (`shim_server.py`), Eigener Server (Vertrag `POST {texts, model?} -> {scores}`, optional Bearer-Key),
   Hugging Face Inference API (Label-Mapping automatisch oder manuell). Host-Berechtigungen für
@@ -108,6 +116,13 @@ kein Script/Style-Inhalt).
   **kein Text, keine URL**. Gemessen ~235 Byte pro Eintrag (50.000 = 11,7 MB, 30 Tage intensives
   Surfen ≈ 10 MB). Aufräumen täglich (`chrome.alarms`), beim Browserstart und sofort bei Änderung der
   Einstellung; Obergrenze 200.000 Einträge; „Alle löschen“ in den Einstellungen.
+- **Feedback-Sammlung** (IndexedDB `aivsai-feedback`, `extension/bg/feedback-store.js`): enthält den
+  **Text** (bis 2000 Zeichen) plus Label, Grundlage, Score, Modell, `lang` der Seite, Zeitpunkt –
+  **keine URL, kein Hostname**. Nur nach Einwilligung (`feedbackConsentAt` in `storage.local`, vom
+  Service Worker ein zweites Mal geprüft), nie gesendet. Export und Löschen nur von Extension-Seiten
+  aus (der Service Worker lehnt beides aus Content-Scripts ab). Widerruf löscht alle Einträge.
+  Pro Text ein Eintrag, Obergrenze 20.000. Keine automatische Löschfrist – die Sammlung ist bewusst
+  angelegt und soll nicht nach 30 Tagen verschwinden.
 - **Zuordnung:** Der Schlüssel enthält Provider-Einstellungen und Modellversion (`modelKey`, z.B.
   `browser:tmr@b9aa251-q8`). Modellwechsel → neu bewerten, alte Einträge bleiben fürs Zurückwechseln;
   neue Modell-Revision/Quantisierung → `version` in `config.js` ändern, alte Scores gelten nicht mehr.
@@ -185,9 +200,11 @@ Statistik aus dem Register statt Dokument-Scans.
    erlaubt – sie ist immer eine bewusste Einzelaktion –, das Popover zeigt dann aber einen Hinweis
    („Diese Seite steht auf der Sperrliste – geprüft, weil du es ausdrücklich angefordert hast“,
    bei Remote-Backends zusätzlich, wohin der Text gesendet wurde).
-2. **Feedback „Falsch erkannt“** am Absatz/Popover → Trainingsdaten fürs eigene Fine-Tuning.
-   Daten liegen im Ergebnis-Register (`results`); braucht eigenen Speicher *mit* Text → nur mit
-   ausdrücklicher Einwilligung.
+2. **Feedback:** Stufe 1 (lokal sammeln, Einwilligung, Export) erledigt, siehe „Funktionen“.
+   Offen, nur bei Bedarf: Stufe 2 = freiwilliger Upload an einen eigenen Sammel-Server – braucht
+   Verantwortlichen/Impressum, Löschweg pro Einsender (Pseudonym-ID), Schutz gegen absichtlich falsche
+   Labels (Data Poisoning) und eine erweiterte Datenschutzerklärung. Fürs Training wichtiger sind
+   generierte Daten mehrerer LLMs (`training/README.md`, „Feedback als Datenquelle“).
 3. **Score-Kalibrierung pro Modell**, damit Schwellen modellübergreifend dasselbe bedeuten. In
    `bg/scoring.js` pro `modelKey` auf den Rohwert anwenden – gespeichert werden Rohwerte, eine neue
    Kalibrierung braucht also kein Neu-Bewerten.

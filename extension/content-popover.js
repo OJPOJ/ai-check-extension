@@ -26,6 +26,14 @@ globalThis.AIVSAIPopover = (() => {
     .red { background: #dc2626; }
     .note { margin-top: 4px; color: var(--muted); font-size: 12px; }
     .error { color: var(--error); }
+    .prompt { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); font-weight: 600; font-size: 12px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .actions button {
+      padding: 3px 9px; border: 1px solid var(--border); border-radius: 999px; background: none; color: var(--fg);
+      font: 12px/18px system-ui, -apple-system, "Segoe UI", sans-serif; cursor: pointer;
+    }
+    .actions button:hover { background: var(--border); }
+    .actions button.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
   `;
 
   let host = null;
@@ -57,7 +65,8 @@ globalThis.AIVSAIPopover = (() => {
   /**
    * @param {{range?: Range, el?: Element}} anchor  darunter wird das Popover angezeigt
    * @param {number} t  Token aus claim()
-   * @param {{title?: string, pill?: {text: string, level: string}, error?: string, notes?: string[]}} view
+   * @param {{title?: string, pill?: {text: string, level: string}, error?: string, notes?: string[],
+   *   prompt?: string, buttons?: {text: string, onClick: () => void, primary?: boolean}[]}} view
    */
   function show(anchor, t, view) {
     if (t !== token) return; // eine neuere Prüfung hat das Popover übernommen
@@ -73,6 +82,17 @@ globalThis.AIVSAIPopover = (() => {
       body.append(head);
     }
     for (const note of view.notes || []) body.append(node("div", "note", note));
+    if (view.prompt) body.append(node("div", "prompt", view.prompt));
+    if (view.buttons?.length) {
+      const row = node("div", "actions", "");
+      for (const b of view.buttons) {
+        const btn = node("button", b.primary ? "primary" : "", b.text);
+        btn.type = "button";
+        btn.addEventListener("click", b.onClick);
+        row.append(btn);
+      }
+      body.append(row);
+    }
 
     if (!host.isConnected) document.documentElement.append(host);
     position(anchor);

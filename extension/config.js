@@ -29,7 +29,10 @@ globalThis.AIVSAI = (() => {
     showBadge: true,
 
     // Bewertungen so viele Tage speichern (nur Hash + Score, kein Text, keine URL); 0 = gar nicht
-    scoreRetentionDays: 30
+    scoreRetentionDays: 30,
+
+    // Feedback-Knöpfe im Ergebnis-Popover (gespeichert wird erst nach Einwilligung, siehe bg/feedback-store.js)
+    feedbackButtons: true
   };
 
   // Secrets liegen in storage.local, damit sie nicht über das Browser-Konto synchronisiert werden
