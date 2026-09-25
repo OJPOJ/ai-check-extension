@@ -275,16 +275,19 @@
   // lang-Attribut um `el` ("de-AT" -> "de"), "" wenn keins
   const attrLang = (el) => (el?.closest("[lang]")?.lang || "").toLowerCase().split("-")[0];
 
-  // Sprache von `text`, falls das Modell sie nicht kennt (AIVSAI.languages), sonst "". Ist die Sprache
-  // unklar (gemischt, keine der erkannten Sprachen), entscheidet beim Auto-Scan das lang-Attribut (`attr`).
-  // Das Attribut allein reicht nicht: fehlt oft, steht auf dem Vorlagen-Standard "en" oder gilt nicht für
-  // den einzelnen Absatz. Manuelle Prüfung ohne `attr`: nur die Erkennung - dort ist der Text oft kurz und
-  // das Attribut der Seite kein guter Hinweis, und der Nutzer hat ausdrücklich gefragt.
-  async function foreignLang(text, attr = "") {
+  // Sprache von `text` ("de", ...; "" = unklar). Ist sie unklar (gemischt, keine der erkannten Sprachen),
+  // entscheidet beim Auto-Scan das lang-Attribut (`attr`). Das Attribut allein reicht nicht: fehlt oft,
+  // steht auf dem Vorlagen-Standard "en" oder gilt nicht für den einzelnen Absatz. Manuelle Prüfung ohne
+  // `attr`: nur die Erkennung - dort ist der Text oft kurz und das Attribut der Seite kein guter Hinweis,
+  // und der Nutzer hat ausdrücklich gefragt. Geht als `lang` mit an den Server (Vertrag in server/README.md).
+  async function detectLang(text, attr = "") {
+    return (await AIVSAI_LANG.detectAsync(text)) || attr;
+  }
+
+  // `lang`, falls das Modell die Sprache nicht kennt (AIVSAI.languages), sonst ""
+  function foreignOf(lang) {
     const langs = AIVSAI.languages(config);
-    if (!langs) return "";
-    const lang = (await AIVSAI_LANG.detectAsync(text)) || attr;
-    return lang && !langs.includes(lang) ? lang : "";
+    return lang && langs && !langs.includes(lang) ? lang : "";
   }
 
   const langList = (langs) => langs.map(AIVSAI_LANG.name).join(", ");
@@ -318,7 +321,7 @@
     // (clipText). Asynchron, schreibt nichts; danach verworfen, falls inzwischen alles zurückgesetzt wurde
     // oder ein neuerer Scan denselben Absatz mit anderem Text übernommen hat. Nachgeladene oder geänderte
     // Absätze laufen über den MutationObserver erneut hier durch.
-    const foreign = await Promise.all(found.map((f) => foreignLang(clipText(f.text), f.attr)));
+    const langs = await Promise.all(found.map((f) => detectLang(clipText(f.text), f.attr)));
     if (gen !== generation) return;
 
     // Phase 2 nur schreiben
@@ -327,11 +330,12 @@
       detecting.delete(el);
       el.dataset.aivsaiHash = hash;
       unstyle(el); // Text hat sich geändert - alte Bewertung gilt nicht mehr
-      if (foreign[i]) {
+      const foreign = foreignOf(langs[i]);
+      if (foreign) {
         // Nicht bewerten: In fremder Sprache sind Scores Rauschen und oft zu hoch (deutscher Fachtext: 78).
         // Keine Markierung am Absatz, das Popup nennt die Zahl; per Rechtsklick lässt er sich trotzdem prüfen.
-        skipped.set(el, foreign[i]);
-        el.dataset.aivsaiSkipped = foreign[i];
+        skipped.set(el, foreign);
+        el.dataset.aivsaiSkipped = foreign;
         continue;
       }
 
@@ -346,7 +350,7 @@
       if (entry) {
         entry.els.push(el);
       } else {
-        pending.set(hash, { id: hash, text: clipped, truncated, words, els: [el], near: true });
+        pending.set(hash, { id: hash, text: clipped, lang: langs[i], truncated, words, els: [el], near: true });
       }
       el.classList.add("aivsai-pending");
     }
@@ -459,7 +463,9 @@
     const gen = generation;
     batchesInFlight++;
     batch.forEach((b) => inFlight.set(b.id, b));
-    requestScores(batch.map((b) => ({ id: b.id, text: b.text }))).then((resp) => handleBatchResult(batch, gen, resp));
+    requestScores(batch.map((b) => ({ id: b.id, text: b.text, lang: b.lang }))).then((resp) =>
+      handleBatchResult(batch, gen, resp)
+    );
   }
 
   function handleBatchResult(batch, gen, resp) {
@@ -722,7 +728,8 @@
       Popover.show(target, token, { error: tooShort(words) });
       return;
     }
-    const foreign = await foreignLang(fullText);
+    const lang = await detectLang(fullText);
+    const foreign = foreignOf(lang);
     if (foreign && !force) {
       Popover.show(target, token, {
         pill: { text: "nicht geprüft", level: "uncertain" },
@@ -741,7 +748,7 @@
     markManual(target, null);
     Popover.show(target, token, { title: "Wird auf KI geprüft…", notes: [AIVSAI.providerLabel(config), ...blockedNotes()] });
 
-    const resp = await requestScores([{ id, text }], true);
+    const resp = await requestScores([{ id, text, lang }], true);
     if (gen !== generation) return;
     const p = resp?.scores?.[id];
     if (typeof p !== "number") {

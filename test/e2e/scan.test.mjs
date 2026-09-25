@@ -170,6 +170,11 @@ describe("Scan und Bedienung", () => {
     await page.getByRole("button", { name: "Trotzdem prüfen", exact: true }).click();
     await page.waitForFunction(() => /Nicht bewertbar/.test(document.querySelector("aivsai-popover")?.shadowRoot.textContent || ""));
     assert.ok(backend.texts.some((t) => t.includes("Wärmeleitfähigkeit")));
+    // erkannte Sprache geht als `lang` mit (Vertrag in server/README.md) - englische Absätze des Auto-Scans
+    // als "en", der erzwungene deutsche als "de"
+    const langOf = (word) => backend.langs[backend.batches.findIndex((b) => b.some((t) => t.includes(word)))];
+    assert.equal(langOf("Wärmeleitfähigkeit"), "de");
+    assert.ok(backend.langs.includes("en"), `lang der Anfragen: ${backend.langs}`);
     const levels = await page.$$eval("[data-aivsai-level]", (els) =>
       els.filter((el) => el.textContent.includes("Wärmeleitfähigkeit")).map((el) => el.dataset.aivsaiLevel)
     );

@@ -11,9 +11,6 @@ Vertrag in `server/README.md`). Offen:
 - **Mit echtem Token testen:** 2–3 bekannte Detektor-Modelle über „Modell prüfen“ (Hub-Metadaten,
   Router-Antwortformen, KI-Label aus `id2label`). Bisher nur gemockt (`providers.test.mjs`,
   `model-check.test.mjs`).
-- **`lang` im Betrieb mitschicken:** Der Vertrag kennt `lang`, die Extension schickt es bisher nur
-  bei der Prüfung („en“). Die Spracherkennung pro Absatz gibt es inzwischen (`lang-detect.js`, im
-  Content-Script `foreignLang`); fehlt noch, sie mit dem Absatz zu verschicken. Siehe auch Punkt 6.
 - **Referenzset verbreitern**, sobald die Eval-Suite (Punkt 3) steht: bisher nur HC3 (ChatGPT 2023).
 - **Später – eigenes ONNX im Browser:**
   - HF-Repo mit `onnx/` + Tokenizer.

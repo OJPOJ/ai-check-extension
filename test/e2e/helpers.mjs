@@ -14,10 +14,11 @@ export const scoreByLength = (text) => [0.2, 0.7, 0.95][text.length % 3];
 /**
  * Fake-Backend auf zufälligem Port (kollidiert nicht mit einem laufenden shim_server.py).
  * `info` = Antwort auf GET /v1/info (ohne: 404, wie ein Server, der den optionalen Endpunkt nicht hat).
- * @returns {Promise<{url: string, texts: string[], batches: string[][], requests: number, close: () => Promise<void>}>}
+ * @returns {Promise<{url: string, texts: string[], batches: string[][], langs: (string|undefined)[], requests: number,
+ *   close: () => Promise<void>}>}  langs: `lang` pro Anfrage
  */
 export async function startBackend(score = scoreByLength, { info } = {}) {
-  const backend = { texts: [], batches: [], requests: 0 };
+  const backend = { texts: [], batches: [], langs: [], requests: 0 };
   const server = http.createServer((req, res) => {
     if (req.url === "/healthz") return res.end("ok");
     if (req.url.startsWith("/v1/info")) {
@@ -28,7 +29,8 @@ export async function startBackend(score = scoreByLength, { info } = {}) {
     let body = "";
     req.on("data", (c) => (body += c));
     req.on("end", () => {
-      const { texts } = JSON.parse(body);
+      const { texts, lang } = JSON.parse(body);
+      backend.langs.push(lang);
       backend.requests++;
       backend.texts.push(...texts);
       backend.batches.push(texts);

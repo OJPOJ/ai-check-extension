@@ -45,8 +45,20 @@ function cachePut(key, value) {
   if (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);
 }
 
+// Der Vertrag kennt `lang` pro Anfrage, nicht pro Text: gemischte Batches (selten - meist hat eine Seite
+// eine Sprache) gehen als eine Anfrage pro Sprache raus. Ergebnis in der Reihenfolge von `items`.
+async function scoreByLang(items, cfg) {
+  const groups = Map.groupBy(items.map((it, i) => ({ it, i })), ({ it }) => it.lang || "");
+  const result = new Array(items.length).fill(null);
+  for (const [lang, group] of groups) {
+    const scores = await backendFor(cfg).score(group.map(({ it }) => it.text), cfg, lang ? { lang } : {});
+    group.forEach(({ i }, j) => (result[i] = scores[j]));
+  }
+  return result;
+}
+
 /**
- * @param {{id: string, text: string}[]} items
+ * @param {{id: string, text: string, lang?: string}[]} items  lang: erkannte Sprache, falls bekannt
  * @returns {Promise<{ok: boolean, scores: Record<string, number>, model: string, error?: string}>}
  *   `model` (AIVSAI.modelKey) gehört zu jedem Score - für Feedback, Berichte und Kalibrierung.
  */
@@ -92,7 +104,7 @@ export async function scoreBatch(items) {
   // 3. Modell/Backend
   const provider = AIVSAI.providerLabel(cfg);
   try {
-    const result = await backendFor(cfg).score(missing.map((it) => it.text), cfg);
+    const result = await scoreByLang(missing, cfg);
     const fresh = [];
     missing.forEach((it, i) => {
       if (typeof result[i] !== "number") return;

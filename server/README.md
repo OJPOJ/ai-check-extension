@@ -47,7 +47,10 @@ der Extension einsetzen; `shim_server.py` ist die Referenz-Implementierung.
 
 - `texts`: 1..n Texte, je bis `maxChars` Zeichen (Extension: Batches bis 2500 Zeichen).
 - `model`: optional, nur wenn in der Extension eingetragen.
-- `lang`: optional, Sprache der Texte (BCP-47, z.B. `en`), falls bekannt.
+- `lang`: optional, Sprache der Texte (ISO 639-1, z.B. `en`), falls bekannt. Die Extension schickt die
+  pro Absatz erkannte Sprache (`extension/lang-detect.js`); gemischte Batches teilt sie auf, eine
+  Anfrage pro Sprache. Absätze in Sprachen, die das Modell laut `languages` nicht kennt, gehen gar
+  nicht erst raus (außer per „Trotzdem prüfen“).
 - `scores`: pro Text **P(KI) in [0,1]**, gleiche Reihenfolge und Anzahl. Werte außerhalb 0..1
   (z.B. Logits) oder Nicht-Zahlen lässt die Extension unbewertet.
 - Optional `Authorization: Bearer <key>`. Fehler als HTTP-Status mit `{"detail": "…"}` oder
