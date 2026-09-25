@@ -1,12 +1,13 @@
 // Service Worker (ES-Modul): verdrahtet Browser-Events und Nachrichten mit den Bausteinen in bg/.
 //   bg/providers.js        Backends (Browser-Modell, lokaler/eigener Server, Hugging Face)
 //   bg/scoring.js          Konfiguration, Score-Cache, Verbindungstest, Status
+//   bg/score-store.js      dauerhafter Score-Speicher (IndexedDB) mit Aufbewahrungsdauer
 //   bg/badge.js            Icon-Badge pro Tab
 //   bg/offscreen-client.js Brücke zum Offscreen-Dokument mit dem Browser-Modell
 import "./config.js";
 import { updateBadge } from "./bg/badge.js";
 import { callOffscreen } from "./bg/offscreen-client.js";
-import { getConfig, health, scoreBatch, testProvider } from "./bg/scoring.js";
+import { clearStore, getConfig, health, pruneStore, scoreBatch, storeInfo, testProvider } from "./bg/scoring.js";
 
 function sendToTab(tabId, msg, frameId = 0) {
   // kein Content-Script: chrome://-Seiten, Web Store, Tabs von vor der Installation
@@ -58,19 +59,37 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 // Lebenszyklus, Einstellungen, Tastenkürzel
 // ---------------------------------------------------------------------------
 
+// Abgelaufene Bewertungen einmal täglich löschen (und bei jedem Browserstart)
+const PRUNE_ALARM = "prune-scores";
+
+function schedulePrune() {
+  chrome.alarms.create(PRUNE_ALARM, { delayInMinutes: 1, periodInMinutes: 24 * 60 });
+}
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === PRUNE_ALARM) pruneStore().catch((err) => console.warn("Aufräumen fehlgeschlagen", err));
+});
+
 chrome.runtime.onInstalled.addListener(({ reason }) => {
   updateBadge();
   createMenus();
+  schedulePrune();
   // Erstinstallation: Einstellungen öffnen, damit das Modell heruntergeladen werden kann
   if (reason === "install") chrome.runtime.openOptionsPage();
 });
-chrome.runtime.onStartup.addListener(() => updateBadge());
+chrome.runtime.onStartup.addListener(() => {
+  updateBadge();
+  schedulePrune();
+});
 
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === "sync" && "enabled" in changes) {
+  if (area !== "sync") return;
+  if ("enabled" in changes) {
     updateBadge();
     setMenusVisible(changes.enabled.newValue ?? AIVSAI.DEFAULTS.enabled);
   }
+  // kürzere Aufbewahrung bzw. "nicht speichern" sofort umsetzen, nicht erst beim nächsten Alarm
+  if ("scoreRetentionDays" in changes) pruneStore().catch((err) => console.warn("Aufräumen fehlgeschlagen", err));
 });
 
 const COMMAND_MESSAGES = { "scan-page": "SCAN_NOW", "check-selection": "CHECK_SELECTION" };
@@ -101,6 +120,8 @@ const HANDLERS = {
   },
   HEALTH: () => health(),
   TEST_PROVIDER: () => testProvider(),
+  SCORE_STORE_INFO: () => storeInfo().catch((err) => ({ ok: false, error: String(err?.message || err) })),
+  SCORE_STORE_CLEAR: () => clearStore().catch((err) => ({ ok: false, error: String(err?.message || err) })),
   // Download startet nur; Ende kommt als MODEL_DONE vom Offscreen-Dokument
   MODEL_STATUS: (msg) => modelCommand(msg),
   MODEL_DOWNLOAD: (msg) => modelCommand(msg),

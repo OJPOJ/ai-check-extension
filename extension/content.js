@@ -7,10 +7,18 @@
   // Bereich bewerten, der Rest folgt beim Scrollen
   const NEAR_SCREENS = 1.5;
   const CANDIDATE_SELECTOR = "article, p, li";
+  // Absätze innerhalb dieser Bereiche nie bewerten: Navigation/Seitenrahmen (auch ohne semantische
+  // Tags), Dialoge (meist Cookie-/Consent-Banner - Standardtext, der gern als KI gilt), Code, Eingaben.
+  // Bewusst NICHT: aria-hidden/inert (viele Seiten verstecken damit den ganzen Inhalt, solange ein
+  // Modal offen ist - dann würde nie gescannt), form (ASP.NET packt die ganze Seite in ein <form>).
   const EXCLUDE_SELECTOR =
-    "nav, header, footer, script, style, noscript, " +
+    "nav, header, footer, script, style, noscript, template, pre, dialog, " +
+    "[role='navigation'], [role='banner'], [role='contentinfo'], [role='search'], " +
+    "[role='dialog'], [role='alertdialog'], " +
     "[contenteditable], [contenteditable='true'], textarea, input, select, button, " +
     "[role='textbox']";
+  // Innerhalb eines Absatzes herausrechnen: Icon-Fonts ("chevron_right"), Code-Blöcke
+  const STRIP_SELECTOR = "[aria-hidden='true'], pre";
   const LEVEL_CLASSES = ["aivsai-green", "aivsai-yellow", "aivsai-red", "aivsai-badge"];
   // Manuelle Prüfung: kürzere Texte erlaubt und mehr Text als beim Auto-Scan
   // (die Modelle schneiden ohnehin bei 512 Tokens ab)
@@ -138,10 +146,31 @@
     }
   }
 
+  // cyrb53: schneller 53-Bit-Hash - identifiziert Absätze innerhalb der Seite (Warteschlange, Duplikate).
+  // Der dauerhafte Speicher im Service Worker nutzt SHA-256 über den Text selbst.
   function hashText(text) {
-    let h = 0;
-    for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) | 0;
-    return `${text.length}_${h}`;
+    let h1 = 0xdeadbeef;
+    let h2 = 0x41c6ce57;
+    for (let i = 0; i < text.length; i++) {
+      const c = text.charCodeAt(i);
+      h1 = Math.imul(h1 ^ c, 2654435761);
+      h2 = Math.imul(h2 ^ c, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return `${text.length}_${(4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36)}`;
+  }
+
+  // Sichtbarer Text ohne Icon-Fonts und Code-Blöcke. Nur lesen - Teil von Phase 1 in collectCandidates.
+  function readText(el) {
+    let text = el.innerText || "";
+    if (el.querySelector(STRIP_SELECTOR)) {
+      for (const part of el.querySelectorAll(STRIP_SELECTOR)) {
+        const t = (part.innerText || "").trim();
+        if (t) text = text.replace(t, " ");
+      }
+    }
+    return text.trim();
   }
 
   function wordCount(text) {
@@ -180,7 +209,7 @@
       // billiger Vorfilter ohne Layout: 40 Wörter brauchen mindestens 40 Zeichen
       if ((el.textContent || "").length < MIN_WORDS) continue;
       if (el.closest(EXCLUDE_SELECTOR) || hasLongCandidateChild(el)) continue;
-      const text = (el.innerText || "").trim();
+      const text = readText(el);
       if (!text || wordCount(text) < MIN_WORDS) continue;
       const hash = hashText(text);
       if (el.dataset.aivsaiHash === hash && isQueuedOrScored(el)) continue;
@@ -258,7 +287,9 @@
         continue;
       }
       const { dist, top } = viewportDistance(entry);
-      entry.near = dist <= limit;
+      // nicht gerendert (display:none, hidden, zugeklappt): nie senden, auch ohne lazyScan -
+      // wird es sichtbar, meldet sich der nearObserver
+      entry.near = dist !== Infinity && dist <= limit;
       if (entry.near) ranked.push({ entry, dist, top });
     }
     ranked.sort((a, b) => a.dist - b.dist || a.top - b.top);

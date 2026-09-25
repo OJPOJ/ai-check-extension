@@ -26,7 +26,10 @@ globalThis.AIVSAI = (() => {
     yellowFrom: 0.60,
     redFrom: 0.90,
     showGreen: true,
-    showBadge: true
+    showBadge: true,
+
+    // Bewertungen so viele Tage speichern (nur Hash + Score, kein Text, keine URL); 0 = gar nicht
+    scoreRetentionDays: 30
   };
 
   // Secrets liegen in storage.local, damit sie nicht über das Browser-Konto synchronisiert werden
@@ -43,10 +46,16 @@ globalThis.AIVSAI = (() => {
     generic: { yellowFrom: 0.60, redFrom: 0.90 }
   };
 
-  // Modelle für den Provider "browser" (Laden/Umwandeln: offscreen.js, dort unter demselben Schlüssel)
+  // Modelle für den Provider "browser" (Laden/Umwandeln: offscreen.js, dort unter demselben Schlüssel).
+  // `revision` ist fest gepinnt, damit sich Scores nicht durch ein Upstream-Update unbemerkt ändern.
+  // `version` gehört zu jedem gespeicherten Score: ändern (bzw. ändert sich mit der Revision), sobald
+  // dasselbe Modell andere Zahlen liefern kann - neue Revision, andere Quantisierung, anderer Zuschnitt.
+  // Dann gelten alte gespeicherte Scores automatisch nicht mehr.
   const BROWSER_MODELS = {
     tmr: {
       name: "TMR",
+      revision: "b9aa251e5bcda7e429fcc936767d921435945b60",
+      version: "b9aa251-q8",
       download: "126 MB",
       info:
         "Einmaliger Download von Hugging Face (126 MB, öffentlich, kein Konto/Token nötig), danach offline " +
@@ -55,6 +64,8 @@ globalThis.AIVSAI = (() => {
     },
     desklib: {
       name: "desklib",
+      revision: "5fdea974cd4287c61674951ec78803aa274e2fb7",
+      version: "5fdea97-nbits8b32",
       download: "1,7 GB",
       builds: true, // wird beim Herunterladen im Browser umgewandelt
       info:
@@ -91,12 +102,12 @@ globalThis.AIVSAI = (() => {
     return "manual";
   }
 
-  // Stabile Kennung des gerade gewählten Modells, z.B. "browser:tmr" - für Presets, Cache,
+  // Stabile Kennung des gerade gewählten Modells inkl. Version, z.B. "browser:tmr@b9aa251-q8" - für Cache,
   // und später Kalibrierung, Feedback und Berichte (damit Scores ihrem Modell zugeordnet bleiben).
   function modelKey(cfg) {
     switch (cfg.provider) {
       case "browser":
-        return `browser:${cfg.browserModel}`;
+        return `browser:${cfg.browserModel}@${BROWSER_MODELS[cfg.browserModel]?.version ?? "?"}`;
       case "local":
         return `local:${cfg.localModel}`;
       case "custom":

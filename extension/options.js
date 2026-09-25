@@ -46,7 +46,8 @@ function readForm() {
     redFrom: parseFloat($("redFrom").value),
     showGreen: $("showGreen").checked,
     showBadge: $("showBadge").checked,
-    lazyScan: $("lazyScan").checked
+    lazyScan: $("lazyScan").checked,
+    scoreRetentionDays: parseInt($("scoreRetentionDays").value, 10)
   };
   for (const f of TEXT_FIELDS) cfg[f] = $(f).value.trim();
   cfg.localUrl ||= AIVSAI.DEFAULTS.localUrl;
@@ -139,7 +140,9 @@ let modelState = null; // letzte Antwort von MODEL_STATUS: { models: { tmr: {...
 const selectedModel = () => radioValue("browserModel") || AIVSAI.DEFAULTS.browserModel;
 
 function formatMB(bytes) {
-  return bytes >= 1e9 ? `${(bytes / 1e9).toFixed(2).replace(".", ",")} GB` : `${(bytes / 1e6).toFixed(0)} MB`;
+  if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(2).replace(".", ",")} GB`;
+  if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(0)} MB`;
+  return `${Math.max(1, Math.round(bytes / 1e3))} KB`;
 }
 
 function renderProgress(p) {
@@ -207,6 +210,25 @@ chrome.runtime.onMessage.addListener((msg) => {
   }
 });
 
+// --- Gespeicherte Bewertungen ---
+
+async function refreshStore() {
+  const r = await chrome.runtime.sendMessage({ type: "SCORE_STORE_INFO" });
+  $("storeClear").disabled = !r?.count;
+  if (!r?.ok) {
+    $("storeStatus").textContent = `Fehler: ${r?.error ?? "keine Antwort"}`;
+    return;
+  }
+  const n = r.count.toLocaleString("de-DE");
+  const size = r.count ? ` · ca. ${formatMB(r.bytes)}` : "";
+  $("storeStatus").textContent = `${n} ${r.count === 1 ? "Bewertung" : "Bewertungen"} gespeichert${size}`;
+}
+
+$("storeClear").addEventListener("click", async () => {
+  await chrome.runtime.sendMessage({ type: "SCORE_STORE_CLEAR" });
+  refreshStore();
+});
+
 function renderScanMode() {
   $("sitesField").hidden = radioValue("scanMode") !== "sites";
 }
@@ -251,10 +273,12 @@ async function init() {
   $("showGreen").checked = cfg.showGreen;
   $("showBadge").checked = cfg.showBadge;
   $("lazyScan").checked = cfg.lazyScan;
+  $("scoreRetentionDays").value = String(cfg.scoreRetentionDays);
   renderProvider();
   renderScanMode();
   renderScale();
   refreshModel();
+  refreshStore();
 }
 
 // Popup und Tastenkürzel ändern "enabled"/"sites", während diese Seite offen sein kann -
@@ -284,7 +308,11 @@ $("redFrom").addEventListener("input", renderScale);
 $("applyPreset").addEventListener("click", applyPreset);
 
 $("save").addEventListener("click", () => {
-  saveFromClick().then((ok) => ok && showStatus("Gespeichert.", "ok"));
+  saveFromClick().then((ok) => {
+    if (!ok) return;
+    showStatus("Gespeichert.", "ok");
+    setTimeout(refreshStore, 300); // "Nicht speichern" löscht im Hintergrund
+  });
 });
 
 $("test").addEventListener("click", () => {

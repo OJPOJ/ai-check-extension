@@ -9,6 +9,7 @@ import {
   RobertaTokenizer,
   env
 } from "./vendor/transformers.min.js";
+import "./config.js";
 import { buildWeights } from "./desklib_build.js";
 
 const HF = "https://huggingface.co/";
@@ -19,8 +20,7 @@ const MODELS = {
   // fertige ONNX-Version von onnx-community, lädt transformers.js selbst herunter
   tmr: {
     id: "onnx-community/tmr-ai-text-detector-ONNX",
-    // fest gepinnt, damit sich Scores nicht durch ein Upstream-Update unbemerkt ändern
-    revision: "b9aa251e5bcda7e429fcc936767d921435945b60",
+    revision: AIVSAI.BROWSER_MODELS.tmr.revision, // gepinnt in config.js
     marker: "onnx/model_quantized.onnx",
     maxTokens: 512
   },
@@ -28,7 +28,7 @@ const MODELS = {
   // Die Cache-Einträge liegen unter einer eigenen ID, die es auf Hugging Face nicht gibt.
   desklib: {
     id: "aivsai-local/desklib-ai-text-detector-v1.01",
-    revision: "5fdea974cd4287c61674951ec78803aa274e2fb7",
+    revision: AIVSAI.BROWSER_MODELS.desklib.revision,
     marker: "onnx/model_quantized.onnx_data",
     maxTokens: 768, // wie server/shim_server.py
     build: {

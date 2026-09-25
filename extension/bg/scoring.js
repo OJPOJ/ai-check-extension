@@ -2,13 +2,15 @@
 import "../config.js";
 import { callOffscreen } from "./offscreen-client.js";
 import { describeError, providerFor, trimSlash } from "./providers.js";
+import * as store from "./score-store.js";
 
 const CACHE_MAX = 5000;
 const TEST_TEXT =
   "Maintaining a bicycle in good working condition requires regular attention to several " +
   "key components, including the tires, the chain and the brake pads.";
 
-// providerSignature + Text -> probability; überlebt Tab-Wechsel, nicht aber einen SW-Neustart.
+// Arbeitsspeicher-Cache: providerSignature + Text -> probability. Hält nur, solange der Service Worker
+// läuft (~30 s ohne Nachrichten); darunter liegt der dauerhafte Speicher aus score-store.js.
 // Schlüssel ist der Text selbst (max. 2000 Zeichen), nicht die ID vom Content-Script: dessen
 // 32-Bit-Hash ist nur innerhalb einer Seite eindeutig genug.
 const cache = new Map();
@@ -25,10 +27,17 @@ export function getConfig() {
   return configPromise;
 }
 
-chrome.storage.onChanged.addListener(() => (configPromise = null));
+chrome.storage.onChanged.addListener((changes) => {
+  configPromise = null;
+  // Treffer aus dem Arbeitsspeicher landen nie im dauerhaften Speicher - wird das Speichern eingeschaltet,
+  // müssen sie einmal über den normalen Weg laufen, sonst fehlen sie dort bis zum SW-Neustart
+  if ("scoreRetentionDays" in changes) cache.clear();
+});
 
+// Alles, wovon ein Score abhängt: Provider-Einstellungen plus Modellversion (modelKey). Wechsel des
+// Modells oder eine neue Version -> andere Signatur -> alte Einträge passen nicht mehr.
 function providerSignature(cfg) {
-  return AIVSAI.PROVIDER_KEYS.map((k) => cfg[k]).join("\u0001");
+  return [...AIVSAI.PROVIDER_KEYS.map((k) => cfg[k]), AIVSAI.modelKey(cfg)].join("\u0001");
 }
 
 function cachePut(key, value) {
@@ -49,22 +58,50 @@ export async function scoreBatch(items) {
 
   const sig = providerSignature(cfg);
   const scores = {};
-  const missing = [];
+  // 1. Arbeitsspeicher
+  let missing = [];
   for (const it of items) {
-    const hit = cache.get(`${sig}\u0002${it.text}`);
+    const hit = cache.get(`${sig}${it.text}`);
     if (hit !== undefined) scores[it.id] = hit;
     else missing.push(it);
   }
   if (!missing.length) return { ok: true, scores, model };
 
+  // 2. dauerhafter Speicher (falls eingeschaltet) - Fehler dort dürfen nie die Bewertung verhindern
+  const persist = cfg.scoreRetentionDays > 0;
+  let keys = [];
+  if (persist) {
+    try {
+      keys = await Promise.all(missing.map((it) => store.keyFor(sig, it.text)));
+      const found = await store.getMany(keys, cfg.scoreRetentionDays);
+      const rest = [];
+      missing.forEach((it, i) => {
+        const p = found.get(keys[i]);
+        if (p === undefined) return rest.push({ it, key: keys[i] });
+        scores[it.id] = p;
+        cachePut(`${sig}${it.text}`, p);
+      });
+      missing = rest.map((r) => r.it);
+      keys = rest.map((r) => r.key);
+    } catch (err) {
+      console.warn("Score-Speicher nicht lesbar", err);
+      keys = [];
+    }
+    if (!missing.length) return { ok: true, scores, model };
+  }
+
+  // 3. Modell/Backend
   const provider = AIVSAI.providerLabel(cfg);
   try {
     const result = await providerFor(cfg).score(missing.map((it) => it.text), cfg);
+    const fresh = [];
     missing.forEach((it, i) => {
       if (typeof result[i] !== "number") return;
       scores[it.id] = result[i];
-      cachePut(`${sig}\u0002${it.text}`, result[i]);
+      cachePut(`${sig}${it.text}`, result[i]);
+      if (keys[i]) fresh.push({ k: keys[i], p: result[i], m: model });
     });
+    if (fresh.length) store.putMany(fresh).catch((err) => console.warn("Score-Speicher nicht beschreibbar", err));
     lastStatus = { ok: true, at: Date.now(), provider };
     return { ok: true, scores, model };
   } catch (err) {
@@ -72,6 +109,23 @@ export async function scoreBatch(items) {
     lastStatus = { ok: false, error, at: Date.now(), provider };
     return { ok: false, error, scores, model };
   }
+}
+
+// Aufräumen nach Aufbewahrungsdauer (0 = nichts speichern -> alles löschen)
+export async function pruneStore() {
+  const { scoreRetentionDays } = await getConfig();
+  await store.prune(scoreRetentionDays);
+}
+
+export async function storeInfo() {
+  const { scoreRetentionDays } = await getConfig();
+  return { ok: true, retentionDays: scoreRetentionDays, ...(await store.info()) };
+}
+
+export async function clearStore() {
+  cache.clear();
+  await store.clear();
+  return storeInfo();
 }
 
 export async function testProvider() {

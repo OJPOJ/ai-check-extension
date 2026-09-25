@@ -28,6 +28,12 @@ Hintergrund/Architektur: `RESOURCES.md`.
 - **Lazy-Scan (Default an, abschaltbar):** bewertet nur Absätze bis 1,5 Bildschirmhöhen
   um den sichtbaren Bereich; der Rest wird per `IntersectionObserver` nachgeholt, sobald er
   in die Nähe kommt (Scrollen, Resize, aufgeklappte Inhalte). Spart Rechenzeit/Cloud-Kosten.
+- **Bewertungen merken (einstellbar, Default 30 Tage):** Scores liegen in IndexedDB
+  (`extension/bg/score-store.js`) und überleben Neustarts – bekannte Absätze werden sofort markiert,
+  ohne neu zu rechnen. Gespeichert wird nur ein 128-Bit-Hash über Modell-Konfiguration + Text, der
+  Score, das Modell und der Zeitpunkt – kein Text, keine URL. Gemessen ~235 Byte/Eintrag
+  (50.000 Einträge = 11,7 MB); Aufräumen täglich per `chrome.alarms` und sofort bei Änderung der
+  Einstellung, Obergrenze 200.000 Einträge. „Nicht speichern“ löscht alles.
 - **Einzelne Stellen prüfen:** Rechtsklick auf markierten Text → „Markierten Text auf KI
   prüfen“ (oder `Alt+Shift+C`), Rechtsklick irgendwo sonst → „Diesen Absatz auf KI prüfen“.
   Funktioniert unabhängig vom Scan-Modus und auch für Text, den der Auto-Scan auslässt
@@ -151,6 +157,7 @@ uv pip install --python .venv -r requirements_shim.txt
     Modell-Metadaten, Ampel-Stufen)
   - `background.js` (Service Worker, ES-Modul) verdrahtet Events/Nachrichten mit `bg/`:
     `providers.js` (Backends), `scoring.js` (Konfig- und Score-Cache, Test, Status),
+    `score-store.js` (dauerhafte Scores mit Aufbewahrungsdauer),
     `badge.js`, `offscreen-client.js` (Brücke zu `offscreen.js` mit dem Browser-Modell)
   - `content.js` — Scan, Warteschlange/Priorisierung, Ergebnis-Register (`results`: Element →
     Score, Text, Modell, Quelle – Basis für Statistik, Feedback und Berichte);

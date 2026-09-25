@@ -207,6 +207,30 @@
       <div>Score als Prozent-Badge am Absatz anzeigen<div class="hint">Ohne Badge steht der Score weiterhin im Tooltip.</div></div></label>
   </div>
 
+  <div class="card">
+    <h2>Gespeicherte Bewertungen</h2>
+    <div class="field">
+      <label for="scoreRetentionDays">Bewertungen merken für</label>
+      <select id="scoreRetentionDays">
+        <option value="0">Nicht speichern</option>
+        <option value="1">1 Tag</option>
+        <option value="7">7 Tage</option>
+        <option value="30">30 Tage</option>
+        <option value="90">90 Tage</option>
+        <option value="365">1 Jahr</option>
+      </select>
+      <div class="hint">Bereits bewertete Absätze werden beim nächsten Besuch sofort markiert, statt erneut
+        gerechnet (bzw. bei Cloud-Backends erneut bezahlt) zu werden. Gespeichert wird nur ein Fingerabdruck
+        (Hash) des Absatzes mit Score, Modell und Zeitpunkt – <b>kein Text und keine Adresse</b>. Nur in
+        diesem Browser, wird nicht synchronisiert. Ca. 0,25 KB pro Absatz – 30 Tage intensives Surfen
+        ergeben einige MB.</div>
+    </div>
+    <div class="row field">
+      <div class="hint" id="storeStatus" style="margin:0">Prüfe…</div>
+      <button id="storeClear">Alle löschen</button>
+    </div>
+  </div>
+
   <p class="small muted">Messwerte der lokalen Modelle: training/EVAL_RESULTS.md. Laya ist absichtlich nicht wählbar,
     bis ein fine-getunter Checkpoint existiert (training/README.md).</p>
 </main>
