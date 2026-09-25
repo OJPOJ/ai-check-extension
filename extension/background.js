@@ -1,11 +1,12 @@
 // Service Worker (ES-Modul): verdrahtet Browser-Events und Nachrichten mit den Bausteinen in bg/.
-//   bg/providers.js        Backends (Browser-Modell, lokaler/eigener Server, Hugging Face)
+//   bg/providers.js        Backends zu den Providern aus config.js (Browser-Modell, Server, Hugging Face)
 //   bg/scoring.js          Konfiguration, Score-Cache, Verbindungstest, Status
 //   bg/score-store.js      dauerhafter Score-Speicher (IndexedDB) mit Aufbewahrungsdauer
 //   bg/feedback-store.js   Feedback-Sammlung mit Text (nur nach Einwilligung, nur lokal)
 //   bg/badge.js            Icon-Badge pro Tab
 //   bg/offscreen-client.js Brücke zum Offscreen-Dokument mit dem Browser-Modell
 import "./generated/blocklist.js";
+import "./models.js";
 import "./config.js";
 import { updateBadge } from "./bg/badge.js";
 import * as feedback from "./bg/feedback-store.js";

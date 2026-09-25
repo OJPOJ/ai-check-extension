@@ -1,9 +1,11 @@
-// Reine Entscheidungslogik aus extension/config.js: Ampel, Sperrliste, Scan-Freigabe, Modell-Schlüssel.
+// Reine Entscheidungslogik aus extension/config.js: Ampel, Sperrliste, Scan-Freigabe, Modell-Schlüssel,
+// dazu die Beschreibungen der Provider und des Modellkatalogs (models.js).
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 // Kleine Ersatzliste statt der echten (die prüft blocklist.test.mjs) - Format wie generated/blocklist.js
 globalThis.AIVSAI_BLOCKLIST = { domains: "\nbank.example\nmail.anbieter.example\n" };
+await import("../../extension/models.js");
 await import("../../extension/config.js");
 const A = globalThis.AIVSAI;
 const cfg = (over = {}) => ({ ...A.DEFAULTS, ...A.SECRET_DEFAULTS, ...over });
@@ -90,8 +92,8 @@ describe("scanPolicy", () => {
 
 describe("modelKey", () => {
   it("enthält Provider, Modell und bei Browser-Modellen die Version", () => {
-    assert.equal(A.modelKey(cfg()), `browser:tmr@${A.BROWSER_MODELS.tmr.version}`);
-    assert.equal(A.modelKey(cfg({ browserModel: "desklib" })), `browser:desklib@${A.BROWSER_MODELS.desklib.version}`);
+    assert.equal(A.modelKey(cfg()), `browser:tmr@${A.MODELS.tmr.browser.version}`);
+    assert.equal(A.modelKey(cfg({ browserModel: "desklib" })), `browser:desklib@${A.MODELS.desklib.browser.version}`);
     assert.equal(A.modelKey(cfg({ browserModel: "gibtsnicht" })), "browser:gibtsnicht@?");
     assert.equal(A.modelKey(cfg({ provider: "local", localModel: "desklib" })), "local:desklib");
     assert.equal(A.modelKey(cfg({ provider: "custom", customUrl: "https://s.example/score" })), "custom:https://s.example/score");
@@ -161,5 +163,43 @@ describe("providerLabel", () => {
     assert.equal(A.providerLabel(cfg({ provider: "custom" })), "Eigener Server");
     assert.equal(A.providerLabel(cfg({ provider: "custom", customModel: "m" })), "Eigener Server (m)");
     assert.equal(A.providerLabel(cfg({ provider: "huggingface", hfModel: "org/m" })), "Hugging Face (org/m)");
+  });
+});
+
+describe("Provider-Registry und Modellkatalog", () => {
+  const fields = Object.values(A.PROVIDERS).flatMap((p) => p.fields);
+
+  it("jedes Feld hat einen Default am richtigen Ort (sync bzw. Secret in local)", () => {
+    for (const f of fields) {
+      assert.ok(f.key && f.label && f.type, JSON.stringify(f));
+      const store = f.secret ? A.SECRET_DEFAULTS : A.DEFAULTS;
+      assert.ok(f.key in store, f.key);
+      assert.equal(store[f.key], f.default, f.key);
+      assert.ok(!(f.key in (f.secret ? A.DEFAULTS : A.SECRET_DEFAULTS)), `${f.key} doppelt`);
+      // Secrets dürfen nie Teil der Signatur (und damit von Scores/Feedback) werden
+      assert.equal(A.PROVIDER_KEYS.includes(f.key), !f.secret, f.key);
+    }
+    assert.equal(new Set(fields.map((f) => f.key)).size, fields.length, "Feld-Schlüssel doppelt");
+    assert.ok(A.DEFAULTS.provider in A.PROVIDERS);
+  });
+
+  it("Modell-Felder zeigen auf vorhandene Katalog-Abschnitte mit gültigem Default", () => {
+    for (const f of fields.filter((x) => x.type === "model")) {
+      const keys = A.catalog(f.catalog).map(([k]) => k);
+      assert.ok(keys.length > 0, f.catalog);
+      assert.ok(keys.includes(f.default), `${f.key}: ${f.default}`);
+    }
+  });
+
+  it("Katalog: Pflichtangaben, Presets und gepinnte Browser-Modelle", () => {
+    for (const [key, m] of Object.entries(A.MODELS)) {
+      assert.ok(m.name && m.title && m.maxChars > 0 && m.maxTokens > 0, key);
+      assert.equal(A.PRESETS[key], m.thresholds, key);
+      if (m.browser) {
+        assert.match(m.browser.revision, /^[0-9a-f]{40}$/, key);
+        for (const k of ["repo", "version", "marker", "download", "info"]) assert.ok(m.browser[k], `${key}.browser.${k}`);
+      }
+      assert.ok(m.browser || m.server, `${key}: kein Provider bietet das Modell an`);
+    }
   });
 });

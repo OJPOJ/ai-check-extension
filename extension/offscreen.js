@@ -9,6 +9,7 @@ import {
   RobertaTokenizer,
   env
 } from "./vendor/transformers.min.js";
+import "./models.js";
 import "./config.js";
 import { buildWeights } from "./desklib_build.js";
 import { lengthBuckets } from "./length-buckets.js";
@@ -17,29 +18,14 @@ const HF = "https://huggingface.co/";
 const CACHE_NAME = "transformers-cache"; // von transformers.js vorgegeben
 const IDLE_CLOSE_MS = 10 * 60 * 1000; // RAM freigeben, wenn länger nichts zu tun ist
 
-const MODELS = {
-  // fertige ONNX-Version von onnx-community, lädt transformers.js selbst herunter
-  tmr: {
-    id: "onnx-community/tmr-ai-text-detector-ONNX",
-    revision: AIVSAI.BROWSER_MODELS.tmr.revision, // gepinnt in config.js
-    marker: "onnx/model_quantized.onnx",
-    maxTokens: AIVSAI.BROWSER_MODELS.tmr.maxTokens
-  },
-  // gibt es nicht als brauchbares ONNX: Original herunterladen und hier umwandeln (desklib_build.js).
-  // Die Cache-Einträge liegen unter einer eigenen ID, die es auf Hugging Face nicht gibt.
-  desklib: {
-    id: "aivsai-local/desklib-ai-text-detector-v1.01",
-    revision: AIVSAI.BROWSER_MODELS.desklib.revision,
-    marker: "onnx/model_quantized.onnx_data",
-    maxTokens: AIVSAI.BROWSER_MODELS.desklib.maxTokens, // wie server/shim_server.py
-    build: {
-      source: "desklib/ai-text-detector-v1.01",
-      tokenizerFiles: ["tokenizer.json", "tokenizer_config.json", "special_tokens_map.json", "added_tokens.json"],
-      shipped: { "config.json": "models/desklib/config.json", "onnx/model_quantized.onnx": "models/desklib/model_quantized.onnx" },
-      recipe: "models/desklib/recipe.json"
-    }
-  }
-};
+// Alle Modelle mit Abschnitt `browser` aus models.js. Modelle mit `build` gibt es nicht als brauchbares
+// ONNX: Original herunterladen und hier umwandeln (desklib_build.js), Cache-Einträge unter `repo`.
+const MODELS = Object.fromEntries(
+  AIVSAI.catalog("browser").map(([key, { browser, maxTokens }]) => [
+    key,
+    { id: browser.repo, revision: browser.revision, marker: browser.marker, build: browser.build, maxTokens }
+  ])
+);
 
 // Beides aus heißt für transformers.js "ungültige Konfiguration" - auch wenn alles im Cache liegt.
 // Lokale Modelle zeigen daher auf den Extension-Ordner: der Cache wird zuerst geprüft, ohne
@@ -115,7 +101,7 @@ async function load(key, { allowDownload = false, onProgress } = {}) {
   if (current?.key === key) return current.promise;
   await unload();
   const m = MODELS[key];
-  // desklib steht nie so auf Hugging Face - nur aus dem Cache laden
+  // selbst umgewandelte Modelle stehen nie so auf Hugging Face - nur aus dem Cache laden
   env.allowRemoteModels = allowDownload && !m.build;
   const files = new Map();
   const options = {
@@ -186,7 +172,7 @@ async function fetchOk(url) {
   return resp;
 }
 
-// desklib: Tokenizer + Original-Gewichte von Hugging Face, Graph aus der Extension, Gewichte umwandeln
+// Modelle mit `build` (desklib): Tokenizer + Original-Gewichte von Hugging Face, Graph aus der Extension, Gewichte umwandeln
 async function buildModel(key) {
   const m = MODELS[key];
   const { build } = m;

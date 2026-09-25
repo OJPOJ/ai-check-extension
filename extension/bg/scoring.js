@@ -1,7 +1,6 @@
 // Bewertung mit Cache, Verbindungstest und Status fürs Popup - unabhängig vom konkreten Provider.
 import "../config.js";
-import { callOffscreen } from "./offscreen-client.js";
-import { describeError, providerFor, trimSlash } from "./providers.js";
+import { backendFor, describeError } from "./providers.js";
 import * as store from "./score-store.js";
 
 const CACHE_MAX = 5000;
@@ -93,7 +92,7 @@ export async function scoreBatch(items) {
   // 3. Modell/Backend
   const provider = AIVSAI.providerLabel(cfg);
   try {
-    const result = await providerFor(cfg).score(missing.map((it) => it.text), cfg);
+    const result = await backendFor(cfg).score(missing.map((it) => it.text), cfg);
     const fresh = [];
     missing.forEach((it, i) => {
       if (typeof result[i] !== "number") return;
@@ -133,34 +132,24 @@ export async function testProvider() {
   const provider = AIVSAI.providerLabel(cfg);
   const started = Date.now();
   try {
-    const [score] = await providerFor(cfg).score([TEST_TEXT], cfg);
+    const [score] = await backendFor(cfg).score([TEST_TEXT], cfg);
     return { ok: true, score, ms: Date.now() - started, provider };
   } catch (err) {
     return { ok: false, error: describeError(err, cfg), provider };
   }
 }
 
-// Leichter Check fürs Popup: lokal per /healthz, remote nur der letzte bekannte Stand
-// (ein echter Probe-Request würde bei Cloud-Anbietern Kosten/Quota verbrauchen).
+// Leichter Check fürs Popup: eigener Check des Backends (Browser-Modell, /healthz), sonst nur der letzte
+// bekannte Stand (ein echter Probe-Request würde bei Cloud-Anbietern Kosten/Quota verbrauchen).
 export async function health() {
   const cfg = await getConfig();
   const provider = AIVSAI.providerLabel(cfg);
-  if (cfg.provider === "browser") {
+  const check = backendFor(cfg).health;
+  if (check) {
     try {
-      const st = (await callOffscreen("status")).models[cfg.browserModel];
-      if (st?.downloaded) return { ok: true, provider, detail: st.loaded ? "Modell geladen" : "Modell bereit" };
-      if (st?.downloading) return { ok: false, provider, error: "Modell wird heruntergeladen…" };
-      return { ok: false, provider, error: "Modell noch nicht heruntergeladen" };
+      return { ...(await check(cfg)), provider };
     } catch (err) {
       return { ok: false, provider, error: String(err?.message || err) };
-    }
-  }
-  if (cfg.provider === "local") {
-    try {
-      const resp = await fetch(`${trimSlash(cfg.localUrl)}/healthz`, { signal: AbortSignal.timeout(3000) });
-      return resp.ok ? { ok: true, provider } : { ok: false, provider, error: `HTTP ${resp.status}` };
-    } catch {
-      return { ok: false, provider, error: "Lokaler Server nicht erreichbar" };
     }
   }
   if (lastStatus?.provider === provider) return lastStatus;

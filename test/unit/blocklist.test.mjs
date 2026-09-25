@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 await import("../../extension/generated/blocklist.js");
+await import("../../extension/models.js");
 await import("../../extension/config.js");
 const { domains, count, generated, sources } = globalThis.AIVSAI_BLOCKLIST;
 const list = domains.split("\n").slice(1, -1);

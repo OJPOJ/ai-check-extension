@@ -2,20 +2,45 @@
 <html lang="de">
 <head>
 <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>AI Content Flag – Einstellungen</title>
 <link rel="stylesheet" href="ui.css" />
 <style>
   body { background: var(--surface); }
-  main { max-width: 640px; margin: 0 auto; padding: 24px 16px 96px; }
-  .intro { margin: 4px 0 20px; }
-  .card { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  html { scroll-padding-top: 72px; }
+
+  .top { position: sticky; top: 0; z-index: 2; background: var(--bg); border-bottom: 1px solid var(--border); }
+  .top-inner, .layout { max-width: 880px; margin: 0 auto; padding: 0 16px; }
+  .top-inner { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 56px; }
+  .top-inner .sub { font-size: 12px; }
+  .master { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+  .master small { font-weight: 400; }
+
+  .layout { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 24px; padding-top: 20px; padding-bottom: 96px; }
+  .toc { position: sticky; top: 76px; align-self: start; display: grid; gap: 2px; }
+  .toc a { color: var(--text); text-decoration: none; padding: 6px 10px; border-radius: 8px; }
+  .toc a:hover { background: var(--bg); }
+  .toc a.active { background: var(--bg); color: var(--accent); font-weight: 600; }
+  @media (max-width: 720px) {
+    .layout { grid-template-columns: minmax(0, 1fr); }
+    .toc { position: static; display: flex; flex-wrap: wrap; gap: 4px; }
+  }
+
+  .intro { margin: 0 0 16px; }
+  .card { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+  .card > h2 { margin-bottom: 2px; }
+  .lead { margin: 0 0 14px; font-size: 12px; color: var(--muted); }
+  h3 { font-size: 13px; margin: 20px 0 8px; padding-top: 16px; border-top: 1px solid var(--border); }
   .field { margin-top: 14px; }
-  .field:first-of-type { margin-top: 0; }
+  .field:first-child { margin-top: 0; }
   .field > label, .label { display: block; font-weight: 600; margin-bottom: 4px; }
+  .field > label .muted { font-weight: 400; }
   .hint { font-size: 11.5px; color: var(--muted); margin-top: 4px; }
   .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
 
   .choices { display: grid; gap: 8px; }
+  .choices.two { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
   .choice {
     display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px;
     border: 1px solid var(--border); border-radius: 10px; cursor: pointer;
@@ -25,12 +50,13 @@
   .choice b { display: block; }
   .choice span { font-size: 12px; color: var(--muted); }
 
-  .provider-fields { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border); }
-  .info { font-size: 12px; background: var(--surface); border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
+  .provider-fields { margin-top: 16px; padding: 14px; border-radius: 10px; background: var(--surface); }
+  .provider-fields .choice { background: var(--bg); }
+  .info { font-size: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
   code { font-size: 11.5px; background: var(--surface); padding: 1px 4px; border-radius: 4px; }
-  pre { font-size: 11.5px; background: var(--surface); padding: 8px 10px; border-radius: 8px; overflow-x: auto; margin: 8px 0 0; }
+  pre { font-size: 11.5px; background: var(--bg); border: 1px solid var(--border); padding: 8px 10px; border-radius: 8px; overflow-x: auto; margin: 8px 0 0; }
 
-  .slider-row { display: grid; grid-template-columns: 110px 1fr 48px; align-items: center; gap: 10px; margin-top: 10px; }
+  .slider-row { display: grid; grid-template-columns: 90px 1fr 48px; align-items: center; gap: 10px; margin-top: 10px; }
   .slider-row output { text-align: right; font-variant-numeric: tabular-nums; }
   .scale { display: flex; height: 10px; border-radius: 999px; overflow: hidden; margin-top: 14px; }
   .scale-legend { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); margin-top: 6px; gap: 8px; }
@@ -39,36 +65,63 @@
   .check input { margin-top: 3px; }
 
   .bar {
-    position: fixed; left: 0; right: 0; bottom: 0; background: var(--bg); border-top: 1px solid var(--border);
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 2; background: var(--bg); border-top: 1px solid var(--border);
     padding: 12px 16px;
   }
-  .bar-inner { max-width: 640px; margin: 0 auto; display: flex; gap: 8px; align-items: center; }
+  .bar-inner { max-width: 880px; margin: 0 auto; display: flex; gap: 8px; align-items: center; }
   #status { flex: 1; font-size: 12px; min-width: 0; }
   #status.ok { color: var(--green); }
   #status.err { color: var(--red); }
+  #status.dirty { color: var(--yellow); }
   progress { width: 100%; height: 8px; margin-top: 10px; accent-color: var(--accent); }
   [hidden] { display: none !important; }
 </style>
 </head>
 <body>
-<main>
-  <h1>AI Content Flag</h1>
-  <p class="intro muted">Bewertet längere Textabsätze mit einem KI-Text-Klassifikator und markiert sie
-    grün / gelb / rot. Scores sind Schätzungen – sie können sich irren, besonders bei kurzen,
-    übersetzten oder stark redigierten Texten.</p>
-
-  <div class="card">
-    <h2>Allgemein</h2>
-    <div class="row field">
-      <div>
-        <div class="label">Extension aktiv</div>
-        <div class="hint">Tastenkürzel: Alt+Shift+A (an/aus), Alt+Shift+S (Seite scannen)</div>
-      </div>
-      <label class="switch"><input type="checkbox" id="enabled" aria-label="Extension aktiv" /><span></span></label>
+<header class="top">
+  <div class="top-inner">
+    <div>
+      <h1>AI Content Flag</h1>
+      <div class="sub muted">Einstellungen</div>
     </div>
+    <label class="master">
+      <span>Extension aktiv <small class="muted">· Alt+Shift+A</small></span>
+      <span class="switch"><input type="checkbox" id="enabled" aria-label="Extension aktiv" /><span></span></span>
+    </label>
+  </div>
+</header>
 
-    <div class="field">
-      <div class="label">Wann wird gescannt?</div>
+<div class="layout">
+  <nav class="toc" aria-label="Abschnitte">
+    <a href="#detection">Erkennung</a>
+    <a href="#scanning">Scannen</a>
+    <a href="#blocklist">Sperrliste</a>
+    <a href="#display">Anzeige</a>
+    <a href="#data">Daten &amp; Datenschutz</a>
+  </nav>
+
+  <main>
+    <p class="intro muted">Bewertet längere Textabsätze mit einem KI-Text-Klassifikator und markiert sie
+      grün / gelb / rot. Scores sind Schätzungen – sie können sich irren, besonders bei kurzen,
+      übersetzten oder stark redigierten Texten.</p>
+
+    <section class="card" id="detection">
+      <h2>Erkennung</h2>
+      <p class="lead">Wo die Texte bewertet werden und mit welchem Modell.</p>
+      <!-- Auswahl und Formulare kommen aus AIVSAI.PROVIDERS (config.js) und models.js -->
+      <div class="choices two" id="providerChoices" role="radiogroup" aria-label="Erkennungs-Backend"></div>
+      <div id="providerForms"></div>
+      <p class="warn" id="privacyWarn" hidden style="margin:14px 0 0">
+        Textausschnitte (bis <span id="privacyChars">2000</span> Zeichen pro Absatz) werden an
+        <b id="privacyTarget"></b> gesendet. Nutze „Nur auf Knopfdruck“ oder eine Seitenliste, wenn du das nicht
+        für jede Seite willst.
+      </p>
+    </section>
+
+    <section class="card" id="scanning">
+      <h2>Scannen</h2>
+      <p class="lead">Wann Seiten automatisch geprüft werden. Einzelne Stellen prüfst du jederzeit per Auswahl
+        oder Rechtsklick; Alt+Shift+S scannt die aktuelle Seite.</p>
       <div class="choices">
         <label class="choice"><input type="radio" name="scanMode" value="manual" />
           <div><b>Nur auf Knopfdruck</b><span>Über das Popup oder Alt+Shift+S. Es werden keine Texte ohne Klick verschickt.</span></div></label>
@@ -77,218 +130,151 @@
         <label class="choice"><input type="radio" name="scanMode" value="all" />
           <div><b>Auf allen Seiten automatisch</b><span>Jede besuchte Seite wird analysiert – mit Cloud-Backends ggf. teuer.</span></div></label>
       </div>
-    </div>
 
-    <div class="field" id="sitesField">
-      <label for="sites">Automatisch scannen auf</label>
-      <textarea id="sites" rows="4" placeholder="example.com&#10;news.example.org"></textarea>
-      <div class="hint">Eine Domain pro Zeile, Subdomains sind eingeschlossen.</div>
-    </div>
+      <div class="field" id="sitesField">
+        <label for="sites">Automatisch scannen auf</label>
+        <textarea id="sites" rows="4" placeholder="example.com&#10;news.example.org"></textarea>
+        <div class="hint">Eine Domain pro Zeile, Subdomains sind eingeschlossen.</div>
+      </div>
 
-    <div class="field">
-      <div class="label">Nie scannen (Sperrliste)</div>
-      <div class="hint" style="margin-top:0">Gesperrte Seiten werden weder automatisch noch per „Seite jetzt scannen“
-        geprüft – das gilt vor allen anderen Einstellungen. Einzelne Stellen kannst du dort weiterhin bewusst per
-        Auswahl oder Rechtsklick prüfen.</div>
-      <label class="check"><input type="checkbox" id="builtinBlocklist" />
+      <label class="check"><input type="checkbox" id="lazyScan" />
+        <div>Nur Absätze in der Nähe des sichtbaren Bereichs bewerten
+          <div class="hint">Bis 1,5 Bildschirmhöhen über/unter der aktuellen Position, der Rest beim Scrollen.
+            Spart Rechenzeit und bei Cloud-Backends Kosten für Stellen, die du nie liest.</div></div></label>
+    </section>
+
+    <section class="card" id="blocklist">
+      <h2>Sperrliste</h2>
+      <p class="lead">Gesperrte Seiten werden weder automatisch noch per „Seite jetzt scannen“ geprüft – das gilt
+        vor allen anderen Einstellungen. Einzelne Stellen kannst du dort weiterhin bewusst per Auswahl oder
+        Rechtsklick prüfen.</p>
+      <label class="check" style="margin-top:0"><input type="checkbox" id="builtinBlocklist" />
         <div>Mitgelieferte Liste verwenden (Online-Banking, Webmail, Zahlungsdienste, Behördenportale)
           <div class="hint" id="builtinInfo"></div></div></label>
       <label class="check"><input type="checkbox" id="sensitiveHeuristic" />
         <div>Seiten mit Passwort- oder Zahlungsfeld nicht scannen
           <div class="hint">Fängt Login- und Bezahlseiten ab, die in keiner Liste stehen. Felder in Pop-ups
             (z.B. Login-Fenster einer Nachrichtenseite) zählen nicht.</div></div></label>
-    </div>
-    <div class="field">
-      <label for="blockedSites">Zusätzlich sperren</label>
-      <textarea id="blockedSites" rows="3" placeholder="intranet.example.com"></textarea>
-    </div>
-    <div class="field">
-      <label for="unblockedSites">Ausnahmen von der mitgelieferten Liste</label>
-      <textarea id="unblockedSites" rows="2" placeholder="blog.bank.example"></textarea>
-      <div class="hint">Eine Domain pro Zeile, Subdomains sind eingeschlossen. Beides geht auch per Popup
-        („Hier nie scannen“ / „Von der Sperrliste nehmen“).</div>
-    </div>
 
-    <label class="check"><input type="checkbox" id="lazyScan" />
-      <div>Nur Absätze in der Nähe des sichtbaren Bereichs bewerten
-        <div class="hint">Bis 1,5 Bildschirmhöhen über/unter der aktuellen Position, der Rest beim Scrollen.
-          Spart Rechenzeit und bei Cloud-Backends Kosten für Stellen, die du nie liest.</div></div></label>
-  </div>
-
-  <div class="card">
-    <h2>Erkennungs-Backend</h2>
-    <div class="choices">
-      <label class="choice"><input type="radio" name="provider" value="browser" />
-        <div><b>Im Browser (empfohlen)</b><span>Das Modell läuft direkt in der Extension – kein Server nötig, Texte verlassen den Rechner nicht.</span></div></label>
-      <label class="choice"><input type="radio" name="provider" value="local" />
-        <div><b>Lokal</b><span>shim_server.py auf diesem Rechner – Texte verlassen den Rechner nicht.</span></div></label>
-      <label class="choice"><input type="radio" name="provider" value="custom" />
-        <div><b>Eigener Server / Cloud</b><span>Beliebiger HTTP-Endpunkt mit einfachem JSON-Vertrag, z.B. shim_server.py in der Cloud.</span></div></label>
-      <label class="choice"><input type="radio" name="provider" value="huggingface" />
-        <div><b>Hugging Face Inference API</b><span>Textklassifikations-Modell vom Hugging Face Hub, gehostet von Hugging Face.</span></div></label>
-    </div>
-
-    <div class="provider-fields" data-provider="browser">
-      <div class="label">Modell</div>
-      <div class="choices">
-        <label class="choice"><input type="radio" name="browserModel" value="tmr" />
-          <div><b>Schnell – TMR</b><span>RoBERTa-base, 126 MB. ~0,15 s pro Absatz, ~300 MB RAM.
-            Markiert sachliche Texte (z.B. englische Wikipedia) oft fälschlich als KI.</span></div></label>
-        <label class="choice"><input type="radio" name="browserModel" value="desklib" />
-          <div><b>Genau – desklib</b><span>DeBERTa-v3-large. ~1,3 s pro Absatz, ~800 MB RAM.
-            Deutlich weniger Fehlalarme, dafür langsamer – gut mit „Nur Absätze in der Nähe“.</span></div></label>
-      </div>
-      <div class="row field">
-        <div class="hint" id="modelStatus" style="margin:0">Prüfe…</div>
-        <div style="display:flex;gap:8px;flex:none">
-          <button id="modelDelete" hidden>Löschen</button>
-          <button id="modelDownload" class="primary" hidden>Herunterladen</button>
+      <div class="cols field">
+        <div>
+          <label class="label" for="blockedSites">Zusätzlich sperren</label>
+          <textarea id="blockedSites" rows="4" placeholder="intranet.example.com"></textarea>
+        </div>
+        <div>
+          <label class="label" for="unblockedSites">Ausnahmen von der mitgelieferten Liste</label>
+          <textarea id="unblockedSites" rows="4" placeholder="blog.bank.example"></textarea>
         </div>
       </div>
-      <progress id="modelProgress" max="1" value="0" hidden></progress>
-      <div class="info" id="browserModelInfo"></div>
-    </div>
+      <div class="hint">Eine Domain pro Zeile, Subdomains sind eingeschlossen. Beides geht auch per Popup
+        („Hier nie scannen“ / „Von der Sperrliste nehmen“).</div>
+    </section>
 
-    <div class="provider-fields" data-provider="local">
-      <div class="field">
-        <label for="localUrl">Server-URL</label>
-        <input type="url" id="localUrl" placeholder="http://127.0.0.1:8787" />
+    <section class="card" id="display">
+      <h2>Anzeige</h2>
+      <p class="lead">Ab welchem Score ein Absatz gelb bzw. rot markiert wird.</p>
+      <div class="slider-row">
+        <label for="yellowFrom">Gelb ab</label>
+        <input type="range" id="yellowFrom" min="0.05" max="0.98" step="0.01" />
+        <output id="yellowFromValue"></output>
       </div>
+      <div class="slider-row">
+        <label for="redFrom">Rot ab</label>
+        <input type="range" id="redFrom" min="0.06" max="0.99" step="0.01" />
+        <output id="redFromValue"></output>
+      </div>
+      <div class="scale" id="scale" aria-hidden="true"></div>
+      <div class="scale-legend">
+        <span><i class="dot green"></i>wahrscheinlich menschlich</span>
+        <span><i class="dot yellow"></i>unklar</span>
+        <span><i class="dot red"></i>wahrscheinlich KI</span>
+      </div>
+      <div class="row" style="margin-top:12px;justify-content:flex-start">
+        <button id="applyPreset">Empfohlene Werte fürs gewählte Modell</button>
+        <span class="hint" id="presetInfo" style="margin:0"></span>
+      </div>
+
+      <label class="check"><input type="checkbox" id="showGreen" />
+        <div>Auch unauffällige Absätze grün markieren<div class="hint">So siehst du, was geprüft und <i>nicht</i> als KI erkannt wurde.</div></div></label>
+      <label class="check"><input type="checkbox" id="showBadge" />
+        <div>Score als Prozent-Badge am Absatz anzeigen<div class="hint">Ohne Badge steht der Score weiterhin im Tooltip.</div></div></label>
+    </section>
+
+    <section class="card" id="data">
+      <h2>Daten &amp; Datenschutz</h2>
+      <p class="lead">Was die Extension in diesem Browser speichert. Nichts davon wird synchronisiert oder verschickt.</p>
       <div class="field">
-        <label for="localModel">Modell</label>
-        <select id="localModel">
-          <option value="tmr">Low – TMR (schnell &amp; leicht)</option>
-          <option value="desklib">Medium – desklib (genauer, deutlich langsamer)</option>
+        <label for="scoreRetentionDays">Bewertungen merken für</label>
+        <select id="scoreRetentionDays">
+          <option value="0">Nicht speichern</option>
+          <option value="1">1 Tag</option>
+          <option value="7">7 Tage</option>
+          <option value="30">30 Tage</option>
+          <option value="90">90 Tage</option>
+          <option value="365">1 Jahr</option>
         </select>
-        <div class="info" id="localModelInfo"></div>
+        <div class="hint">Bereits bewertete Absätze werden beim nächsten Besuch sofort markiert, statt erneut
+          gerechnet (bzw. bei Cloud-Backends erneut bezahlt) zu werden. Gespeichert wird nur ein Fingerabdruck
+          (Hash) des Absatzes mit Score, Modell und Zeitpunkt – <b>kein Text und keine Adresse</b>. Ca. 0,25 KB
+          pro Absatz – 30 Tage intensives Surfen ergeben einige MB.</div>
       </div>
-    </div>
+      <div class="row field">
+        <div class="hint" id="storeStatus" style="margin:0">Prüfe…</div>
+        <button id="storeClear">Alle löschen</button>
+      </div>
 
-    <div class="provider-fields" data-provider="custom">
-      <div class="field">
-        <label for="customUrl">Endpunkt-URL</label>
-        <input type="url" id="customUrl" placeholder="https://detector.example.com/v1/score" />
+      <h3>Feedback</h3>
+      <label class="check" style="margin-top:0"><input type="checkbox" id="feedbackButtons" />
+        <div>Im Prüfergebnis fragen, woher der Text wirklich stammt<div class="hint">Nach einer Prüfung per
+          Markierung oder Rechtsklick (auch auf bereits markierte Absätze) kannst du angeben, ob der Text von
+          einem Menschen oder einer KI stammt – und woher du das weißt. Beim ersten Mal wirst du gefragt, ob
+          der Text dafür gespeichert werden darf.</div></div></label>
+      <div class="hint">Die Sammlung enthält den <b>Text</b> (bis 2000 Zeichen), deine Angabe, Score, Modell und
+        die Sprache der Seite – keine Adresse. Sie bleibt in diesem Browser; die Extension sendet sie nirgendwohin.
+        Als JSONL exportiert dient sie als Testmaterial bzw. Trainingsdaten (<code>training/import_feedback.py</code>).
+        Einträge „nur mein Eindruck“ werden dort standardmäßig nicht als Trainingslabel verwendet.</div>
+      <div class="row field">
+        <div class="hint" id="feedbackStatus" style="margin:0">Prüfe…</div>
+        <div style="display:flex;gap:8px;flex:none">
+          <button id="feedbackExport">Exportieren</button>
+          <button id="feedbackClear">Löschen und Einwilligung widerrufen</button>
+        </div>
       </div>
-      <div class="field">
-        <label for="customApiKey">API-Key <span class="muted">(optional, als Bearer-Token)</span></label>
-        <input type="password" id="customApiKey" autocomplete="off" />
-      </div>
-      <div class="field">
-        <label for="customModel">Modell <span class="muted">(optional, wird als <code>model</code> mitgeschickt)</span></label>
-        <input type="text" id="customModel" placeholder="tmr" />
-      </div>
-      <div class="hint">Erwarteter Vertrag (shim_server.py erfüllt ihn unter <code>/v1/score</code>):</div>
-      <pre>POST {"texts": ["…", "…"], "model": "…"}
+
+      <p class="small muted" style="margin:16px 0 0"><a href="privacy.html" target="_blank">Datenschutzerklärung</a> ·
+        Messwerte der Modelle: training/EVAL_RESULTS.md. Laya ist absichtlich nicht wählbar, bis ein fine-getunter
+        Checkpoint existiert (training/README.md).</p>
+    </section>
+  </main>
+</div>
+
+<!-- Zusätze zu einzelnen Providern, options.js hängt sie an deren Formular an (id = "extra-<provider>") -->
+<template id="extra-browser">
+  <div class="row field">
+    <div class="hint" id="modelStatus" style="margin:0">Prüfe…</div>
+    <div style="display:flex;gap:8px;flex:none">
+      <button id="modelDelete" hidden>Löschen</button>
+      <button id="modelDownload" class="primary" hidden>Herunterladen</button>
+    </div>
+  </div>
+  <progress id="modelProgress" max="1" value="0" hidden></progress>
+</template>
+<template id="extra-custom">
+  <div class="hint field">Erwarteter Vertrag (shim_server.py erfüllt ihn unter <code>/v1/score</code>):</div>
+  <pre>POST {"texts": ["…", "…"], "model": "…"}
 →    {"scores": [0.93, 0.12]}   // KI-Wahrscheinlichkeit 0..1 pro Text</pre>
-    </div>
-
-    <div class="provider-fields" data-provider="huggingface">
-      <div class="field">
-        <label for="hfModel">Modell-ID</label>
-        <input type="text" id="hfModel" placeholder="openai-community/roberta-base-openai-detector" />
-        <div class="hint">Muss als Textklassifikation über „HF Inference“ verfügbar sein (Modellseite → Deploy → Inference Providers).</div>
-      </div>
-      <div class="field">
-        <label for="hfToken">Access Token</label>
-        <input type="password" id="hfToken" autocomplete="off" placeholder="hf_…" />
-        <div class="hint">Wird nur lokal in diesem Browser gespeichert, nicht synchronisiert.</div>
-      </div>
-      <div class="field">
-        <label for="hfAiLabel">Label der KI-Klasse <span class="muted">(optional)</span></label>
-        <input type="text" id="hfAiLabel" placeholder="automatisch (AI, Fake, LABEL_1, …)" />
-      </div>
-    </div>
-
-    <p class="warn" id="privacyWarn" hidden style="margin:14px 0 0">
-      Textausschnitte (bis 2000 Zeichen pro Absatz) werden an <b id="privacyTarget"></b> gesendet.
-      Nutze „Nur auf Knopfdruck“ oder eine Seitenliste, wenn du das nicht für jede Seite willst.
-    </p>
-  </div>
-
-  <div class="card">
-    <h2>Anzeige</h2>
-    <div class="slider-row">
-      <label for="yellowFrom">Gelb ab</label>
-      <input type="range" id="yellowFrom" min="0.05" max="0.98" step="0.01" />
-      <output id="yellowFromValue"></output>
-    </div>
-    <div class="slider-row">
-      <label for="redFrom">Rot ab</label>
-      <input type="range" id="redFrom" min="0.06" max="0.99" step="0.01" />
-      <output id="redFromValue"></output>
-    </div>
-    <div class="scale" id="scale" aria-hidden="true"></div>
-    <div class="scale-legend">
-      <span><i class="dot green"></i>wahrscheinlich menschlich</span>
-      <span><i class="dot yellow"></i>unklar</span>
-      <span><i class="dot red"></i>wahrscheinlich KI</span>
-    </div>
-    <button id="applyPreset" style="margin-top:12px">Empfohlene Werte fürs gewählte Modell</button>
-
-    <label class="check"><input type="checkbox" id="showGreen" />
-      <div>Auch unauffällige Absätze grün markieren<div class="hint">So siehst du, was geprüft und <i>nicht</i> als KI erkannt wurde.</div></div></label>
-    <label class="check"><input type="checkbox" id="showBadge" />
-      <div>Score als Prozent-Badge am Absatz anzeigen<div class="hint">Ohne Badge steht der Score weiterhin im Tooltip.</div></div></label>
-  </div>
-
-  <div class="card">
-    <h2>Gespeicherte Bewertungen</h2>
-    <div class="field">
-      <label for="scoreRetentionDays">Bewertungen merken für</label>
-      <select id="scoreRetentionDays">
-        <option value="0">Nicht speichern</option>
-        <option value="1">1 Tag</option>
-        <option value="7">7 Tage</option>
-        <option value="30">30 Tage</option>
-        <option value="90">90 Tage</option>
-        <option value="365">1 Jahr</option>
-      </select>
-      <div class="hint">Bereits bewertete Absätze werden beim nächsten Besuch sofort markiert, statt erneut
-        gerechnet (bzw. bei Cloud-Backends erneut bezahlt) zu werden. Gespeichert wird nur ein Fingerabdruck
-        (Hash) des Absatzes mit Score, Modell und Zeitpunkt – <b>kein Text und keine Adresse</b>. Nur in
-        diesem Browser, wird nicht synchronisiert. Ca. 0,25 KB pro Absatz – 30 Tage intensives Surfen
-        ergeben einige MB.</div>
-    </div>
-    <div class="row field">
-      <div class="hint" id="storeStatus" style="margin:0">Prüfe…</div>
-      <button id="storeClear">Alle löschen</button>
-    </div>
-  </div>
-
-  <div class="card">
-    <h2>Feedback</h2>
-    <label class="check" style="margin-top:0"><input type="checkbox" id="feedbackButtons" />
-      <div>Im Prüfergebnis fragen, woher der Text wirklich stammt<div class="hint">Nach einer Prüfung per
-        Markierung oder Rechtsklick (auch auf bereits markierte Absätze) kannst du angeben, ob der Text von
-        einem Menschen oder einer KI stammt – und woher du das weißt. Beim ersten Mal wirst du gefragt, ob
-        der Text dafür gespeichert werden darf.</div></div></label>
-    <div class="hint">Die Sammlung enthält den <b>Text</b> (bis 2000 Zeichen), deine Angabe, Score, Modell und
-      die Sprache der Seite – keine Adresse. Sie bleibt in diesem Browser; die Extension sendet sie nirgendwohin.
-      Als JSONL exportiert dient sie als Testmaterial bzw. Trainingsdaten (<code>training/import_feedback.py</code>).
-      Einträge „nur mein Eindruck“ werden dort standardmäßig nicht als Trainingslabel verwendet.</div>
-    <div class="row field">
-      <div class="hint" id="feedbackStatus" style="margin:0">Prüfe…</div>
-      <div style="display:flex;gap:8px">
-        <button id="feedbackExport">Exportieren</button>
-        <button id="feedbackClear">Löschen und Einwilligung widerrufen</button>
-      </div>
-    </div>
-  </div>
-
-  <p class="small muted"><a href="privacy.html" target="_blank">Datenschutzerklärung</a></p>
-  <p class="small muted">Messwerte der lokalen Modelle: training/EVAL_RESULTS.md. Laya ist absichtlich nicht wählbar,
-    bis ein fine-getunter Checkpoint existiert (training/README.md).</p>
-</main>
+</template>
 
 <div class="bar">
   <div class="bar-inner">
     <div id="status" role="status"></div>
-    <button id="test">Verbindung testen</button>
-    <button id="save" class="primary">Speichern</button>
+    <button id="test" title="Speichert und schickt einen Beispieltext ans gewählte Backend">Verbindung testen</button>
+    <button id="save" class="primary" title="Strg+S">Speichern</button>
   </div>
 </div>
 
 <script src="generated/blocklist.js"></script>
+<script src="models.js"></script>
 <script src="config.js"></script>
 <script src="options.js"></script>
 </body>

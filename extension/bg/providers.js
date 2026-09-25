@@ -1,5 +1,10 @@
-// Provider: jeder bekommt eine Liste Texte und liefert pro Text eine KI-Wahrscheinlichkeit 0..1
-// (oder null, falls für diesen Text nichts kam). Neue Backends = neuer Eintrag in PROVIDERS.
+// Backends: die Anfrage-Seite der Provider aus config.js (AIVSAI.PROVIDERS, dort Name, Felder,
+// Datenschutz). Neuer Provider = Eintrag dort plus Eintrag unter demselben Schlüssel in BACKENDS.
+//
+//   score(texts, cfg)  -> pro Text eine KI-Wahrscheinlichkeit 0..1 (oder null, falls für diesen Text nichts kam)
+//   health(cfg)        optional, leichter Check fürs Popup -> {ok, detail?, error?}. Ohne: letzter bekannter
+//                      Stand (ein Probe-Request würde bei Cloud-Anbietern Kosten/Quota verbrauchen)
+//   unreachable(cfg)   optional, Text für Netzwerkfehler
 import { callOffscreen } from "./offscreen-client.js";
 
 const LOCAL_TIMEOUT_MS = 180_000; // großzügig: desklib auf langsamer CPU und beim ersten Laden des Modells
@@ -79,13 +84,32 @@ async function scoreHuggingFace(texts, cfg) {
   return scores;
 }
 
-export const PROVIDERS = {
+async function browserHealth(cfg) {
+  const st = (await callOffscreen("status")).models[cfg.browserModel];
+  if (st?.downloaded) return { ok: true, detail: st.loaded ? "Modell geladen" : "Modell bereit" };
+  if (st?.downloading) return { ok: false, error: "Modell wird heruntergeladen…" };
+  return { ok: false, error: "Modell noch nicht heruntergeladen" };
+}
+
+async function localHealth(cfg) {
+  try {
+    const resp = await fetch(`${trimSlash(cfg.localUrl)}/healthz`, { signal: AbortSignal.timeout(3000) });
+    return resp.ok ? { ok: true } : { ok: false, error: `HTTP ${resp.status}` };
+  } catch {
+    return { ok: false, error: "Lokaler Server nicht erreichbar" };
+  }
+}
+
+export const BACKENDS = {
   browser: {
-    score: async (texts, cfg) => (await callOffscreen("score", { texts, model: cfg.browserModel })).scores
+    score: async (texts, cfg) => (await callOffscreen("score", { texts, model: cfg.browserModel })).scores,
+    health: browserHealth
   },
   local: {
     score: (texts, cfg) =>
-      postScoreContract(`${trimSlash(cfg.localUrl)}/v1/score`, texts, cfg.localModel, null, LOCAL_TIMEOUT_MS)
+      postScoreContract(`${trimSlash(cfg.localUrl)}/v1/score`, texts, cfg.localModel, null, LOCAL_TIMEOUT_MS),
+    health: localHealth,
+    unreachable: (cfg) => `Lokaler Server nicht erreichbar (${cfg.localUrl}) – läuft shim_server.py?`
   },
   custom: {
     score: (texts, cfg) => {
@@ -96,14 +120,15 @@ export const PROVIDERS = {
   huggingface: { score: scoreHuggingFace }
 };
 
-export const providerFor = (cfg) => PROVIDERS[cfg.provider] || PROVIDERS.local;
+export const backendFor = (cfg) => BACKENDS[cfg.provider] || BACKENDS.local;
 
 export function describeError(err, cfg) {
   if (err?.name === "TimeoutError") return "Zeitüberschreitung beim Backend";
   // fetch() meldet DNS-/Verbindungsfehler und fehlende Host-Berechtigung nur als TypeError
   if (err instanceof TypeError) {
-    return cfg.provider === "local"
-      ? `Lokaler Server nicht erreichbar (${cfg.localUrl}) – läuft shim_server.py?`
+    const unreachable = BACKENDS[cfg.provider]?.unreachable;
+    return unreachable
+      ? unreachable(cfg)
       : "Backend nicht erreichbar (Netzwerk oder fehlende Berechtigung – in den Einstellungen speichern)";
   }
   return String(err?.message || err);

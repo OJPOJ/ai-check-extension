@@ -42,6 +42,7 @@
       ],
       "js": [
         "generated/blocklist.js",
+        "models.js",
         "config.js",
         "content-popover.js",
         "content.js"

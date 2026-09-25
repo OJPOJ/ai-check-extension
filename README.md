@@ -206,11 +206,13 @@ Veröffentlichung im Web Store: Kontakt eintragen und die Seite zusätzlich öff
 
 ```
 extension/
-  config.js             Defaults + gemeinsame Regeln für alle Teile:
+  models.js             Modellkatalog: Name, Kontext, Ampel-Presets, Browser-Download (Revision/Version),
+                        Server-Angaben – eine Stelle pro Modell
+  config.js             Defaults + gemeinsame Regeln für alle Teile: Provider-Registry (PROVIDERS),
                         scanPolicy/blockReason (darf gescannt werden?), modelKey (Modell + Version),
-                        Modell-Metadaten/Revisionen, Presets, Ampel-Stufen
+                        Presets, Ampel-Stufen
   background.js         Service Worker (ES-Modul): verdrahtet Events und Nachrichten mit bg/
-  bg/providers.js       Backends
+  bg/providers.js       Backends (Anfrage + Health-Check je Provider)
   bg/scoring.js         Konfig-Cache, Score-Cache (Arbeitsspeicher → IndexedDB → Modell), Test, Status
   bg/score-store.js     dauerhafter Score-Speicher mit Aufbewahrungsdauer
   bg/feedback-store.js  Feedback-Sammlung (mit Text, nur nach Einwilligung, nur lokal)
@@ -232,6 +234,17 @@ test/                   harness.html (Testseite), e2e/ (Playwright-Tests)
 training/               Datensatz-Aufbereitung (HC3), Backend-Vergleich, Messergebnisse
 scripts/                vendor.mjs, build-blocklist.mjs, build_desklib_skeleton.py
 ```
+
+### Neues Modell oder neuer Provider
+
+- **Modell:** Eintrag in `extension/models.js`. Mit Abschnitt `browser` (ONNX-Repo, gepinnte
+  `revision`, `version`, `marker`) erscheint es unter „Im Browser“, mit `server` unter „Lokaler
+  Server“ (dann auch in `server/shim_server.py` anbieten). Textlänge (`maxChars`) und Ampel-Presets
+  (`thresholds`) gelten automatisch für beide.
+- **Provider:** Beschreibung in `AIVSAI.PROVIDERS` (`extension/config.js`: Name, Felder, Endpunkt,
+  Modellkennung) plus Anfrage unter demselben Schlüssel in `BACKENDS` (`extension/bg/providers.js`).
+  Einstellungsformular, Defaults, Secrets (`secret: true` → `storage.local`), Cache-Signatur und
+  Datenschutz-Hinweis leiten sich daraus ab. Die Unit-Tests prüfen, dass beide Seiten zusammenpassen.
 
 Performance-Grundsätze im Content-Script: Beim Einsammeln und Priorisieren erst alles lesen, dann
 schreiben (kein Layout-Thrashing); `MutationObserver` nur auf Seiten, die gescannt werden;
@@ -283,15 +296,6 @@ Statistik aus dem Register statt Dokument-Scans.
 - Sperrliste UK: nur ~60 `.uk`-Domains aus UT1, 71 Banken aus Wikidata plus handverlesene
   Großbanken. Vollständig wäre das FCA-Register (API mit kostenlosem Key, Weitergabebedingungen noch
   nicht geprüft). DE: BaFin-Export hat keine Websites. Lücken fängt die Passwortfeld-Heuristik ab.
-
-## Stolpersteine (gelöst)
-
-- transformers.js lädt nach Neustart des Offscreen-Dokuments nicht aus dem Cache (Tokenizer-Suche
-  ignoriert die Revision; „local + remote aus“ gilt als ungültig) → Tokenizer wird selbst aus dem
-  Cache gebaut (`offscreen.js`).
-- desklibs Beispielcode crasht mit `transformers>=5` (`all_tied_weights_keys`) → Property-Fix in
-  `server/shim_server.py` / `training/evaluate_backends.py`.
-- `laya-serve` hat `/health`, nicht `/healthz`.
 
 ## Lizenz
 

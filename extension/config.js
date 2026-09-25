@@ -1,7 +1,98 @@
 // Gemeinsame Defaults/Helfer für background.js, content.js, popup.js und options.js.
 // Klassisches Skript (content_scripts/<script>) und per `import "./config.js"` im Service Worker
-// nutzbar - deshalb als Eigenschaft von globalThis statt als Modul-Export.
+// nutzbar - deshalb als Eigenschaft von globalThis statt als Modul-Export. Braucht models.js davor.
 globalThis.AIVSAI = (() => {
+  // Modellkatalog aus models.js
+  const MODELS = globalThis.AIVSAI_MODELS;
+  if (!MODELS) throw new Error("models.js muss vor config.js geladen werden");
+
+  const LOCAL_URL = "http://127.0.0.1:8787";
+
+  // Provider = wo und wie bewertet wird. Jeder beschreibt sich hier selbst; die Einstellungsseite baut
+  // Auswahl und Formular daraus, der Rest (Cache-Schlüssel, Datenschutz-Hinweis, Parallelität) wird
+  // abgeleitet. Die eigentliche Anfrage steht unter demselben Schlüssel in bg/providers.js.
+  //
+  //   name           kurz, für Popup, Tooltip und Popover ("Im Browser (TMR)")
+  //   title, description  Auswahlkarte in den Einstellungen
+  //   fields         eigene Einstellungen. key = Schlüssel im Storage (secret: storage.local, wird nicht
+  //                  synchronisiert). type: "model" (Auswahl aus models.js, Abschnitt `catalog`), "url",
+  //                  "text", "password". required: darf nicht leer sein. note/hint/placeholder: Texte.
+  //   family(cfg)    Schlüssel in models.js, falls das Modell bekannt ist -> Textlänge und Ampel-Presets
+  //   model(cfg)     stabile Kennung des Modells inkl. Version (Teil von modelKey)
+  //   detail(cfg)    Zusatz zum Namen, z.B. das Modell
+  //   endpoint(cfg)  URL, an die Texte gehen (null = bleiben in der Extension) -> Host-Berechtigung
+  //   remote         fester Text für den Datenschutz-Hinweis statt des Hosts aus endpoint()
+  //   serial         rechnet ohnehin nur ein Prozess -> keine parallelen Batches
+  const PROVIDERS = {
+    browser: {
+      name: "Im Browser",
+      title: "Im Browser (empfohlen)",
+      description: "Das Modell läuft direkt in der Extension – kein Server nötig, Texte verlassen den Rechner nicht.",
+      fields: [{ key: "browserModel", type: "model", catalog: "browser", label: "Modell", default: "tmr" }],
+      family: (cfg) => cfg.browserModel,
+      model: (cfg) => `${cfg.browserModel}@${MODELS[cfg.browserModel]?.browser?.version ?? "?"}`,
+      detail: (cfg) => (MODELS[cfg.browserModel] || MODELS.tmr).name,
+      endpoint: () => null,
+      serial: true
+    },
+    local: {
+      name: "Lokal",
+      title: "Lokaler Server",
+      description: "shim_server.py auf diesem Rechner – Texte verlassen den Rechner nicht.",
+      fields: [
+        { key: "localUrl", type: "url", label: "Server-URL", default: LOCAL_URL, placeholder: LOCAL_URL },
+        { key: "localModel", type: "model", catalog: "server", label: "Modell", default: "tmr" }
+      ],
+      family: (cfg) => cfg.localModel,
+      model: (cfg) => cfg.localModel,
+      detail: (cfg) => cfg.localModel,
+      endpoint: (cfg) => cfg.localUrl || LOCAL_URL,
+      serial: true
+    },
+    custom: {
+      name: "Eigener Server",
+      title: "Eigener Server / Cloud",
+      description: "Beliebiger HTTP-Endpunkt mit einfachem JSON-Vertrag, z.B. shim_server.py in der Cloud.",
+      fields: [
+        {
+          key: "customUrl", type: "url", label: "Endpunkt-URL", default: "", required: true,
+          placeholder: "https://detector.example.com/v1/score"
+        },
+        { key: "customApiKey", type: "password", label: "API-Key", note: "optional, als Bearer-Token", default: "", secret: true },
+        { key: "customModel", type: "text", label: "Modell", note: "optional, wird als „model“ mitgeschickt", default: "", placeholder: "tmr" }
+      ],
+      family: () => null, // unbekannt, was der Server rechnet
+      model: (cfg) => cfg.customModel || cfg.customUrl,
+      detail: (cfg) => cfg.customModel,
+      endpoint: (cfg) => cfg.customUrl
+    },
+    huggingface: {
+      name: "Hugging Face",
+      title: "Hugging Face Inference API",
+      description: "Textklassifikations-Modell vom Hugging Face Hub, gehostet von Hugging Face.",
+      fields: [
+        {
+          key: "hfModel", type: "text", label: "Modell-ID", default: "openai-community/roberta-base-openai-detector",
+          required: true, placeholder: "openai-community/roberta-base-openai-detector",
+          hint: "Muss als Textklassifikation über „HF Inference“ verfügbar sein (Modellseite → Deploy → Inference Providers)."
+        },
+        {
+          key: "hfToken", type: "password", label: "Access Token", default: "", secret: true, placeholder: "hf_…",
+          hint: "Wird nur lokal in diesem Browser gespeichert, nicht synchronisiert."
+        },
+        { key: "hfAiLabel", type: "text", label: "Label der KI-Klasse", note: "optional", default: "", placeholder: "automatisch (AI, Fake, LABEL_1, …)" }
+      ],
+      family: () => null,
+      model: (cfg) => cfg.hfModel,
+      detail: (cfg) => cfg.hfModel,
+      endpoint: () => "https://router.huggingface.co/",
+      remote: "Hugging Face (router.huggingface.co)"
+    }
+  };
+
+  const providerFields = (secret) => Object.values(PROVIDERS).flatMap((p) => p.fields.filter((f) => !!f.secret === secret));
+  const defaultsOf = (fields) => Object.fromEntries(fields.map((f) => [f.key, f.default]));
+
   const DEFAULTS = {
     enabled: true,
     // "manual" = nur per Popup-Knopf, "sites" = nur Seiten aus `sites`, "all" = jede Seite
@@ -18,21 +109,13 @@ globalThis.AIVSAI = (() => {
     // nur Absätze nahe am sichtbaren Bereich bewerten, Rest erst beim Scrollen (spart Cloud-Kosten)
     lazyScan: true,
 
-    // "browser" = Modell per WebAssembly direkt in der Extension (offscreen.js),
-    // "local" = shim_server.py auf diesem Rechner, "custom" = eigener Server (z.B. Cloud),
-    // "huggingface" = Hugging Face Inference API
+    // Schlüssel aus PROVIDERS, dazu deren Felder (browserModel, localUrl, ...) mit ihren Defaults
     provider: "browser",
-    browserModel: "tmr", // Schlüssel aus BROWSER_MODELS
-    localUrl: "http://127.0.0.1:8787",
-    localModel: "tmr",
-    customUrl: "",
-    customModel: "",
-    hfModel: "openai-community/roberta-base-openai-detector",
-    hfAiLabel: "",
+    ...defaultsOf(providerFields(false)),
 
     // Ampel: score < yellowFrom = grün, < redFrom = gelb, sonst rot
-    yellowFrom: 0.60,
-    redFrom: 0.90,
+    yellowFrom: 0.6,
+    redFrom: 0.9,
     showGreen: true,
     showBadge: true,
 
@@ -44,56 +127,19 @@ globalThis.AIVSAI = (() => {
   };
 
   // Secrets liegen in storage.local, damit sie nicht über das Browser-Konto synchronisiert werden
-  const SECRET_DEFAULTS = { customApiKey: "", hfToken: "" };
+  const SECRET_DEFAULTS = defaultsOf(providerFields(true));
 
   // Änderungen an diesen Keys machen bisherige Scores ungültig -> Neu-Scan
-  const PROVIDER_KEYS = ["provider", "browserModel", "localUrl", "localModel", "customUrl", "customModel", "hfModel", "hfAiLabel"];
+  const PROVIDER_KEYS = ["provider", ...providerFields(false).map((f) => f.key)];
 
-  // Startwerte aus training/EVAL_RESULTS.md (kleine Stichprobe, keine Garantie).
-  // Schlüssel = Modellfamilie (siehe modelKey), "generic" für unbekannte Modelle.
+  // Ampel-Startwerte je Modellfamilie (thresholds in models.js), "generic" für unbekannte Modelle
   const PRESETS = {
-    tmr: { yellowFrom: 0.60, redFrom: 0.90 },
-    desklib: { yellowFrom: 0.50, redFrom: 0.87 },
-    generic: { yellowFrom: 0.60, redFrom: 0.90 }
+    ...Object.fromEntries(Object.entries(MODELS).map(([key, m]) => [key, m.thresholds])),
+    generic: { yellowFrom: 0.6, redFrom: 0.9 }
   };
 
-  // Modelle für den Provider "browser" (Laden/Umwandeln: offscreen.js, dort unter demselben Schlüssel).
-  // `revision` ist fest gepinnt, damit sich Scores nicht durch ein Upstream-Update unbemerkt ändern.
-  // `version` gehört zu jedem gespeicherten Score: ändern (bzw. ändert sich mit der Revision), sobald
-  // dasselbe Modell andere Zahlen liefern kann - neue Revision, andere Quantisierung, anderer Zuschnitt.
-  // Dann gelten alte gespeicherte Scores automatisch nicht mehr.
-  const BROWSER_MODELS = {
-    tmr: {
-      name: "TMR",
-      // Kontext des Modells und wie viel Text der Auto-Scan dafür schickt (content.js, clipText).
-      // TMR ist schnell und profitiert stark von mehr Text: volle 512 Tokens (~2000 Zeichen Englisch).
-      maxTokens: 512,
-      maxChars: 2000,
-      revision: "b9aa251e5bcda7e429fcc936767d921435945b60",
-      version: "b9aa251-q8",
-      download: "126 MB",
-      info:
-        "Einmaliger Download von Hugging Face (126 MB, öffentlich, kein Konto/Token nötig), danach offline " +
-        "nutzbar – bewertet werden die Texte nur lokal. Englisch trainiert – deutsche Texte können falsch " +
-        "eingestuft werden. MIT-Lizenz, Details in THIRD_PARTY_NOTICES.md."
-    },
-    desklib: {
-      name: "desklib",
-      // Könnte 768 Tokens, aber die Rechenzeit wächst stärker als linear (CPU: 500 Zeichen 0,6 s,
-      // 1500 Zeichen 2,3 s, 650 Tokens ~4,5 s) und desklib ist schon mit kurzem Text sehr genau -
-      // 1500 Zeichen (~350 Tokens) als Kompromiss. Messungen: training/EVAL_RESULTS.md, "Textlänge".
-      maxTokens: 768,
-      maxChars: 1500,
-      revision: "5fdea974cd4287c61674951ec78803aa274e2fb7",
-      version: "5fdea97-nbits8b32",
-      download: "1,7 GB",
-      builds: true, // wird beim Herunterladen im Browser umgewandelt
-      info:
-        "Lädt einmalig das Originalmodell von Hugging Face (1,7 GB, öffentlich, kein Konto/Token nötig) und " +
-        "wandelt es direkt im Browser in eine kompakte 8-Bit-Version um (~475 MB auf der Platte, gleiche " +
-        "Genauigkeit). Danach offline nutzbar. Englisch trainiert. MIT-Lizenz, Details in THIRD_PARTY_NOTICES.md."
-    }
-  };
+  // Modelle, die ein Abschnitt aus models.js ("browser", "server") anbietet: [[key, model], ...]
+  const catalog = (section) => Object.entries(MODELS).filter(([, m]) => m[section]);
 
   const LEVEL_TEXT = {
     red: "Wahrscheinlich KI-generiert",
@@ -146,46 +192,38 @@ globalThis.AIVSAI = (() => {
     return "manual";
   }
 
+  const providerDef = (cfg) => PROVIDERS[cfg.provider];
+  const family = (cfg) => MODELS[providerDef(cfg)?.family(cfg)] ?? null;
+
   // Stabile Kennung des gerade gewählten Modells inkl. Version, z.B. "browser:tmr@b9aa251-q8" - für Cache,
   // und später Kalibrierung, Feedback und Berichte (damit Scores ihrem Modell zugeordnet bleiben).
   function modelKey(cfg) {
-    switch (cfg.provider) {
-      case "browser":
-        return `browser:${cfg.browserModel}@${BROWSER_MODELS[cfg.browserModel]?.version ?? "?"}`;
-      case "local":
-        return `local:${cfg.localModel}`;
-      case "custom":
-        return `custom:${cfg.customModel || cfg.customUrl}`;
-      case "huggingface":
-        return `huggingface:${cfg.hfModel}`;
-      default:
-        return `${cfg.provider}:`;
-    }
+    return `${cfg.provider}:${providerDef(cfg)?.model(cfg) ?? ""}`;
   }
 
   // Wie viel Text pro Absatz ans Modell geht - mehr als der Kontext des Modells bringt nichts.
   // Unbekannte Modelle (eigener Server, Hugging Face): 2000 Zeichen, typisch für 512-Token-Encoder.
   function maxChars(cfg) {
-    const family = cfg.provider === "browser" ? cfg.browserModel : cfg.provider === "local" ? cfg.localModel : null;
-    return BROWSER_MODELS[family]?.maxChars ?? 2000;
+    return family(cfg)?.maxChars ?? 2000;
   }
 
-  // Modellfamilie für Presets: lokal und im Browser sind TMR bzw. desklib dasselbe Modell
+  // Ampel-Preset der Modellfamilie: lokal und im Browser sind TMR bzw. desklib dasselbe Modell
   function presetFor(cfg) {
-    const family = cfg.provider === "browser" ? cfg.browserModel : cfg.provider === "local" ? cfg.localModel : null;
-    return PRESETS[family] || PRESETS.generic;
+    return family(cfg)?.thresholds ?? PRESETS.generic;
   }
 
   // Wie viele Batches ein Tab gleichzeitig schicken darf. Lokal/im Browser rechnet ohnehin nur ein
   // Prozess - parallele Batches würden nur die Priorisierung (sichtbare Absätze zuerst) aushebeln.
   function maxInFlight(cfg) {
-    return cfg.provider === "local" || cfg.provider === "browser" ? 1 : 2;
+    return providerDef(cfg)?.serial ? 1 : 2;
   }
 
   // Wohin Texte das Gerät verlassen - null, wenn sie auf diesem Rechner bleiben
   function remoteTarget(cfg) {
-    if (cfg.provider === "huggingface") return "Hugging Face (router.huggingface.co)";
-    const url = cfg.provider === "custom" ? cfg.customUrl : cfg.provider === "local" ? cfg.localUrl || DEFAULTS.localUrl : null;
+    const def = providerDef(cfg);
+    if (!def) return null;
+    if (def.remote) return def.remote;
+    const url = def.endpoint(cfg);
     if (url === null) return null;
     try {
       const { hostname, host } = new URL(url);
@@ -196,19 +234,20 @@ globalThis.AIVSAI = (() => {
   }
 
   function providerLabel(cfg) {
-    if (cfg.provider === "custom") return `Eigener Server${cfg.customModel ? ` (${cfg.customModel})` : ""}`;
-    if (cfg.provider === "huggingface") return `Hugging Face (${cfg.hfModel})`;
-    if (cfg.provider === "browser") return `Im Browser (${(BROWSER_MODELS[cfg.browserModel] || BROWSER_MODELS.tmr).name})`;
-    return `Lokal (${cfg.localModel})`;
+    const def = providerDef(cfg) || PROVIDERS.local;
+    const detail = def.detail(cfg);
+    return detail ? `${def.name} (${detail})` : def.name;
   }
 
   return {
     DEFAULTS,
     SECRET_DEFAULTS,
     PROVIDER_KEYS,
+    PROVIDERS,
+    MODELS,
     PRESETS,
-    BROWSER_MODELS,
     LEVEL_TEXT,
+    catalog,
     level,
     siteMatches,
     builtinMatch,

@@ -252,7 +252,7 @@ describe("Scan und Bedienung", () => {
     if (!status.models.tmr.downloaded) assert.match(health.error, /nicht heruntergeladen/);
   });
 
-  it("zeigt Modell-Infos und Presets aus config.js in den Einstellungen", async () => {
+  it("zeigt Modell-Infos und Presets aus models.js in den Einstellungen", async () => {
     await ext.options.reload();
     await ext.options.check('input[name="browserModel"][value="desklib"]');
     assert.equal(await ext.options.inputValue("#yellowFrom"), "0.5");
