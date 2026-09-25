@@ -151,7 +151,7 @@ sehr treffsicher (Russell et al. 2025) – einzeln aber auch nicht fehlerfrei. F
 2. Pro Text ein oder mehrere KI-Gegenstücke zum *selben Thema* (sonst lernt das Modell das Thema statt
    des Stils): „schreibe einen Absatz über …“, „setze fort“, „formuliere um“, „schreibe menschlicher“.
    Mehrere aktuelle Modellfamilien (Claude, GPT, Gemini, Llama, Mistral, Qwen …), verschiedene
-   Temperaturen, Längen wie im Browser (40 Wörter bis 500 Zeichen).
+   Temperaturen, Längen wie im Browser (40 Wörter bis 2000 Zeichen).
 3. Vorhandene Datensätze dazunehmen: HC3 (liegt bereit), RAID (Paraphrasen, Angriffe), M4/M4GT,
    MAGE – ältere Generatoren, aber gut gegen Überanpassung an einzelne Modelle.
 4. Auswertung **leave-one-generator-out**: eine Modellfamilie komplett im Test halten. Nur so sieht

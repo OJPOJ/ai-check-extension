@@ -1,7 +1,13 @@
 (() => {
   const MIN_WORDS = 40;
-  const MAX_CHARS = 500;
-  const BATCH_SIZE = 5;
+  // Wie viel Text pro Absatz ans Modell geht, bestimmt das Modell (AIVSAI.maxChars: TMR 2000, desklib
+  // 1500 Zeichen): mehr Kontext bringt viel (TMR: 500 statt 1500 Zeichen = ~9 % statt <1 % Fehler), Chunks
+  // sind schlechter als ein Stück (training/EVAL_RESULTS.md, "Textlänge"). Gilt für Auto-Scan und manuelle
+  // Prüfung gleich, damit derselbe Absatz immer denselben Text und damit denselben Score/Feedback-Eintrag ergibt.
+  // Batches nach Textmenge statt nur nach Anzahl: kostet etwa so viel Rechenzeit wie früher 5 × 500
+  // Zeichen - ein Batch mit langen Absätzen würde sonst die Priorisierung beim Scrollen blockieren.
+  const BATCH_MAX_ITEMS = 5;
+  const BATCH_MAX_CHARS = 2500;
   const DEBOUNCE_MS = 600;
   // lazyScan: nur Absätze bis zu so vielen Bildschirmhöhen über/unter dem sichtbaren
   // Bereich bewerten, der Rest folgt beim Scrollen
@@ -20,10 +26,8 @@
   // Innerhalb eines Absatzes herausrechnen: Icon-Fonts ("chevron_right"), Code-Blöcke
   const STRIP_SELECTOR = "[aria-hidden='true'], pre";
   const LEVEL_CLASSES = ["aivsai-green", "aivsai-yellow", "aivsai-red", "aivsai-badge"];
-  // Manuelle Prüfung: kürzere Texte erlaubt und mehr Text als beim Auto-Scan
-  // (die Modelle schneiden ohnehin bei 512 Tokens ab)
+  // Manuelle Prüfung: auch kurze Texte (Ergebnis dann mit Hinweis)
   const MANUAL_MIN_WORDS = 5;
-  const MANUAL_MAX_CHARS = 2000;
   const HIGHLIGHT_STATES = ["pending", "green", "yellow", "red"];
   // Heuristik "sensible Seite": sichtbares Passwort-, Zahlungs- oder Einmalcode-Feld. Felder in Dialogen
   // zählen nicht - sonst beendet das Login-Popup einer News-Seite den Scan des Artikels darunter.
@@ -224,6 +228,19 @@
     return text.trim();
   }
 
+  // Auf AIVSAI.maxChars kürzen, möglichst am letzten Satzende (sonst am letzten Leerzeichen) - das Modell soll
+  // keinen abgeschnittenen Halbsatz sehen. Nur lesen, deterministisch: gleicher Text -> gleicher Ausschnitt.
+  function clipText(text) {
+    const maxChars = AIVSAI.maxChars(config);
+    if (text.length <= maxChars) return text;
+    const cut = text.slice(0, maxChars);
+    const minLength = maxChars * 0.6;
+    const sentence = cut.match(/^[\s\S]*[.!?…]["'”’»)\]]?(?=\s)/);
+    if (sentence && sentence[0].length >= minLength) return sentence[0];
+    const space = cut.lastIndexOf(" ");
+    return space >= minLength ? cut.slice(0, space) : cut;
+  }
+
   function wordCount(text) {
     return text.split(/\s+/).filter(Boolean).length;
   }
@@ -272,16 +289,18 @@
       el.dataset.aivsaiHash = hash;
       unstyle(el); // Text hat sich geändert - alte Bewertung gilt nicht mehr
 
+      const clipped = clipText(text);
+      const truncated = clipped.length < text.length;
       const known = seen.get(hash);
       if (known) {
-        applyScore(el, { hash, text: text.slice(0, MAX_CHARS), ...known, source: "auto" });
+        applyScore(el, { hash, text: clipped, truncated, ...known, source: "auto" });
         continue;
       }
       const entry = inFlight.get(hash) || pending.get(hash);
       if (entry) {
         entry.els.push(el);
       } else {
-        pending.set(hash, { id: hash, text: text.slice(0, MAX_CHARS), els: [el], near: true });
+        pending.set(hash, { id: hash, text: clipped, truncated, els: [el], near: true });
       }
       el.classList.add("aivsai-pending");
     }
@@ -344,7 +363,13 @@
       if (entry.near) ranked.push({ entry, dist, top });
     }
     ranked.sort((a, b) => a.dist - b.dist || a.top - b.top);
-    const batch = ranked.slice(0, BATCH_SIZE).map((r) => r.entry);
+    const batch = [];
+    let chars = 0;
+    for (const { entry } of ranked) {
+      if (batch.length >= BATCH_MAX_ITEMS || (batch.length && chars + entry.text.length > BATCH_MAX_CHARS)) break;
+      batch.push(entry);
+      chars += entry.text.length;
+    }
     batch.forEach((b) => pending.delete(b.id));
 
     // Phase 2 schreiben: Markierung "wird geprüft" bzw. "beim Scrollen"
@@ -403,7 +428,7 @@
       if (typeof p === "number") {
         const known = { p, model: resp.model };
         seen.set(b.id, known);
-        b.els.forEach((el) => applyScore(el, { hash: b.id, text: b.text, ...known, source: "auto" }));
+        b.els.forEach((el) => applyScore(el, { hash: b.id, text: b.text, truncated: b.truncated, ...known, source: "auto" }));
       } else {
         b.els.forEach((el) => el.classList.remove("aivsai-pending"));
       }
@@ -572,10 +597,7 @@
   async function showDetails(el) {
     const rec = results.get(el);
     const token = Popover.claim();
-    const view = resultView(rec.p, wordCount(rec.text), false);
-    if (rec.source === "auto" && rec.text.length >= MAX_CHARS) {
-      view.notes.unshift(`Bewertet wurden die ersten ${MAX_CHARS} Zeichen des Absatzes.`);
-    }
+    const view = resultView(rec.p, wordCount(rec.text), rec.truncated ? rec.text.length : 0);
     const scored = { text: rec.text, p: rec.p, model: rec.model, source: rec.source };
     await openWithFeedback({ target: { el }, token, view, scored });
   }
@@ -609,8 +631,9 @@
       Popover.show({ el: target }, Popover.claim(), { error: tooShort(words) });
       return;
     }
-    // Hash wie beim Auto-Scan, damit der Absatz dort nicht noch einmal eingereiht wird
-    const text = el.innerText.trim();
+    // Text und Hash wie beim Auto-Scan (ohne Icon-Fonts/Code): derselbe Absatz wird dort nicht noch einmal
+    // eingereiht, und Score-Speicher und Feedback-Eintrag passen zur Bewertung per Badge
+    const text = readText(el);
     const hash = hashText(text);
     pending.delete(hash);
     el.dataset.aivsaiHash = hash;
@@ -632,7 +655,7 @@
       Popover.show(target, token, { error: tooShort(words) });
       return;
     }
-    const text = fullText.slice(0, MANUAL_MAX_CHARS);
+    const text = clipText(fullText);
     const id = `m_${hashText(text)}`;
     const gen = generation;
     markManual(target, null);
@@ -647,18 +670,20 @@
       Popover.show(target, token, { error });
       return;
     }
-    markManual(target, { text, p, model: resp.model, at: Date.now() });
-    const view = resultView(p, words, fullText.length > MANUAL_MAX_CHARS);
+    const truncated = text.length < fullText.length;
+    markManual(target, { text, truncated, p, model: resp.model, at: Date.now() });
+    const view = resultView(p, words, truncated ? text.length : 0);
     const scored = { text, p, model: resp.model, source: target.range ? "selection" : "manual" };
     await openWithFeedback({ target, token, view, scored });
     reportStats();
   }
 
-  function resultView(p, words, truncated) {
+  // clippedAt: Länge des bewerteten Ausschnitts, falls gekürzt wurde, sonst 0
+  function resultView(p, words, clippedAt) {
     const level = AIVSAI.level(p, config);
     const notes = [];
     if (words < MIN_WORDS) notes.push(`Kurzer Text (${words} Wörter) – Ergebnis wenig verlässlich.`);
-    if (truncated) notes.push(`Nur die ersten ${MANUAL_MAX_CHARS} Zeichen bewertet.`);
+    if (clippedAt) notes.push(`Bewertet wurden die ersten ${clippedAt} Zeichen (bis zum Satzende) – mehr sieht das Modell nicht.`);
     notes.push(`${AIVSAI.providerLabel(config)} · Schätzung, kann falsch liegen`, ...blockedNotes());
     return { pill: { text: `${Math.round(p * 100)} % KI`, level }, title: AIVSAI.LEVEL_TEXT[level], notes };
   }

@@ -13,10 +13,10 @@ export const scoreByLength = (text) => [0.2, 0.7, 0.95][text.length % 3];
 
 /**
  * Fake-Backend auf zufälligem Port (kollidiert nicht mit einem laufenden shim_server.py).
- * @returns {Promise<{url: string, texts: string[], requests: number, close: () => Promise<void>}>}
+ * @returns {Promise<{url: string, texts: string[], batches: string[][], requests: number, close: () => Promise<void>}>}
  */
 export async function startBackend(score = scoreByLength) {
-  const backend = { texts: [], requests: 0 };
+  const backend = { texts: [], batches: [], requests: 0 };
   const server = http.createServer((req, res) => {
     if (req.url === "/healthz") return res.end("ok");
     let body = "";
@@ -25,6 +25,7 @@ export async function startBackend(score = scoreByLength) {
       const { texts } = JSON.parse(body);
       backend.requests++;
       backend.texts.push(...texts);
+      backend.batches.push(texts);
       res.setHeader("content-type", "application/json");
       res.end(JSON.stringify({ scores: texts.map(score) }));
     });

@@ -54,3 +54,51 @@ nicht mehr mit aktueller Software läuft.
 - 100 Beispiele aus einer Domäne sind eine grobe Schätzung, keine belastbare Kalibrierung.
   Vor einem "fertig"-Gefühl lohnt sich ein größerer/diverserer Eval-Lauf (mehr HC3-Domänen,
   ggf. RAID-Sample) — als Folgeschritt vorgemerkt, nicht Teil dieses Laufs.
+
+## Textlänge: mehr Kontext statt Chunks (2026-09-25)
+
+Frage: Der Auto-Scan schickte nur die ersten 500 Zeichen pro Absatz. Lohnt mehr Text, und helfen
+Chunks mit Überlappung? Gleiche HC3-Texte mit ≥ 1500 Zeichen, Mensch/KI balanciert, CPU (PyTorch).
+Reproduzierbar mit `evaluate_length.py`.
+
+TMR, n = 400, `--normalize` (Leerzeichen vor Satzzeichen aus ELI5 entfernt, sonst misst man
+teils dieses Artefakt):
+
+| Variante | AUROC | Acc@beste Schwelle | Durchläufe/Text | s/Text |
+|---|---|---|---|---|
+| A erste 500 Zeichen | 0.966 | 0.910 | 1 | 0.20 |
+| **B erste 1500 Zeichen am Stück** | **0.999** | **0.993** | 1 | 0.43 |
+| C 500er-Chunks, 100 Überlappung, Mittelwert | 0.972 | 0.917 | 4 | 0.55 |
+| D 500er-Chunks ohne Überlappung, Mittelwert | 0.979 | 0.938 | 3 | 0.37 |
+
+Ohne `--normalize` dasselbe Bild (A 0.940 → B 0.993). desklib (n = 80, ohne `--normalize`): A 0.994,
+B/C/D je 1.000 – auf HC3 zu leicht, um die Varianten zu unterscheiden; Rechenzeit 0.58 → 2.3 s/Text.
+
+- Ein langer Durchlauf schlägt Chunks deutlich: Das Modell nutzt den Zusammenhang, der Mittelwert
+  über Stücke ersetzt ihn nicht. Überlappung bringt nichts.
+- Konsequenz in `content.js`: Auto-Scan und manuelle Prüfung senden bis 2000 Zeichen (≈ 512 Tokens,
+  mehr sieht das Modell nicht), gekürzt am Satzende; Batches nach Textmenge (≤ 2500 Zeichen).
+- Chunking erst sinnvoll über 512 Tokens hinaus (ganze Artikel) oder um in gemischten Texten die
+  KI-Stellen einzugrenzen.
+- Einschränkungen: nur HC3/Englisch, nur lange Texte; beide Modelle kennen HC3 womöglich aus dem
+  Training → absolute Werte zu optimistisch, der Vergleich der Varianten (gleiche Texte) hält.
+
+## Auffüllen: Batches nach Länge aufteilen (2026-09-25)
+
+Ein Batch wird auf den längsten Text aufgefüllt (bzw. in `evaluate_backends.py` bisher immer auf
+768 Tokens). Typischer Scan-Batch: ein langer Absatz (654 Tokens) + vier kurze (~70 Tokens),
+Server-Code (`shim_server.py`), CPU:
+
+| Modell | alles zusammen aufgefüllt | nach Länge gruppiert | max. Score-Abweichung |
+|---|---|---|---|
+| desklib | 16,6 s | 4,4 s | 0 |
+| TMR | 1,7 s | 0,6 s | 0 |
+
+Scores identisch, weil Füll-Tokens ausmaskiert werden (desklib: Mean-Pooling mit Maske, TMR:
+Attention-Maske). Umgesetzt in `extension/length-buckets.js` (Browser) und `length_buckets()` im
+Server: sortieren, neue Gruppe sobald ein Text > 1,25 × kürzester + 16 Tokens. `evaluate_backends.py`
+füllt nur noch auf den längsten Text im Batch auf.
+
+Außerdem: Ein einzelner desklib-Text mit ~650 Tokens kostet auf der CPU ~4,5 s – deshalb schickt der
+Auto-Scan desklib nur bis 1500 Zeichen (~350 Tokens), obwohl das Modell 768 Tokens könnte
+(`extension/config.js`, `maxChars`).

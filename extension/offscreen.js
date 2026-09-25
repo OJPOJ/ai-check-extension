@@ -11,6 +11,7 @@ import {
 } from "./vendor/transformers.min.js";
 import "./config.js";
 import { buildWeights } from "./desklib_build.js";
+import { lengthBuckets } from "./length-buckets.js";
 
 const HF = "https://huggingface.co/";
 const CACHE_NAME = "transformers-cache"; // von transformers.js vorgegeben
@@ -22,7 +23,7 @@ const MODELS = {
     id: "onnx-community/tmr-ai-text-detector-ONNX",
     revision: AIVSAI.BROWSER_MODELS.tmr.revision, // gepinnt in config.js
     marker: "onnx/model_quantized.onnx",
-    maxTokens: 512
+    maxTokens: AIVSAI.BROWSER_MODELS.tmr.maxTokens
   },
   // gibt es nicht als brauchbares ONNX: Original herunterladen und hier umwandeln (desklib_build.js).
   // Die Cache-Einträge liegen unter einer eigenen ID, die es auf Hugging Face nicht gibt.
@@ -30,7 +31,7 @@ const MODELS = {
     id: "aivsai-local/desklib-ai-text-detector-v1.01",
     revision: AIVSAI.BROWSER_MODELS.desklib.revision,
     marker: "onnx/model_quantized.onnx_data",
-    maxTokens: 768, // wie server/shim_server.py
+    maxTokens: AIVSAI.BROWSER_MODELS.desklib.maxTokens, // wie server/shim_server.py
     build: {
       source: "desklib/ai-text-detector-v1.01",
       tokenizerFiles: ["tokenizer.json", "tokenizer_config.json", "special_tokens_map.json", "added_tokens.json"],
@@ -151,8 +152,19 @@ async function score(key, texts) {
   if (!m) throw new Error(`Unbekanntes Modell: ${key}`);
   if (!(await isDownloaded(m))) throw new Error("Modell noch nicht heruntergeladen – in den Einstellungen herunterladen");
   const { tokenizer, model, aiIndex } = await load(key);
-  const enc = await tokenizer(texts, { padding: true, truncation: true, max_length: m.maxTokens });
-  const { logits } = await model(enc);
+  const opts = { truncation: true, max_length: m.maxTokens };
+  // erst nur zählen, dann gruppenweise rechnen - sonst wird jeder Text auf den längsten aufgefüllt
+  const { input_ids } = await tokenizer(texts, { ...opts, return_tensor: false });
+  const scores = new Array(texts.length);
+  for (const group of lengthBuckets(input_ids.map((ids) => ids.length))) {
+    const enc = await tokenizer(group.map((i) => texts[i]), { ...opts, padding: true });
+    const { logits } = await model(enc);
+    toScores(logits, aiIndex).forEach((p, j) => (scores[group[j]] = p));
+  }
+  return scores;
+}
+
+function toScores(logits, aiIndex) {
   const [rows, classes] = logits.dims;
   const scores = [];
   for (let r = 0; r < rows; r++) {

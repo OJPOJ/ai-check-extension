@@ -43,11 +43,11 @@ uv pip install --python .venv -r requirements_shim.txt
 
 ```powershell
 npm run test:setup   # einmalig: Chromium für Playwright
-npm test             # alle E2E-Tests (~30 s), führt vorher `npm run vendor` aus
+npm test             # Unit- und E2E-Tests (~2 min), führt vorher `npm run vendor` aus
 $env:HEADED=1; npm test   # mit sichtbarem Browserfenster
 ```
 
-Die Tests (`test/e2e/*.test.mjs`, Node-Test-Runner + Playwright) laden die echte Extension in
+Unit-Tests (`test/unit/`) prüfen reine Hilfsfunktionen wie die Längen-Gruppierung. Die E2E-Tests (`test/e2e/*.test.mjs`, Node-Test-Runner + Playwright) laden die echte Extension in
 Chromium und lassen sie gegen ein Fake-Backend laufen, das den Vertrag von `shim_server.py` spricht
 und jeden gesendeten Text mitschreibt (zufälliger Port, ein laufender `shim_server.py` stört nicht).
 
@@ -55,6 +55,7 @@ und jeden gesendeten Text mitschreibt (zufälliger Port, ein laufender `shim_ser
 |---|---|
 | `scan.test.mjs` | Auto-Scan, Popup-Zähler, Icon-Badge, nachgeladene Absätze, Cache, Schwellen, Auswahl-/Rechtsklick-Prüfung, An/Aus, Lazy-Scan, Freigabe pro Seite, Sperrliste (eigene Einträge, mitgelieferte Liste, Ausnahmen, Passwortfeld-Heuristik), Backend-Status, Einstellungen |
 | `extraction.test.mjs` | Was ans Modell geht: 23 Grenzfälle (Navigation, Cookie-Banner, versteckte Absätze, Code, Icon-Fonts, Formulare …), mit und ohne Lazy-Scan |
+| `text-length.test.mjs` | Bis 2000 Zeichen, gekürzt am Satzende, Batch-Budget 2500 Zeichen, Rechtsklick = gleicher Ausschnitt wie Auto-Scan |
 | `feedback.test.mjs` | Feedback im Popover: Klick aufs Badge (auch in Links, ohne Neu-Bewertung), Einwilligung vor dem ersten Speichern, Rückgängig, Export ohne Adresse, Widerruf, Abschalten |
 | `score-store.test.mjs` | Dauerhafter Speicher: SW-Neustart, Zuordnung über Seiten, Modellwechsel, Aufbewahrung, „Nicht speichern“ |
 
@@ -91,7 +92,7 @@ Hugging-Face-Provider mit echtem Token.
   KI erkannt (abschaltbar), Prozent-Badge, auch ohne Farbwahrnehmung unterscheidbar
   (dünn / gestrichelt / kräftig). Popup mit Zählern pro Seite und Backend-Status; Icon-Badge mit
   Anzahl roter (sonst gelber) Absätze, „!“ bei Fehler.
-- **Sichtbarer Bereich zuerst:** 5er-Batches, nacheinander (Browser/lokal 1, remote 2 parallel).
+- **Sichtbarer Bereich zuerst:** Batches bis 5 Absätze bzw. 2500 Zeichen, nacheinander (Browser/lokal 1, remote 2 parallel).
   Die Reihenfolge wird erst beim Absenden bestimmt – nach einem Scroll springt die Priorität mit.
 - **Lazy-Scan (Default an):** nur Absätze bis 1,5 Bildschirmhöhen um den sichtbaren Bereich, der
   Rest per `IntersectionObserver`, wenn er in die Nähe kommt.
@@ -107,8 +108,8 @@ Hugging-Face-Provider mit echtem Token.
   gekennzeichnet oder „nur mein Eindruck“. Vor dem ersten Speichern Einwilligung im Popover, danach
   „Rückgängig“. Eine gespeicherte Angabe zeigt das Popover beim nächsten Öffnen wieder an
   („Deine Angabe: … – Ändern / Entfernen“, auch nach Neuladen); Ändern ersetzt den Eintrag, Rückgängig
-  stellt die vorige Angabe wieder her. Zuordnung über den Text: Badge (erste 500 Zeichen) und
-  Rechtsklick-Prüfung (bis 2000 Zeichen) eines langen Absatzes sind zwei Einträge. Einstellungen → Feedback: Zähler, Export als JSONL, Löschen + Widerruf, Knöpfe
+  stellt die vorige Angabe wieder her. Zuordnung über den SHA-256 des bewerteten Texts – ändert die
+  Seite den Absatz, ist es ein neuer Eintrag. Markierter Text ist ein eigener Eintrag. Einstellungen → Feedback: Zähler, Export als JSONL, Löschen + Widerruf, Knöpfe
   abschaltbar. Auf gesperrten Seiten (Sperrliste, Passwort-/Zahlungsfeld) keine Feedback-Knöpfe. Weiterverarbeitung:
   `training/import_feedback.py`, Begründung und Grenzen: `training/README.md` („Feedback als Datenquelle“).
 - **Backends** (`extension/bg/providers.js`): Im Browser (TMR oder desklib), Lokal
@@ -119,8 +120,16 @@ Hugging-Face-Provider mit echtem Token.
 ### Was bewertet wird
 
 Kandidaten sind `p`, `li` und `article` (Letzteres nur ohne eigene lange Absätze) mit mindestens
-40 Wörtern; gesendet werden die ersten 500 Zeichen des *sichtbaren* Texts (`innerText`, kein HTML,
-kein Script/Style-Inhalt).
+40 Wörtern; gesendet wird der *sichtbare* Text (`innerText`, kein HTML, kein Script/Style-Inhalt),
+bei langen Absätzen gekürzt am letzten Satzende – wie weit, hängt vom Modell ab (`AIVSAI.maxChars`):
+TMR 2000 Zeichen (= sein Kontext, 512 Tokens), desklib 1500 (könnte 768 Tokens, wird aber stark
+überproportional langsamer und ist schon mit kurzem Text sehr genau), unbekannte Modelle 2000.
+Gemessen bringt mehr Kontext viel (TMR: 500 → 1500 Zeichen senkt die Fehler von ~9 % auf < 1 %),
+Chunks mit Überlappung dagegen nichts (`training/EVAL_RESULTS.md`, „Textlänge“). Vor dem
+Modellaufruf werden Batches nach Tokenlänge aufgeteilt (`extension/length-buckets.js`, im Server
+`length_buckets`), damit kurze Absätze nicht auf den längsten aufgefüllt werden (desklib: 16,6 → 4,4 s
+pro Batch, gleiche Scores). Auto-Scan, Badge und Rechtsklick bewerten denselben
+Ausschnitt – also gleicher Score-Speicher-Eintrag und gleicher Feedback-Eintrag.
 
 - **Nie:** Navigation und Seitenrahmen (`nav`, `header`, `footer`, `role=navigation|banner|contentinfo|search`),
   Dialoge (`dialog`, `role=dialog` – meist Cookie-Banner), Code (`pre`), Eingaben (`textarea`,
@@ -144,7 +153,7 @@ Veröffentlichung im Web Store: Kontakt eintragen und die Seite zusätzlich öff
 
 - Provider „Im Browser“ und „Lokal“: Texte verlassen den Rechner nicht. Einziger Netzwerkzugriff ist
   der einmalige Modell-Download von Hugging Face.
-- Eigener Server / Hugging Face: bis zu 500 Zeichen pro Absatz (manuell bis 2000) gehen an diesen
+- Eigener Server / Hugging Face: bis zu 2000 Zeichen pro Absatz gehen an diesen
   Dienst – die Einstellungen weisen darauf hin.
 - **Score-Speicher** (IndexedDB, `extension/bg/score-store.js`, nicht synchronisiert): pro Absatz nur
   ein 128-Bit-Hash (SHA-256 über Modell-Konfiguration + Text), Score, Modell und Zeitpunkt –
@@ -198,6 +207,7 @@ extension/
   bg/badge.js           Icon-Badge pro Tab
   bg/offscreen-client.js  Brücke zum Offscreen-Dokument
   offscreen.js          Modell per transformers.js/WASM (Service Worker hat keine Worker-Threads)
+  length-buckets.js     Batch nach Tokenlänge aufteilen (kein Auffüllen auf den längsten Text)
   desklib_build.js      desklib-Umwandlung beim Download
   content.js            Textauswahl, Warteschlange/Priorisierung, Markierung, Ergebnis-Register
                         (`results`: Element → Score, Text, Modell, Quelle – Basis für Feedback/Berichte)
@@ -255,8 +265,9 @@ Statistik aus dem Register statt Dokument-Scans.
 
 **Technische Punkte aus der v0.5-Analyse**
 
-- Batch-Größe pro Provider (neben `maxInFlight` in `config.js`): ein 5er-Batch desklib blockiert
-  ~5 s, in der Zeit reagiert die Priorisierung nicht aufs Scrollen.
+- Batch-Budget pro Modell (neben `maxInFlight` in `config.js`): Batches sind auf 2500 Zeichen
+  begrenzt und werden vor dem Modell nach Länge aufgeteilt; ein langer desklib-Absatz braucht im
+  Browser trotzdem mehrere Sekunden, in der Zeit reagiert die Priorisierung nicht aufs Scrollen.
 - Server-Backends: Modellversion vom Server abfragen (z.B. `/healthz`) und in den Schlüssel nehmen.
 - Gleichzeitige Anfragen für denselben Absatz aus mehreren Tabs im Service Worker zusammenfassen.
 - Sperrliste UK: nur ~60 `.uk`-Domains aus UT1, 71 Banken aus Wikidata plus handverlesene

@@ -65,6 +65,10 @@ globalThis.AIVSAI = (() => {
   const BROWSER_MODELS = {
     tmr: {
       name: "TMR",
+      // Kontext des Modells und wie viel Text der Auto-Scan dafür schickt (content.js, clipText).
+      // TMR ist schnell und profitiert stark von mehr Text: volle 512 Tokens (~2000 Zeichen Englisch).
+      maxTokens: 512,
+      maxChars: 2000,
       revision: "b9aa251e5bcda7e429fcc936767d921435945b60",
       version: "b9aa251-q8",
       download: "126 MB",
@@ -75,6 +79,11 @@ globalThis.AIVSAI = (() => {
     },
     desklib: {
       name: "desklib",
+      // Könnte 768 Tokens, aber die Rechenzeit wächst stärker als linear (CPU: 500 Zeichen 0,6 s,
+      // 1500 Zeichen 2,3 s, 650 Tokens ~4,5 s) und desklib ist schon mit kurzem Text sehr genau -
+      // 1500 Zeichen (~350 Tokens) als Kompromiss. Messungen: training/EVAL_RESULTS.md, "Textlänge".
+      maxTokens: 768,
+      maxChars: 1500,
       revision: "5fdea974cd4287c61674951ec78803aa274e2fb7",
       version: "5fdea97-nbits8b32",
       download: "1,7 GB",
@@ -154,6 +163,13 @@ globalThis.AIVSAI = (() => {
     }
   }
 
+  // Wie viel Text pro Absatz ans Modell geht - mehr als der Kontext des Modells bringt nichts.
+  // Unbekannte Modelle (eigener Server, Hugging Face): 2000 Zeichen, typisch für 512-Token-Encoder.
+  function maxChars(cfg) {
+    const family = cfg.provider === "browser" ? cfg.browserModel : cfg.provider === "local" ? cfg.localModel : null;
+    return BROWSER_MODELS[family]?.maxChars ?? 2000;
+  }
+
   // Modellfamilie für Presets: lokal und im Browser sind TMR bzw. desklib dasselbe Modell
   function presetFor(cfg) {
     const family = cfg.provider === "browser" ? cfg.browserModel : cfg.provider === "local" ? cfg.localModel : null;
@@ -200,6 +216,7 @@ globalThis.AIVSAI = (() => {
     scanPolicy,
     modelKey,
     presetFor,
+    maxChars,
     maxInFlight,
     remoteTarget,
     providerLabel

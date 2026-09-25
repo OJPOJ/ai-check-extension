@@ -149,7 +149,9 @@ def score_desklib(texts):
     with torch.no_grad():
         for i in range(0, len(texts), batch_size):
             batch = texts[i : i + batch_size]
-            enc = tok(batch, padding="max_length", truncation=True, max_length=768, return_tensors="pt")
+            # nur auf den längsten Text im Batch auffüllen - feste 768 Tokens ändern die Scores nicht
+            # (Mean-Pooling maskiert), kosten aber ein Vielfaches an Rechenzeit
+            enc = tok(batch, padding=True, truncation=True, max_length=768, return_tensors="pt")
             logits = model(input_ids=enc["input_ids"], attention_mask=enc["attention_mask"])
             probs = torch.sigmoid(logits).squeeze(-1)
             scores.extend(probs.tolist())

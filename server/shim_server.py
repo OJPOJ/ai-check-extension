@@ -69,13 +69,36 @@ def load_tmr():
     _tmr_ai_index = ai_idx[0] if ai_idx else 1
 
 
+def length_buckets(lengths: list[int], ratio: float = 1.25, slack: int = 16) -> list[list[int]]:
+    """Indizes nach Länge gruppieren (wie extension/length-buckets.js). Ein Batch wird auf den längsten
+    Text aufgefüllt - ein langer mit vier kurzen kostete desklib 15,3 s statt 4,9 s getrennt, bei
+    identischen Scores (training/EVAL_RESULTS.md, "Auffüllen")."""
+    groups: list[list[int]] = []
+    for i in sorted(range(len(lengths)), key=lambda i: lengths[i]):
+        if groups and lengths[i] <= lengths[groups[-1][0]] * ratio + slack:
+            groups[-1].append(i)
+        else:
+            groups.append([i])
+    return groups
+
+
+def score_bucketed(texts: list[str], tokenizer, max_length: int, run) -> list[float]:
+    """run(enc) -> Scores für einen aufgefüllten Teil-Batch; Reihenfolge wie `texts`."""
+    lengths = [len(ids) for ids in tokenizer(texts, truncation=True, max_length=max_length)["input_ids"]]
+    scores = [0.0] * len(texts)
+    with torch.no_grad():
+        for group in length_buckets(lengths):
+            enc = tokenizer([texts[i] for i in group], return_tensors="pt", truncation=True, padding=True, max_length=max_length)
+            for i, p in zip(group, run(enc)):
+                scores[i] = p
+    return scores
+
+
 def score_tmr_texts(texts: list[str]) -> list[float]:
     load_tmr()
-    with torch.no_grad():
-        enc = _tmr_tokenizer(texts, return_tensors="pt", truncation=True, padding=True, max_length=512)
-        logits = _tmr_model(**enc).logits
-        probs = torch.softmax(logits, dim=-1)
-        return probs[:, _tmr_ai_index].tolist()
+    return score_bucketed(
+        texts, _tmr_tokenizer, 512, lambda enc: torch.softmax(_tmr_model(**enc).logits, dim=-1)[:, _tmr_ai_index].tolist()
+    )
 
 
 class DesklibAIDetectionModel(PreTrainedModel):
@@ -116,12 +139,16 @@ def load_desklib():
 
 def score_desklib_texts(texts: list[str]) -> list[float]:
     load_desklib()
-    with torch.no_grad():
-        # Nur auf den längsten Text im Batch auffüllen statt immer auf 768 Tokens: Das Mean-Pooling
-        # maskiert Füll-Tokens ohnehin aus, die Scores bleiben gleich, aber kurze Absätze sind ~5x schneller.
-        enc = _desklib_tokenizer(texts, padding=True, truncation=True, max_length=768, return_tensors="pt")
-        logits = _desklib_model(input_ids=enc["input_ids"], attention_mask=enc["attention_mask"])
-        return torch.sigmoid(logits).squeeze(-1).tolist()
+    # Nie fest auf 768 Tokens auffüllen, nur innerhalb ähnlich langer Gruppen: Das Mean-Pooling maskiert
+    # Füll-Tokens ohnehin aus, die Scores bleiben gleich, die Rechenzeit sinkt stark.
+    return score_bucketed(
+        texts,
+        _desklib_tokenizer,
+        768,
+        lambda enc: torch.sigmoid(_desklib_model(input_ids=enc["input_ids"], attention_mask=enc["attention_mask"]))
+        .squeeze(-1)
+        .tolist(),
+    )
 
 
 LOCAL_SCORERS = {"tmr": score_tmr_texts, "desklib": score_desklib_texts}
