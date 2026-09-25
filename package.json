@@ -1,9 +1,12 @@
 {
   "name": "aivsai",
   "private": true,
-  "description": "Build-Helfer für die Browser-Extension (kopiert transformers.js + ONNX-Runtime nach extension/vendor/)",
+  "description": "Build- und Test-Helfer für die Browser-Extension (vendor: transformers.js + ONNX-Runtime nach extension/vendor/, test: E2E mit Playwright)",
   "scripts": {
-    "vendor": "node scripts/vendor.mjs"
+    "vendor": "node scripts/vendor.mjs",
+    "test:setup": "playwright install chromium",
+    "pretest": "npm run vendor",
+    "test": "node --test --test-concurrency=1 --test-timeout=120000 --test-reporter=spec \"test/e2e/*.test.mjs\""
   },
   "devDependencies": {
     "@huggingface/transformers": "4.3.0",

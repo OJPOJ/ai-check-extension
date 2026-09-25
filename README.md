@@ -1,173 +1,216 @@
 # AI Content Flag — Browser-Extension
 
-Bewertet längere Textabsätze auf Webseiten mit einem austauschbaren KI-Text-Klassifikator
-und markiert sie als Ampel (grün / gelb / rot) mit Score-Badge. Backend wahlweise lokal
-(Standard, kein Cloud-Call), eigener Server/Cloud oder Hugging Face Inference API.
-Hintergrund/Architektur: `RESOURCES.md`.
+Bewertet längere Textabsätze auf Webseiten mit einem KI-Text-Klassifikator und markiert sie als
+Ampel (grün / gelb / rot) mit Prozent-Badge. Das Modell läuft standardmäßig **direkt im Browser**
+(WebAssembly, kein Server, Texte verlassen den Rechner nicht). Alternativ: lokaler Server
+(`server/shim_server.py`), eigener Server/Cloud oder Hugging Face Inference API.
 
-## Produkt-Stand v0.2 (2026-09-24)
-
-- **An/Aus + Scan-Modi:** Master-Schalter (Popup, `Alt+Shift+A`), Badge „AUS“ am Icon.
-  Gescannt wird nur „auf Knopfdruck“ (`Alt+Shift+S`), „auf ausgewählten Seiten“ (Default,
-  Schalter pro Domain im Popup) oder „auf allen Seiten“. Ohne Freigabe verschickt das
-  Content-Script keinen Text.
-- **Ampel statt Ja/Nein:** zwei Schwellen (Gelb ab / Rot ab), grün = geprüft und *nicht*
-  als KI erkannt (abschaltbar), Prozent-Badge am Absatz, gepunkteter Rahmen während der
-  Prüfung. Stufen auch ohne Farbwahrnehmung unterscheidbar (dünn / gestrichelt / kräftig).
-- **Popup:** Zähler rot/gelb/grün für die aktuelle Seite, Backend-Status, Skala der
-  Schwellen. Icon-Badge zeigt Anzahl roter (sonst gelber) Absätze pro Tab, „!“ bei Fehler.
-- **Provider-Abstraktion** (`extension/bg/providers.js`, `PROVIDERS`): Lokal
-  (`shim_server.py`), Eigener Server (Vertrag `POST {texts, model?} -> {scores}` mit
-  optionalem Bearer-Key), Hugging Face Inference API (Label-Mapping automatisch oder
-  manuell). Host-Berechtigungen für Remote-Backends werden erst beim Speichern angefragt;
-  Tokens liegen in `storage.local` (nicht synchronisiert). Score-Cache pro Provider.
-- **Sichtbarer Bereich zuerst:** 5er-Batches, nacheinander verschickt (lokal 1, remote 2
-  gleichzeitig). Welche Absätze in den nächsten Batch kommen, wird erst beim Absenden
-  entschieden: sichtbare zuerst, dann nach Abstand zum Viewport – ohne Scrollen also von
-  oben nach unten, nach einem Scroll springt die Priorität zum neuen Bereich.
-- **Lazy-Scan (Default an, abschaltbar):** bewertet nur Absätze bis 1,5 Bildschirmhöhen
-  um den sichtbaren Bereich; der Rest wird per `IntersectionObserver` nachgeholt, sobald er
-  in die Nähe kommt (Scrollen, Resize, aufgeklappte Inhalte). Spart Rechenzeit/Cloud-Kosten.
-- **Bewertungen merken (einstellbar, Default 30 Tage):** Scores liegen in IndexedDB
-  (`extension/bg/score-store.js`) und überleben Neustarts – bekannte Absätze werden sofort markiert,
-  ohne neu zu rechnen. Gespeichert wird nur ein 128-Bit-Hash über Modell-Konfiguration + Text, der
-  Score, das Modell und der Zeitpunkt – kein Text, keine URL. Gemessen ~235 Byte/Eintrag
-  (50.000 Einträge = 11,7 MB); Aufräumen täglich per `chrome.alarms` und sofort bei Änderung der
-  Einstellung, Obergrenze 200.000 Einträge. „Nicht speichern“ löscht alles.
-- **Einzelne Stellen prüfen:** Rechtsklick auf markierten Text → „Markierten Text auf KI
-  prüfen“ (oder `Alt+Shift+C`), Rechtsklick irgendwo sonst → „Diesen Absatz auf KI prüfen“.
-  Funktioniert unabhängig vom Scan-Modus und auch für Text, den der Auto-Scan auslässt
-  (unter 40 Wörtern, kein `<p>`/`<li>`, Navigation usw.; Minimum 5 Wörter, bis 2000 Zeichen).
-  Markierter Text wird per CSS Custom Highlight API eingefärbt (kein DOM-Eingriff), das
-  Ergebnis erscheint in einem kleinen Popover.
-- E2E in Chromium (Playwright) gegen echten Shim-Server getestet: Scan-Modi, Toggle,
-  dynamisch nachgeladene Absätze, toter Server (fail open), Options-„Verbindung testen“.
-
-## Aktueller Stand (2026-09-23)
-
-- ✅ **Extension (Manifest V3) fertig und manuell getestet:** Content-Script (DOM-Extraktion,
-  Caching, MutationObserver), Background-Service-Worker, Options-UI. Eingabefelder/Kurztexte
-  werden korrekt nie markiert, Glow (lila, pulsierend) funktioniert.
-- ✅ **Zwei Erkennungs-Backends verglichen (Genauigkeit UND Performance),** 100 balancierte
-  Beispiele aus HC3-Holdout, CPU-Latenz/RAM für 25er-Batches (= `content.js`-Batch-Größe),
-  Details in `training/EVAL_RESULTS.md`:
-
-  | Stufe | Backend | AUROC | Accuracy (beste Schwelle) | 25er-Batch | RAM |
-  |---|---|---|---|---|---|
-  | **Low** (Default) | TMR (RoBERTa-base, 125M) | 0.911 | 0.830 | ~1,6s | ~900MB |
-  | **Medium** | desklib (DeBERTa-v3-large, 430M) | 0.998 | 0.990 | ~2 Min | ~4,65GB |
-
-  Laya zero-shot wurde ebenfalls getestet (AUROC 0.549 — faktisch Münzwurf) und ist deshalb
-  aktuell **nicht** in der UI wählbar, bleibt aber im Code vorbereitet — siehe
-  "Offen / später" unten.
-- ✅ **Backend-Umschalter gebaut:** `server/shim_server.py` spricht ein einheitliches
-  Wire-Format, routet aber je nach `model`-Feld zu TMR, desklib (beide lokal) oder Laya
-  (Proxy zu `laya-serve`, aktuell ungenutzt). `extension/content.js`/`background.js` mussten
-  dafür nicht geändert werden — nur `options.html` hat ein Low/Medium-Dropdown mit Info-Text
-  und backend-spezifischem Default-Schwellenwert.
-- ⚠️ Zwei handfeste Bugs unterwegs gefunden und gefixt: `laya-serve`s Health-Endpoint heißt
-  `/health` nicht `/healthz` (eigene Recherche war falsch); desklibs 2024er Beispielcode
-  crasht ungepatcht mit aktuellem `transformers` (`all_tied_weights_keys`-Property-Fix,
-  siehe `training/evaluate_backends.py` bzw. `server/shim_server.py`).
-
-## Offen / später
-
-- **Laya-Fine-Tuning:** Datensatz liegt fertig (`training/data/`, 142k Beispiele aus HC3),
-  Trainingsschritt selbst noch offen (Kaggle, siehe `training/README.md`). Sobald ein
-  fine-getunter Checkpoint existiert: `evaluate_backends.py --backend laya` erneut gegen
-  `training/eval_sample.jsonl` laufen lassen und mit TMR/desklib vergleichen — dann ggf.
-  als dritte Stufe in `options.html` zurückbringen.
-
-## Roadmap (Stand 2026-09-24, Reihenfolge = Priorität)
-
-1. ✅ **Modell im Browser (v0.3):** Provider „Im Browser“ (Default) – TMR int8 aus
-   `onnx-community/tmr-ai-text-detector-ONNX` (Revision gepinnt), per transformers.js im
-   Offscreen-Dokument (`extension/offscreen.js`), einmaliger Download ohne Token in den
-   Cache-Storage. Gemessen: AUROC 0.908 vs. 0.911 PyTorch, 3/100 Ampelwechsel, ~150 ms/Text
-   (WASM, Multithreading via COOP/COEP), Laden ~2 s.
-1b. ✅ **desklib im Browser (v0.4):** Modellauswahl unter „Im Browser“: *Schnell – TMR* oder
-   *Genau – desklib*. Anlass: TMR markiert sachlichen menschlichen Text massiv als KI
-   (englische Wikipedia, 96 Absätze aus 12 Artikeln: TMR 41 rot, desklib 9; im Browser auf
-   „Photosynthesis“: TMR 50/80 rot, desklib 3/80). Es gibt kein brauchbares fertiges ONNX
-   von desklib, und eigenes Hosting wollten wir vermeiden – deshalb **lädt die Extension
-   das Original (`model.safetensors`, 1,74 GB, Revision gepinnt) und quantisiert es beim
-   Herunterladen selbst** (`extension/desklib_build.js`, Stream, zeilenweise, ~475 MB
-   Ergebnis im Cache). Mitgeliefert wird nur der Rechengraph ohne Gewichte plus
-   Bauanleitung (`extension/models/desklib/`, 1,9 MB, erzeugt von
-   `scripts/build_desklib_skeleton.py`).
-   - Quantisierung: MatMul-Gewichte 8 Bit nur-Gewichte (MatMulNBits, Block 32),
-     Embeddings int8 pro Zeile. Das übliche dynamische int8 macht DeBERTa kaputt
-     (AUROC 0.998 → 0.973), 8 Bit nur-Gewichte nicht (AUROC 0.998, max. Abweichung 0,01).
-   - Gemessen (Ryzen 7 5800U, 8 Threads): Download+Umwandlung ~57 s, Laden ~4 s,
-     ~1 s pro Absatz (TMR ~0,15 s). Download läuft weiter, wenn die Einstellungen
-     geschlossen werden.
-   - Nebenbei gefixt (betraf auch TMR aus v0.3): nach Neustart des Offscreen-Dokuments
-     (10 Min. Leerlauf, Browser-Neustart) konnte transformers.js das Modell nicht mehr aus
-     dem Cache laden (Tokenizer-Suche ignoriert die Revision; „local + remote aus“ gilt
-     als ungültige Konfiguration). Tokenizer wird jetzt selbst aus dem Cache gebaut.
-   Lizenzen geprüft (alles MIT bzw. transformers.js Apache-2.0): `extension/THIRD_PARTY_NOTICES.md`.
-   HC3 (unser Laya-Datensatz) ist CC-BY-SA-4.0 → bei eigenem Fine-Tuning beachten.
-2. **Sperrliste „nie scannen“** (Banking, Mail, …) + Datenschutzerklärung – Web-Store-Pflicht.
-3. **Feedback „Falsch erkannt“** am Absatz → Trainingsdaten fürs eigene Fine-Tuning.
-4. **Score-Kalibrierung pro Modell**, damit Schwellen modellübergreifend dasselbe bedeuten.
-5. **Deutsch/mehrsprachig:** TMR und desklib sind nur auf Englisch trainiert (deutscher
-   Fachtext im Harness: 78 % → gelb, Fehlalarm). Eigenes Fine-Tuning eines
-   mehrsprachigen Encoders (z.B. mDeBERTa-v3/XLM-R) ähnlich desklib.
-6. **Berichte pro Seite exportieren/importieren:** Ergebnisse einer Seite (URL, geprüfte
-   Absätze/Textstellen, Scores, Modell, Zeitpunkt) als Datei exportieren und später wieder
-   laden bzw. weitergeben. Ausbaustufe: Ablage in einem Speicher/Konto (Sync über Geräte,
-   Verlauf pro Seite, Teilen im Team) – dann Datenschutz/Einwilligung mitdenken.
-7. **Zurückgestellt:** Hugging-Face-Provider mit echtem Token testen (bisher nur gemockt).
+Stand: **v0.5 (2026-09-25)**. Recherche-Hintergrund: `RESOURCES.md`, Messwerte: `training/EVAL_RESULTS.md`.
 
 ## Quick Start
 
 ```powershell
-# einmalig: transformers.js + ONNX-Runtime-WASM nach extension/vendor/ kopieren (nicht im Git)
-npm install
-npm run vendor
+npm install        # transformers.js (für vendor) + Playwright (für Tests)
+npm run vendor     # transformers.js + ONNX-Runtime-WASM nach extension/vendor/ (nicht im Git)
 ```
 
-Dann in Chrome/Edge:
+In Chrome/Edge:
 
-1. `chrome://extensions` öffnen, "Entwicklermodus" aktivieren.
-2. "Entpackte Erweiterung laden" → Ordner `extension/` auswählen. Die Einstellungen öffnen
-   sich automatisch → Modell wählen und „Herunterladen“ klicken (einmalig, von Hugging Face,
+1. `chrome://extensions` → „Entwicklermodus“ an → „Entpackte Erweiterung laden“ → `extension/`.
+2. Die Einstellungen öffnen sich → Modell wählen, „Herunterladen“ (einmalig, von Hugging Face,
    kein Token): TMR 126 MB, desklib 1,7 GB (wird im Browser auf ~475 MB umgewandelt).
-3. Auf das Extension-Icon klicken → Schalter „Diese Seite automatisch scannen“ oder
-   „Diese Seite jetzt scannen“.
-4. Für den Test-Harness: bei der Extension unter "Details" → "Auf Datei-URLs zulassen"
-   aktivieren, dann `test/harness.html` öffnen.
+3. Extension-Icon → „Diese Seite automatisch scannen“ oder „Diese Seite jetzt scannen“.
+4. Offline-Testseite: bei der Extension „Auf Datei-URLs zulassen“, dann `test/harness.html` öffnen.
 
-Optional – Server-Backends (desklib, oder TMR per PyTorch), Provider „Lokal“:
+Optional – Server-Backend (desklib oder TMR per PyTorch), Provider „Lokal“:
 
 ```powershell
 cd server
 uv venv .venv --python 3.12
 uv pip install --python .venv -r requirements_shim.txt
-.venv/Scripts/python.exe shim_server.py
+.venv/Scripts/python.exe shim_server.py   # Port 8787
 ```
 
-## Ordnerstruktur
+## Tests
 
-- `server/` — `shim_server.py` (Backend-Umschalter, Port 8787, TMR+desklib lokal) +
-  optionales `laya-serve`-Docker-Setup (Port 11500, aktuell ungenutzt) + README
-- `extension/` — die Browser-Extension selbst (Manifest V3):
-  - `config.js` — Defaults und gemeinsame Regeln für alle Teile (`scanPolicy` = ob gescannt
-    werden darf, `modelKey` = stabile Modellkennung für Cache/Presets/Kalibrierung,
-    Modell-Metadaten, Ampel-Stufen)
-  - `background.js` (Service Worker, ES-Modul) verdrahtet Events/Nachrichten mit `bg/`:
-    `providers.js` (Backends), `scoring.js` (Konfig- und Score-Cache, Test, Status),
-    `score-store.js` (dauerhafte Scores mit Aufbewahrungsdauer),
-    `badge.js`, `offscreen-client.js` (Brücke zu `offscreen.js` mit dem Browser-Modell)
-  - `content.js` — Scan, Warteschlange/Priorisierung, Ergebnis-Register (`results`: Element →
-    Score, Text, Modell, Quelle – Basis für Statistik, Feedback und Berichte);
-    `content-popover.js` — Ergebnis-Popover der manuellen Prüfung
-  - `vendor/` wird per
-  `npm run vendor` (`scripts/vendor.mjs`) erzeugt; `models/desklib/` = desklib-Graph ohne
-  Gewichte + Bauanleitung (neu erzeugen mit `scripts/build_desklib_skeleton.py`, braucht die
-  Python-Umgebung aus `server/` plus `onnx onnxruntime onnxscript`)
-- `test/harness.html` — Offline-Testseite mit Beispieltexten
-- `training/` — `prepare_dataset.py` (HC3 → Laya-Fine-Tuning-Format, fertig getestet),
-  `evaluate_backends.py` + `benchmark_latency.py` (Genauigkeit/Performance-Vergleich),
-  `EVAL_RESULTS.md` (Messergebnisse)
-- `RESOURCES.md` — alle Recherche-Ergebnisse zu Jev/Laya/Datensätzen/Referenzprojekt
+```powershell
+npm run test:setup   # einmalig: Chromium für Playwright
+npm test             # alle E2E-Tests (~30 s), führt vorher `npm run vendor` aus
+$env:HEADED=1; npm test   # mit sichtbarem Browserfenster
+```
+
+Die Tests (`test/e2e/*.test.mjs`, Node-Test-Runner + Playwright) laden die echte Extension in
+Chromium und lassen sie gegen ein Fake-Backend laufen, das den Vertrag von `shim_server.py` spricht
+und jeden gesendeten Text mitschreibt (zufälliger Port, ein laufender `shim_server.py` stört nicht).
+
+| Datei | Prüft |
+|---|---|
+| `scan.test.mjs` | Auto-Scan, Popup-Zähler, Icon-Badge, nachgeladene Absätze, Cache, Schwellen, Auswahl-/Rechtsklick-Prüfung, An/Aus, Lazy-Scan, Freigabe pro Seite, Backend-Status, Einstellungen |
+| `extraction.test.mjs` | Was ans Modell geht: 23 Grenzfälle (Navigation, Cookie-Banner, versteckte Absätze, Code, Icon-Fonts, Formulare …), mit und ohne Lazy-Scan |
+| `score-store.test.mjs` | Dauerhafter Speicher: SW-Neustart, Zuordnung über Seiten, Modellwechsel, Aufbewahrung, „Nicht speichern“ |
+
+Nicht abgedeckt: Bewertung mit dem echten Browser-Modell (bräuchte den Modell-Download) und der
+Hugging-Face-Provider mit echtem Token.
+
+## Funktionen
+
+- **An/Aus und Scan-Modi:** Master-Schalter (Popup, `Alt+Shift+A`), Badge „AUS“ am Icon. Gescannt
+  wird „nur auf Knopfdruck“ (`Alt+Shift+S`), „auf ausgewählten Seiten“ (Default, Schalter pro
+  Domain im Popup) oder „auf allen Seiten“. Ohne Freigabe verschickt das Content-Script keinen
+  Text und beobachtet die Seite nicht.
+- **Ampel:** zwei Schwellen (Gelb ab / Rot ab, Presets pro Modell), grün = geprüft und *nicht* als
+  KI erkannt (abschaltbar), Prozent-Badge, auch ohne Farbwahrnehmung unterscheidbar
+  (dünn / gestrichelt / kräftig). Popup mit Zählern pro Seite und Backend-Status; Icon-Badge mit
+  Anzahl roter (sonst gelber) Absätze, „!“ bei Fehler.
+- **Sichtbarer Bereich zuerst:** 5er-Batches, nacheinander (Browser/lokal 1, remote 2 parallel).
+  Die Reihenfolge wird erst beim Absenden bestimmt – nach einem Scroll springt die Priorität mit.
+- **Lazy-Scan (Default an):** nur Absätze bis 1,5 Bildschirmhöhen um den sichtbaren Bereich, der
+  Rest per `IntersectionObserver`, wenn er in die Nähe kommt.
+- **Einzelne Stellen prüfen:** Rechtsklick auf markierten Text bzw. auf einen Absatz (oder
+  `Alt+Shift+C`), unabhängig vom Scan-Modus und auch für Text, den der Auto-Scan auslässt
+  (ab 5 Wörtern, bis 2000 Zeichen). Markierung per CSS Custom Highlight API, Ergebnis im Popover.
+- **Bewertungen merken (Default 30 Tage, einstellbar bis 1 Jahr oder „nicht speichern“):**
+  bekannte Absätze werden sofort markiert, ohne neu zu rechnen – auch nach Browser-Neustart und
+  auf anderen Seiten mit demselben Text.
+- **Backends** (`extension/bg/providers.js`): Im Browser (TMR oder desklib), Lokal
+  (`shim_server.py`), Eigener Server (Vertrag `POST {texts, model?} -> {scores}`, optional Bearer-Key),
+  Hugging Face Inference API (Label-Mapping automatisch oder manuell). Host-Berechtigungen für
+  Remote-Backends werden erst beim Speichern angefragt; Tokens nur in `storage.local`.
+
+### Was bewertet wird
+
+Kandidaten sind `p`, `li` und `article` (Letzteres nur ohne eigene lange Absätze) mit mindestens
+40 Wörtern; gesendet werden die ersten 500 Zeichen des *sichtbaren* Texts (`innerText`, kein HTML,
+kein Script/Style-Inhalt).
+
+- **Nie:** Navigation und Seitenrahmen (`nav`, `header`, `footer`, `role=navigation|banner|contentinfo|search`),
+  Dialoge (`dialog`, `role=dialog` – meist Cookie-Banner), Code (`pre`), Eingaben (`textarea`,
+  `input`, `contenteditable` …), `template`, nicht gerenderte Absätze (`display:none`, `hidden`,
+  zugeklappt – sie kommen nach, sobald sie sichtbar werden).
+- **Aus dem Text herausgerechnet:** Icon-Fonts und andere `aria-hidden`-Teile, Code-Blöcke.
+- **Bewusst trotzdem bewertet:** Absätze unter `aria-hidden`-Vorfahren (viele Seiten verstecken so
+  den ganzen Inhalt, solange ein Modal offen ist), `form` (ASP.NET packt ganze Seiten in ein
+  Formular), `aside`/`role=complementary`. Stichprobe 2026-09-25 (43 Seiten: News DE/EN, Tech-Blogs,
+  Doku, Wikipedia, Rezepte): 0 von 752 bewerteten Absätzen lagen in einem `aside` – die vorhandenen
+  `aside`-Elemente sind Werbe-/Nachlade-Slots ohne Text oder Teaser-Listen, die schon an der
+  40-Wörter-Grenze scheitern. Ausschließen brächte nichts, würde aber Randnotizen und
+  Info-Kästen im Artikel verlieren. Neu bewerten, falls das Feedback (Roadmap 2) Fehlalarme dort zeigt.
+- **Nicht erreicht:** Shadow DOM, iframes.
+
+## Datenschutz und Speicher
+
+- Provider „Im Browser“ und „Lokal“: Texte verlassen den Rechner nicht. Einziger Netzwerkzugriff ist
+  der einmalige Modell-Download von Hugging Face.
+- Eigener Server / Hugging Face: bis zu 500 Zeichen pro Absatz (manuell bis 2000) gehen an diesen
+  Dienst – die Einstellungen weisen darauf hin.
+- **Score-Speicher** (IndexedDB, `extension/bg/score-store.js`, nicht synchronisiert): pro Absatz nur
+  ein 128-Bit-Hash (SHA-256 über Modell-Konfiguration + Text), Score, Modell und Zeitpunkt –
+  **kein Text, keine URL**. Gemessen ~235 Byte pro Eintrag (50.000 = 11,7 MB, 30 Tage intensives
+  Surfen ≈ 10 MB). Aufräumen täglich (`chrome.alarms`), beim Browserstart und sofort bei Änderung der
+  Einstellung; Obergrenze 200.000 Einträge; „Alle löschen“ in den Einstellungen.
+- **Zuordnung:** Der Schlüssel enthält Provider-Einstellungen und Modellversion (`modelKey`, z.B.
+  `browser:tmr@b9aa251-q8`). Modellwechsel → neu bewerten, alte Einträge bleiben fürs Zurückwechseln;
+  neue Modell-Revision/Quantisierung → `version` in `config.js` ändern, alte Scores gelten nicht mehr.
+  Einschränkung: bei „Lokal“/„Eigener Server“ kennt die Extension die Modellversion des Servers nicht.
+
+## Modelle
+
+| Modell | Größe | im Browser (Ryzen 7 5800U, 8 Threads) | Genauigkeit (HC3, 100 Beispiele) | Wikipedia „Photosynthesis“ |
+|---|---|---|---|---|
+| **TMR** (RoBERTa-base) – *Schnell* | 126 MB | ~0,15 s/Absatz, Laden ~2 s | AUROC 0.908 (PyTorch 0.911) | 50/80 rot (Fehlalarme) |
+| **desklib** (DeBERTa-v3-large) – *Genau* | 1,7 GB → 475 MB | ~1 s/Absatz, Laden ~4 s, Download+Umwandlung ~57 s | AUROC 0.998 | 3/80 rot |
+
+- Beide nur auf **Englisch** trainiert (deutscher Fachtext im Harness: 78 % → Fehlalarm).
+- TMR: fertiges int8-ONNX von `onnx-community`, Revision gepinnt.
+- desklib: Es gibt kein brauchbares ONNX. Die Extension lädt das Original (`model.safetensors`) und
+  quantisiert es beim Herunterladen selbst (`extension/desklib_build.js`, als Stream, zeilenweise).
+  Mitgeliefert wird nur der Rechengraph ohne Gewichte plus Bauanleitung (`extension/models/desklib/`,
+  1,9 MB, erzeugt von `scripts/build_desklib_skeleton.py`). MatMul 8 Bit nur-Gewichte
+  (MatMulNBits, Block 32) statt des üblichen dynamischen int8, das DeBERTa kaputtmacht
+  (AUROC 0.998 → 0.973).
+- Laya (zero-shot) getestet: AUROC 0.549, deshalb nicht wählbar. Server-Messungen (PyTorch, CPU):
+  `training/EVAL_RESULTS.md`.
+- Lizenzen (MIT bzw. transformers.js Apache-2.0): `extension/THIRD_PARTY_NOTICES.md`. HC3 ist
+  CC-BY-SA-4.0 → bei eigenem Fine-Tuning beachten.
+
+## Architektur
+
+```
+extension/
+  config.js             Defaults + gemeinsame Regeln für alle Teile:
+                        scanPolicy (darf gescannt werden?), modelKey (Modell + Version),
+                        Modell-Metadaten/Revisionen, Presets, Ampel-Stufen
+  background.js         Service Worker (ES-Modul): verdrahtet Events und Nachrichten mit bg/
+  bg/providers.js       Backends
+  bg/scoring.js         Konfig-Cache, Score-Cache (Arbeitsspeicher → IndexedDB → Modell), Test, Status
+  bg/score-store.js     dauerhafter Score-Speicher mit Aufbewahrungsdauer
+  bg/badge.js           Icon-Badge pro Tab
+  bg/offscreen-client.js  Brücke zum Offscreen-Dokument
+  offscreen.js          Modell per transformers.js/WASM (Service Worker hat keine Worker-Threads)
+  desklib_build.js      desklib-Umwandlung beim Download
+  content.js            Textauswahl, Warteschlange/Priorisierung, Markierung, Ergebnis-Register
+                        (`results`: Element → Score, Text, Modell, Quelle – Basis für Feedback/Berichte)
+  content-popover.js    Ergebnis-Popover der manuellen Prüfung (Shadow DOM)
+  popup.*, options.*    Oberfläche; das Popup bekommt STATS gepusht statt zu pollen
+  models/desklib/       Graph ohne Gewichte + Bauanleitung
+  vendor/               per `npm run vendor` (nicht im Git)
+server/                 shim_server.py (TMR/desklib per PyTorch, optional Laya-Proxy), Port 8787
+test/                   harness.html (Testseite), e2e/ (Playwright-Tests)
+training/               Datensatz-Aufbereitung (HC3), Backend-Vergleich, Messergebnisse
+scripts/                vendor.mjs, build_desklib_skeleton.py
+```
+
+Performance-Grundsätze im Content-Script: Beim Einsammeln und Priorisieren erst alles lesen, dann
+schreiben (kein Layout-Thrashing); `MutationObserver` nur auf Seiten, die gescannt werden;
+Statistik aus dem Register statt Dokument-Scans.
+
+## Roadmap
+
+**Erledigt**
+
+- v0.2 (2026-09-24): Scan-Modi, Ampel, Popup, Provider-Abstraktion, Priorisierung, Lazy-Scan,
+  Rechtsklick-Prüfung.
+- v0.3: TMR im Browser (Offscreen-Dokument, WASM, Multithreading via COOP/COEP).
+- v0.4: desklib im Browser mit Umwandlung beim Download.
+- v0.5 (2026-09-25): Umbau für die geplanten Features (`scanPolicy`, `modelKey`, Ergebnis-Register,
+  modularer Service Worker), Performance im Content-Script, dauerhafter Score-Speicher mit
+  Aufbewahrungsdauer, Modellversion im Schlüssel, genauere Textauswahl (Navigation per Rolle,
+  Dialoge, Code, Icon-Fonts, unsichtbare Absätze), E2E-Tests im Repo (`npm test`).
+
+**Als Nächstes (Reihenfolge = Priorität)**
+
+1. **Sperrliste „nie scannen“** (Banking, Mail, …) + Datenschutzerklärung – Web-Store-Pflicht.
+   Andockpunkt: `AIVSAI.scanPolicy` → neuer Wert `"blocked"`: kein Auto-Scan, auch nicht per
+   „Seite jetzt scannen“. **Entschieden:** Die manuelle Prüfung (Auswahl/Rechtsklick) bleibt
+   erlaubt – sie ist immer eine bewusste Einzelaktion –, das Popover zeigt dann aber einen Hinweis
+   („Diese Seite steht auf der Sperrliste – geprüft, weil du es ausdrücklich angefordert hast“,
+   bei Remote-Backends zusätzlich, wohin der Text gesendet wurde).
+2. **Feedback „Falsch erkannt“** am Absatz/Popover → Trainingsdaten fürs eigene Fine-Tuning.
+   Daten liegen im Ergebnis-Register (`results`); braucht eigenen Speicher *mit* Text → nur mit
+   ausdrücklicher Einwilligung.
+3. **Score-Kalibrierung pro Modell**, damit Schwellen modellübergreifend dasselbe bedeuten. In
+   `bg/scoring.js` pro `modelKey` auf den Rohwert anwenden – gespeichert werden Rohwerte, eine neue
+   Kalibrierung braucht also kein Neu-Bewerten.
+4. **Deutsch/mehrsprachig:** Fine-Tuning eines mehrsprachigen Encoders (mDeBERTa-v3/XLM-R) ähnlich
+   desklib; Content-Script schickt dann `lang` pro Absatz mit, der Provider wählt das Modell.
+   Vorarbeit: Laya-Datensatz liegt fertig (`training/data/`, 142k Beispiele), Training offen
+   (`training/README.md`).
+5. **Berichte pro Seite exportieren/importieren** (URL, Absätze, Scores, Modell, Zeitpunkt) aus dem
+   Ergebnis-Register; Ausbaustufe Konto/Sync/Teilen → Datenschutz/Einwilligung.
+6. **Zurückgestellt:** Hugging-Face-Provider mit echtem Token testen (bisher nur gemockt).
+
+**Technische Punkte aus der v0.5-Analyse**
+
+- Batch-Größe pro Provider (neben `maxInFlight` in `config.js`): ein 5er-Batch desklib blockiert
+  ~5 s, in der Zeit reagiert die Priorisierung nicht aufs Scrollen.
+- Server-Backends: Modellversion vom Server abfragen (z.B. `/healthz`) und in den Schlüssel nehmen.
+- Gleichzeitige Anfragen für denselben Absatz aus mehreren Tabs im Service Worker zusammenfassen.
+
+## Stolpersteine (gelöst)
+
+- transformers.js lädt nach Neustart des Offscreen-Dokuments nicht aus dem Cache (Tokenizer-Suche
+  ignoriert die Revision; „local + remote aus“ gilt als ungültig) → Tokenizer wird selbst aus dem
+  Cache gebaut (`offscreen.js`).
+- desklibs Beispielcode crasht mit `transformers>=5` (`all_tied_weights_keys`) → Property-Fix in
+  `server/shim_server.py` / `training/evaluate_backends.py`.
+- `laya-serve` hat `/health`, nicht `/healthz`.

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AI Content Flag",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Bewertet Textabsätze mit einem KI-Text-Klassifikator – direkt im Browser, lokal oder per Cloud – und markiert sie grün/gelb/rot mit Score.",
   "permissions": [
     "storage",
