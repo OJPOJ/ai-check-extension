@@ -47,7 +47,17 @@ npm test             # Unit- und E2E-Tests (~2 min), führt vorher `npm run vend
 $env:HEADED=1; npm test   # mit sichtbarem Browserfenster
 ```
 
-Unit-Tests (`test/unit/`) prüfen reine Hilfsfunktionen wie die Längen-Gruppierung. Die E2E-Tests (`test/e2e/*.test.mjs`, Node-Test-Runner + Playwright) laden die echte Extension in
+Unit-Tests (`test/unit/`, ohne Browser, Sekunden):
+
+| Datei | Prüft |
+|---|---|
+| `config.test.mjs` | Ampel-Schwellen, Sperrliste (eigene Einträge, mitgelieferte Liste, Ausnahmen), `scanPolicy`, `modelKey`, Presets, `remoteTarget` |
+| `providers.test.mjs` | Backends mit gemocktem `fetch`: Server-Vertrag, Bearer-Key, HTTP-Fehlermeldungen, Hugging-Face-Antwortformen und Label-Zuordnung, Offscreen-Aufruf |
+| `desklib-build.test.mjs` | desklib-Umwandlung an einer Mini-`safetensors`-Datei: Kopieren, 8-Bit-Quantisierung (Rundung zur geraden Zahl), Stückgrenzen im Download, Abbruch bei falscher Datei |
+| `blocklist.test.mjs` | Erzeugte Sperrliste: Format, kompakt, Umfang, Stichproben (Banking gesperrt, Inhaltsseiten nicht) |
+| `length-buckets.test.mjs` | Längen-Gruppierung vor dem Modellaufruf |
+
+Die E2E-Tests (`test/e2e/*.test.mjs`, Node-Test-Runner + Playwright) laden die echte Extension in
 Chromium und lassen sie gegen ein Fake-Backend laufen, das den Vertrag von `shim_server.py` spricht
 und jeden gesendeten Text mitschreibt (zufälliger Port, ein laufender `shim_server.py` stört nicht).
 
@@ -60,7 +70,7 @@ und jeden gesendeten Text mitschreibt (zufälliger Port, ein laufender `shim_ser
 | `score-store.test.mjs` | Dauerhafter Speicher: SW-Neustart, Zuordnung über Seiten, Modellwechsel, Aufbewahrung, „Nicht speichern“ |
 
 Nicht abgedeckt: Bewertung mit dem echten Browser-Modell (bräuchte den Modell-Download) und der
-Hugging-Face-Provider mit echtem Token.
+Hugging-Face-Provider mit echtem Token (nur gemockt, siehe `providers.test.mjs`).
 
 ## Funktionen
 
