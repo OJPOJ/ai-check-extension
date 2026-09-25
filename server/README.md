@@ -71,6 +71,10 @@ Genauigkeit (100 balancierte HC3-Beispiele) UND Performance (CPU, 25er-Batch wie
   Extension deaktiviert, bis fine-getunt.
 - desklib ist am genauesten, aber auf CPU ~80× langsamer als TMR und ~5× mehr RAM — für
   automatisches Scannen jeder Seite unpraktikabel, eher für gezielte Einzelprüfung gedacht.
+- **Update 2026-09-25:** Die ~2 Min kamen größtenteils vom Auffüllen jedes Texts auf 768
+  Tokens (`padding="max_length"` aus der Model Card). Jetzt wird nur auf den längsten Text
+  im Batch aufgefüllt (Mean-Pooling maskiert Füll-Tokens ohnehin): identische Scores
+  (max. Abweichung 0,00005 auf 292 Texten), **~0,5 s statt ~4,9 s pro Text** auf dem HC3-Sample.
 - Batch-Format (`state.candidates[]` + `noul`-Frage pro Index) funktioniert identisch für
   alle drei Backends über den Shim.
 

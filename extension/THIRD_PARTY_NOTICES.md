@@ -12,6 +12,11 @@
   ONNX-Konvertierung: `onnx-community/tmr-ai-text-detector-ONNX` (MIT), Revision
   `b9aa251e5bcda7e429fcc936767d921435945b60`.
   Basismodell RoBERTa-base (MIT, © Facebook AI), Trainingsdaten RAID (MIT, © Liam Dugan).
+- **desklib AI Text Detector** – `desklib/ai-text-detector-v1.01`, MIT License, © desklib.
+  Revision `5fdea974cd4287c61674951ec78803aa274e2fb7`. Die Gewichte werden nicht mitgeliefert,
+  sondern zur Laufzeit von Hugging Face geladen und im Browser auf 8 Bit quantisiert.
+  Mitgeliefert wird nur der daraus exportierte Rechengraph ohne Gewichte (`models/desklib/`,
+  erzeugt mit `scripts/build_desklib_skeleton.py`). Basismodell DeBERTa-v3-large (MIT, © Microsoft).
 
 ## MIT License (gilt für die oben als MIT gekennzeichneten Komponenten)
 

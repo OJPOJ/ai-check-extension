@@ -72,8 +72,27 @@ Hintergrund/Architektur: `RESOURCES.md`.
    `onnx-community/tmr-ai-text-detector-ONNX` (Revision gepinnt), per transformers.js im
    Offscreen-Dokument (`extension/offscreen.js`), einmaliger Download ohne Token in den
    Cache-Storage. Gemessen: AUROC 0.908 vs. 0.911 PyTorch, 3/100 Ampelwechsel, ~150 ms/Text
-   (WASM, Multithreading via COOP/COEP), Laden ~2 s. desklib bleibt Server-Option (nur
-   1,7GB-fp32-Konvertierung eines Einzelnutzers, im Browser ~10× langsamer).
+   (WASM, Multithreading via COOP/COEP), Laden ~2 s.
+1b. ✅ **desklib im Browser (v0.4):** Modellauswahl unter „Im Browser“: *Schnell – TMR* oder
+   *Genau – desklib*. Anlass: TMR markiert sachlichen menschlichen Text massiv als KI
+   (englische Wikipedia, 96 Absätze aus 12 Artikeln: TMR 41 rot, desklib 9; im Browser auf
+   „Photosynthesis“: TMR 50/80 rot, desklib 3/80). Es gibt kein brauchbares fertiges ONNX
+   von desklib, und eigenes Hosting wollten wir vermeiden – deshalb **lädt die Extension
+   das Original (`model.safetensors`, 1,74 GB, Revision gepinnt) und quantisiert es beim
+   Herunterladen selbst** (`extension/desklib_build.js`, Stream, zeilenweise, ~475 MB
+   Ergebnis im Cache). Mitgeliefert wird nur der Rechengraph ohne Gewichte plus
+   Bauanleitung (`extension/models/desklib/`, 1,9 MB, erzeugt von
+   `scripts/build_desklib_skeleton.py`).
+   - Quantisierung: MatMul-Gewichte 8 Bit nur-Gewichte (MatMulNBits, Block 32),
+     Embeddings int8 pro Zeile. Das übliche dynamische int8 macht DeBERTa kaputt
+     (AUROC 0.998 → 0.973), 8 Bit nur-Gewichte nicht (AUROC 0.998, max. Abweichung 0,01).
+   - Gemessen (Ryzen 7 5800U, 8 Threads): Download+Umwandlung ~57 s, Laden ~4 s,
+     ~1 s pro Absatz (TMR ~0,15 s). Download läuft weiter, wenn die Einstellungen
+     geschlossen werden.
+   - Nebenbei gefixt (betraf auch TMR aus v0.3): nach Neustart des Offscreen-Dokuments
+     (10 Min. Leerlauf, Browser-Neustart) konnte transformers.js das Modell nicht mehr aus
+     dem Cache laden (Tokenizer-Suche ignoriert die Revision; „local + remote aus“ gilt
+     als ungültige Konfiguration). Tokenizer wird jetzt selbst aus dem Cache gebaut.
    Lizenzen geprüft (alles MIT bzw. transformers.js Apache-2.0): `extension/THIRD_PARTY_NOTICES.md`.
    HC3 (unser Laya-Datensatz) ist CC-BY-SA-4.0 → bei eigenem Fine-Tuning beachten.
 2. **Sperrliste „nie scannen“** (Banking, Mail, …) + Datenschutzerklärung – Web-Store-Pflicht.
@@ -97,7 +116,8 @@ Dann in Chrome/Edge:
 
 1. `chrome://extensions` öffnen, "Entwicklermodus" aktivieren.
 2. "Entpackte Erweiterung laden" → Ordner `extension/` auswählen. Die Einstellungen öffnen
-   sich automatisch → „Herunterladen (126 MB)“ klicken (einmalig, von Hugging Face, kein Token).
+   sich automatisch → Modell wählen und „Herunterladen“ klicken (einmalig, von Hugging Face,
+   kein Token): TMR 126 MB, desklib 1,7 GB (wird im Browser auf ~475 MB umgewandelt).
 3. Auf das Extension-Icon klicken → Schalter „Diese Seite automatisch scannen“ oder
    „Diese Seite jetzt scannen“.
 4. Für den Test-Harness: bei der Extension unter "Details" → "Auf Datei-URLs zulassen"
@@ -117,7 +137,9 @@ uv pip install --python .venv -r requirements_shim.txt
 - `server/` — `shim_server.py` (Backend-Umschalter, Port 8787, TMR+desklib lokal) +
   optionales `laya-serve`-Docker-Setup (Port 11500, aktuell ungenutzt) + README
 - `extension/` — die Browser-Extension selbst (Manifest V3); `vendor/` wird per
-  `npm run vendor` (`scripts/vendor.mjs`) erzeugt
+  `npm run vendor` (`scripts/vendor.mjs`) erzeugt; `models/desklib/` = desklib-Graph ohne
+  Gewichte + Bauanleitung (neu erzeugen mit `scripts/build_desklib_skeleton.py`, braucht die
+  Python-Umgebung aus `server/` plus `onnx onnxruntime onnxscript`)
 - `test/harness.html` — Offline-Testseite mit Beispieltexten
 - `training/` — `prepare_dataset.py` (HC3 → Laya-Fine-Tuning-Format, fertig getestet),
   `evaluate_backends.py` + `benchmark_latency.py` (Genauigkeit/Performance-Vergleich),

@@ -11,6 +11,17 @@ const LOCAL_MODEL_INFO = {
     "AUROC 0.998 im Test. Deutlich genauer, aber langsam – eher für „Nur auf Knopfdruck“."
 };
 
+const BROWSER_MODEL_INFO = {
+  tmr:
+    "Einmaliger Download von Hugging Face (126 MB, öffentlich, kein Konto/Token nötig), danach offline " +
+    "nutzbar – bewertet werden die Texte nur lokal. Englisch trainiert – deutsche Texte können falsch " +
+    "eingestuft werden. MIT-Lizenz, Details in THIRD_PARTY_NOTICES.md.",
+  desklib:
+    "Lädt einmalig das Originalmodell von Hugging Face (1,7 GB, öffentlich, kein Konto/Token nötig) und " +
+    "wandelt es direkt im Browser in eine kompakte 8-Bit-Version um (~475 MB auf der Platte, gleiche " +
+    "Genauigkeit). Danach offline nutzbar. Englisch trainiert. MIT-Lizenz, Details in THIRD_PARTY_NOTICES.md."
+};
+
 const TEXT_FIELDS = ["localUrl", "customUrl", "customModel", "hfModel", "hfAiLabel"];
 const SECRET_FIELDS = ["customApiKey", "hfToken"];
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost"]);
@@ -40,6 +51,7 @@ function readForm() {
     scanMode: radioValue("scanMode"),
     sites: parseSites($("sites").value),
     provider: radioValue("provider"),
+    browserModel: radioValue("browserModel") || AIVSAI.DEFAULTS.browserModel,
     localModel: $("localModel").value,
     yellowFrom: parseFloat($("yellowFrom").value),
     redFrom: parseFloat($("redFrom").value),
@@ -109,6 +121,7 @@ function renderProvider() {
   const provider = radioValue("provider");
   document.querySelectorAll(".provider-fields").forEach((el) => (el.hidden = el.dataset.provider !== provider));
   $("localModelInfo").innerHTML = LOCAL_MODEL_INFO[$("localModel").value] || "";
+  $("browserModelInfo").textContent = BROWSER_MODEL_INFO[radioValue("browserModel")] || "";
 
   let target = null;
   if (provider === "huggingface") target = "Hugging Face (router.huggingface.co)";
@@ -133,47 +146,76 @@ function renderProvider() {
 
 // --- Browser-Modell: Status, Download, Löschen ---
 
+let modelState = null; // letzte Antwort von MODEL_STATUS: { models: { tmr: {...}, desklib: {...} }, threads }
+const selectedModel = () => radioValue("browserModel") || AIVSAI.DEFAULTS.browserModel;
+
 function formatMB(bytes) {
-  return `${(bytes / 1e6).toFixed(0)} MB`;
+  return bytes >= 1e9 ? `${(bytes / 1e9).toFixed(2).replace(".", ",")} GB` : `${(bytes / 1e6).toFixed(0)} MB`;
 }
 
-function renderModel(st, busy = false) {
-  $("modelDownload").hidden = busy || !st?.ok || st.downloaded;
-  $("modelDelete").hidden = busy || !st?.ok || !st.downloaded;
-  if (busy) return;
+function renderProgress(p) {
+  $("modelProgress").hidden = false;
+  if (!p?.total) {
+    $("modelProgress").removeAttribute("value"); // unbestimmt, bis die erste Größe bekannt ist
+    $("modelStatus").textContent = "Lade herunter…";
+    return;
+  }
+  $("modelProgress").value = p.loaded / p.total;
+  const verb = selectedModel() === "desklib" ? "Lade und wandle um…" : "Lade herunter…";
+  $("modelStatus").textContent = `${verb} ${formatMB(p.loaded)} von ${formatMB(p.total)}`;
+}
+
+function renderModel() {
+  const key = selectedModel();
+  const st = modelState?.ok ? modelState.models?.[key] : null;
+  $("modelDownload").textContent = `Herunterladen (${AIVSAI.BROWSER_MODELS[key].download})`;
+  $("modelDownload").hidden = !!(st && (st.downloaded || st.downloading));
+  $("modelDelete").hidden = !st?.downloaded;
   $("modelProgress").hidden = true;
-  if (!st?.ok) {
-    $("modelStatus").textContent = `Fehler: ${st?.error ?? "keine Antwort"}`;
-    $("modelDownload").hidden = false;
+  if (!modelState) {
+    $("modelStatus").textContent = "Prüfe…";
+  } else if (!modelState.ok) {
+    $("modelStatus").textContent = `Fehler: ${modelState.error ?? "keine Antwort"}`;
+  } else if (st.downloading) {
+    renderProgress(st.downloading);
   } else if (st.downloaded) {
-    $("modelStatus").textContent = `Heruntergeladen – bereit (${st.threads === 1 ? "1 Thread" : "Multithreading"}).`;
+    const threads = modelState.threads === 1 ? "1 Thread" : `${modelState.threads} Threads`;
+    $("modelStatus").textContent = `Heruntergeladen – bereit (${threads}).`;
   } else {
     $("modelStatus").textContent = "Noch nicht heruntergeladen.";
   }
 }
 
 async function refreshModel() {
-  renderModel(await chrome.runtime.sendMessage({ type: "MODEL_STATUS" }));
+  modelState = await chrome.runtime.sendMessage({ type: "MODEL_STATUS" });
+  renderModel();
 }
 
 $("modelDownload").addEventListener("click", async () => {
-  renderModel(null, true);
-  $("modelStatus").textContent = "Lade herunter…";
-  $("modelProgress").hidden = false;
-  $("modelProgress").removeAttribute("value"); // unbestimmt, bis die erste Größe bekannt ist
-  const st = await chrome.runtime.sendMessage({ type: "MODEL_DOWNLOAD" });
-  renderModel(st);
-  if (st?.ok) showStatus("Modell heruntergeladen. Speichern nicht vergessen, falls „Im Browser“ neu gewählt.", "ok");
+  $("modelDownload").hidden = true;
+  renderProgress(null);
+  const st = await chrome.runtime.sendMessage({ type: "MODEL_DOWNLOAD", model: selectedModel() });
+  if (!st?.ok) {
+    modelState = st;
+    renderModel();
+  }
 });
 
 $("modelDelete").addEventListener("click", async () => {
-  renderModel(await chrome.runtime.sendMessage({ type: "MODEL_DELETE" }));
+  modelState = await chrome.runtime.sendMessage({ type: "MODEL_DELETE", model: selectedModel() });
+  renderModel();
 });
 
 chrome.runtime.onMessage.addListener((msg) => {
-  if (msg?.type !== "MODEL_PROGRESS" || !msg.total) return;
-  $("modelProgress").value = msg.loaded / msg.total;
-  $("modelStatus").textContent = `Lade herunter… ${formatMB(msg.loaded)} von ${formatMB(msg.total)}`;
+  if (msg?.type === "MODEL_PROGRESS" && msg.model === selectedModel()) {
+    $("modelDownload").hidden = true;
+    renderProgress(msg);
+  } else if (msg?.type === "MODEL_DONE") {
+    refreshModel();
+    if (msg.model !== selectedModel()) return;
+    if (msg.ok) showStatus("Modell heruntergeladen. Speichern nicht vergessen, falls neu gewählt.", "ok");
+    else showStatus(`Download fehlgeschlagen: ${msg.error}`, "err");
+  }
 });
 
 function renderScanMode() {
@@ -197,7 +239,7 @@ function applyPreset() {
     provider === "local"
       ? AIVSAI.PRESETS[$("localModel").value]
       : provider === "browser"
-        ? AIVSAI.PRESETS.tmr
+        ? AIVSAI.PRESETS[selectedModel()]
         : AIVSAI.PRESETS.generic;
   $("yellowFrom").value = preset.yellowFrom;
   $("redFrom").value = preset.redFrom;
@@ -213,6 +255,7 @@ async function init() {
   setRadio("scanMode", cfg.scanMode);
   $("sites").value = cfg.sites.join("\n");
   setRadio("provider", cfg.provider);
+  setRadio("browserModel", cfg.browserModel);
   $("localModel").value = cfg.localModel;
   for (const f of TEXT_FIELDS) $(f).value = cfg[f];
   for (const f of SECRET_FIELDS) $(f).value = secrets[f];
@@ -236,6 +279,13 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 document.querySelectorAll('input[name="provider"]').forEach((el) => el.addEventListener("change", renderProvider));
+document.querySelectorAll('input[name="browserModel"]').forEach((el) =>
+  el.addEventListener("change", () => {
+    renderProvider();
+    renderModel();
+    applyPreset();
+  })
+);
 document.querySelectorAll('input[name="scanMode"]').forEach((el) => el.addEventListener("change", renderScanMode));
 ["customUrl", "localUrl"].forEach((id) => $(id).addEventListener("input", renderProvider));
 $("localModel").addEventListener("change", () => {

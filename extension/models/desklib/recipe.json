@@ -1,0 +1,2504 @@
+{
+ "source": {
+  "model": "desklib/ai-text-detector-v1.01",
+  "revision": "5fdea974cd4287c61674951ec78803aa274e2fb7",
+  "file": "model.safetensors",
+  "size": 1736100972
+ },
+ "dataFile": "model_quantized.onnx_data",
+ "dataSize": 474821008,
+ "block": 32,
+ "tensors": {
+  "model.embeddings.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    0
+   ]
+  },
+  "model.embeddings.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    4096
+   ]
+  },
+  "model.encoder.layer.0.attention.self.query_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    8192
+   ]
+  },
+  "model.encoder.layer.0.attention.self.key_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    12288
+   ]
+  },
+  "model.encoder.layer.0.attention.self.value_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    16384
+   ]
+  },
+  "model.encoder.layer.0.attention.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    20480
+   ]
+  },
+  "model.encoder.layer.0.attention.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    24576
+   ]
+  },
+  "model.encoder.layer.0.attention.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    28672
+   ]
+  },
+  "model.encoder.layer.0.intermediate.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    32768
+   ]
+  },
+  "model.encoder.layer.0.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    49152
+   ]
+  },
+  "model.encoder.layer.0.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    53248
+   ]
+  },
+  "model.encoder.layer.0.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    57344
+   ]
+  },
+  "model.encoder.layer.1.attention.self.query_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    61440
+   ]
+  },
+  "model.encoder.layer.1.attention.self.key_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    65536
+   ]
+  },
+  "model.encoder.layer.1.attention.self.value_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    69632
+   ]
+  },
+  "model.encoder.layer.1.attention.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    73728
+   ]
+  },
+  "model.encoder.layer.1.attention.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    77824
+   ]
+  },
+  "model.encoder.layer.1.attention.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    81920
+   ]
+  },
+  "model.encoder.layer.1.intermediate.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    86016
+   ]
+  },
+  "model.encoder.layer.1.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    102400
+   ]
+  },
+  "model.encoder.layer.1.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    106496
+   ]
+  },
+  "model.encoder.layer.1.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    110592
+   ]
+  },
+  "model.encoder.layer.2.attention.self.query_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    114688
+   ]
+  },
+  "model.encoder.layer.2.attention.self.key_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    118784
+   ]
+  },
+  "model.encoder.layer.2.attention.self.value_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    122880
+   ]
+  },
+  "model.encoder.layer.2.attention.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    126976
+   ]
+  },
+  "model.encoder.layer.2.attention.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    131072
+   ]
+  },
+  "model.encoder.layer.2.attention.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    135168
+   ]
+  },
+  "model.encoder.layer.2.intermediate.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    139264
+   ]
+  },
+  "model.encoder.layer.2.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    155648
+   ]
+  },
+  "model.encoder.layer.2.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    159744
+   ]
+  },
+  "model.encoder.layer.2.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    163840
+   ]
+  },
+  "model.encoder.layer.3.attention.self.query_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    167936
+   ]
+  },
+  "model.encoder.layer.3.attention.self.key_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    172032
+   ]
+  },
+  "model.encoder.layer.3.attention.self.value_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    176128
+   ]
+  },
+  "model.encoder.layer.3.attention.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    180224
+   ]
+  },
+  "model.encoder.layer.3.attention.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    184320
+   ]
+  },
+  "model.encoder.layer.3.attention.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    188416
+   ]
+  },
+  "model.encoder.layer.3.intermediate.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    192512
+   ]
+  },
+  "model.encoder.layer.3.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    208896
+   ]
+  },
+  "model.encoder.layer.3.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    212992
+   ]
+  },
+  "model.encoder.layer.3.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    217088
+   ]
+  },
+  "model.encoder.layer.4.attention.self.query_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    221184
+   ]
+  },
+  "model.encoder.layer.4.attention.self.key_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    225280
+   ]
+  },
+  "model.encoder.layer.4.attention.self.value_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    229376
+   ]
+  },
+  "model.encoder.layer.4.attention.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    233472
+   ]
+  },
+  "model.encoder.layer.4.attention.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    237568
+   ]
+  },
+  "model.encoder.layer.4.attention.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    241664
+   ]
+  },
+  "model.encoder.layer.4.intermediate.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    245760
+   ]
+  },
+  "model.encoder.layer.4.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    262144
+   ]
+  },
+  "model.encoder.layer.4.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    266240
+   ]
+  },
+  "model.encoder.layer.4.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    270336
+   ]
+  },
+  "model.encoder.layer.5.attention.self.query_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    274432
+   ]
+  },
+  "model.encoder.layer.5.attention.self.key_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    278528
+   ]
+  },
+  "model.encoder.layer.5.attention.self.value_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    282624
+   ]
+  },
+  "model.encoder.layer.5.attention.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    286720
+   ]
+  },
+  "model.encoder.layer.5.attention.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    290816
+   ]
+  },
+  "model.encoder.layer.5.attention.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    294912
+   ]
+  },
+  "model.encoder.layer.5.intermediate.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    299008
+   ]
+  },
+  "model.encoder.layer.5.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    315392
+   ]
+  },
+  "model.encoder.layer.5.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    319488
+   ]
+  },
+  "model.encoder.layer.5.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    323584
+   ]
+  },
+  "model.encoder.layer.6.attention.self.query_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    327680
+   ]
+  },
+  "model.encoder.layer.6.attention.self.key_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    331776
+   ]
+  },
+  "model.encoder.layer.6.attention.self.value_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    335872
+   ]
+  },
+  "model.encoder.layer.6.attention.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    339968
+   ]
+  },
+  "model.encoder.layer.6.attention.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    344064
+   ]
+  },
+  "model.encoder.layer.6.attention.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    348160
+   ]
+  },
+  "model.encoder.layer.6.intermediate.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    352256
+   ]
+  },
+  "model.encoder.layer.6.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    368640
+   ]
+  },
+  "model.encoder.layer.6.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    372736
+   ]
+  },
+  "model.encoder.layer.6.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    376832
+   ]
+  },
+  "model.encoder.layer.7.attention.self.query_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    380928
+   ]
+  },
+  "model.encoder.layer.7.attention.self.key_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    385024
+   ]
+  },
+  "model.encoder.layer.7.attention.self.value_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    389120
+   ]
+  },
+  "model.encoder.layer.7.attention.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    393216
+   ]
+  },
+  "model.encoder.layer.7.attention.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    397312
+   ]
+  },
+  "model.encoder.layer.7.attention.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    401408
+   ]
+  },
+  "model.encoder.layer.7.intermediate.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    405504
+   ]
+  },
+  "model.encoder.layer.7.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    421888
+   ]
+  },
+  "model.encoder.layer.7.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    425984
+   ]
+  },
+  "model.encoder.layer.7.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    430080
+   ]
+  },
+  "model.encoder.layer.8.attention.self.query_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    434176
+   ]
+  },
+  "model.encoder.layer.8.attention.self.key_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    438272
+   ]
+  },
+  "model.encoder.layer.8.attention.self.value_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    442368
+   ]
+  },
+  "model.encoder.layer.8.attention.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    446464
+   ]
+  },
+  "model.encoder.layer.8.attention.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    450560
+   ]
+  },
+  "model.encoder.layer.8.attention.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    454656
+   ]
+  },
+  "model.encoder.layer.8.intermediate.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    458752
+   ]
+  },
+  "model.encoder.layer.8.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    475136
+   ]
+  },
+  "model.encoder.layer.8.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    479232
+   ]
+  },
+  "model.encoder.layer.8.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    483328
+   ]
+  },
+  "model.encoder.layer.9.attention.self.query_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    487424
+   ]
+  },
+  "model.encoder.layer.9.attention.self.key_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    491520
+   ]
+  },
+  "model.encoder.layer.9.attention.self.value_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    495616
+   ]
+  },
+  "model.encoder.layer.9.attention.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    499712
+   ]
+  },
+  "model.encoder.layer.9.attention.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    503808
+   ]
+  },
+  "model.encoder.layer.9.attention.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    507904
+   ]
+  },
+  "model.encoder.layer.9.intermediate.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    512000
+   ]
+  },
+  "model.encoder.layer.9.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    528384
+   ]
+  },
+  "model.encoder.layer.9.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    532480
+   ]
+  },
+  "model.encoder.layer.9.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    536576
+   ]
+  },
+  "model.encoder.layer.10.attention.self.query_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    540672
+   ]
+  },
+  "model.encoder.layer.10.attention.self.key_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    544768
+   ]
+  },
+  "model.encoder.layer.10.attention.self.value_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    548864
+   ]
+  },
+  "model.encoder.layer.10.attention.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    552960
+   ]
+  },
+  "model.encoder.layer.10.attention.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    557056
+   ]
+  },
+  "model.encoder.layer.10.attention.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    561152
+   ]
+  },
+  "model.encoder.layer.10.intermediate.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    565248
+   ]
+  },
+  "model.encoder.layer.10.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    581632
+   ]
+  },
+  "model.encoder.layer.10.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    585728
+   ]
+  },
+  "model.encoder.layer.10.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    589824
+   ]
+  },
+  "model.encoder.layer.11.attention.self.query_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    593920
+   ]
+  },
+  "model.encoder.layer.11.attention.self.key_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    598016
+   ]
+  },
+  "model.encoder.layer.11.attention.self.value_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    602112
+   ]
+  },
+  "model.encoder.layer.11.attention.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    606208
+   ]
+  },
+  "model.encoder.layer.11.attention.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    610304
+   ]
+  },
+  "model.encoder.layer.11.attention.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    614400
+   ]
+  },
+  "model.encoder.layer.11.intermediate.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    618496
+   ]
+  },
+  "model.encoder.layer.11.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    634880
+   ]
+  },
+  "model.encoder.layer.11.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    638976
+   ]
+  },
+  "model.encoder.layer.11.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    643072
+   ]
+  },
+  "model.encoder.layer.12.attention.self.query_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    647168
+   ]
+  },
+  "model.encoder.layer.12.attention.self.key_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    651264
+   ]
+  },
+  "model.encoder.layer.12.attention.self.value_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    655360
+   ]
+  },
+  "model.encoder.layer.12.attention.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    659456
+   ]
+  },
+  "model.encoder.layer.12.attention.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    663552
+   ]
+  },
+  "model.encoder.layer.12.attention.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    667648
+   ]
+  },
+  "model.encoder.layer.12.intermediate.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    671744
+   ]
+  },
+  "model.encoder.layer.12.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    688128
+   ]
+  },
+  "model.encoder.layer.12.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    692224
+   ]
+  },
+  "model.encoder.layer.12.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    696320
+   ]
+  },
+  "model.encoder.layer.13.attention.self.query_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    700416
+   ]
+  },
+  "model.encoder.layer.13.attention.self.key_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    704512
+   ]
+  },
+  "model.encoder.layer.13.attention.self.value_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    708608
+   ]
+  },
+  "model.encoder.layer.13.attention.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    712704
+   ]
+  },
+  "model.encoder.layer.13.attention.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    716800
+   ]
+  },
+  "model.encoder.layer.13.attention.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    720896
+   ]
+  },
+  "model.encoder.layer.13.intermediate.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    724992
+   ]
+  },
+  "model.encoder.layer.13.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    741376
+   ]
+  },
+  "model.encoder.layer.13.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    745472
+   ]
+  },
+  "model.encoder.layer.13.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    749568
+   ]
+  },
+  "model.encoder.layer.14.attention.self.query_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    753664
+   ]
+  },
+  "model.encoder.layer.14.attention.self.key_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    757760
+   ]
+  },
+  "model.encoder.layer.14.attention.self.value_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    761856
+   ]
+  },
+  "model.encoder.layer.14.attention.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    765952
+   ]
+  },
+  "model.encoder.layer.14.attention.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    770048
+   ]
+  },
+  "model.encoder.layer.14.attention.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    774144
+   ]
+  },
+  "model.encoder.layer.14.intermediate.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    778240
+   ]
+  },
+  "model.encoder.layer.14.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    794624
+   ]
+  },
+  "model.encoder.layer.14.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    798720
+   ]
+  },
+  "model.encoder.layer.14.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    802816
+   ]
+  },
+  "model.encoder.layer.15.attention.self.query_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    806912
+   ]
+  },
+  "model.encoder.layer.15.attention.self.key_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    811008
+   ]
+  },
+  "model.encoder.layer.15.attention.self.value_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    815104
+   ]
+  },
+  "model.encoder.layer.15.attention.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    819200
+   ]
+  },
+  "model.encoder.layer.15.attention.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    823296
+   ]
+  },
+  "model.encoder.layer.15.attention.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    827392
+   ]
+  },
+  "model.encoder.layer.15.intermediate.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    831488
+   ]
+  },
+  "model.encoder.layer.15.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    847872
+   ]
+  },
+  "model.encoder.layer.15.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    851968
+   ]
+  },
+  "model.encoder.layer.15.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    856064
+   ]
+  },
+  "model.encoder.layer.16.attention.self.query_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    860160
+   ]
+  },
+  "model.encoder.layer.16.attention.self.key_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    864256
+   ]
+  },
+  "model.encoder.layer.16.attention.self.value_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    868352
+   ]
+  },
+  "model.encoder.layer.16.attention.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    872448
+   ]
+  },
+  "model.encoder.layer.16.attention.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    876544
+   ]
+  },
+  "model.encoder.layer.16.attention.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    880640
+   ]
+  },
+  "model.encoder.layer.16.intermediate.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    884736
+   ]
+  },
+  "model.encoder.layer.16.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    901120
+   ]
+  },
+  "model.encoder.layer.16.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    905216
+   ]
+  },
+  "model.encoder.layer.16.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    909312
+   ]
+  },
+  "model.encoder.layer.17.attention.self.query_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    913408
+   ]
+  },
+  "model.encoder.layer.17.attention.self.key_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    917504
+   ]
+  },
+  "model.encoder.layer.17.attention.self.value_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    921600
+   ]
+  },
+  "model.encoder.layer.17.attention.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    925696
+   ]
+  },
+  "model.encoder.layer.17.attention.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    929792
+   ]
+  },
+  "model.encoder.layer.17.attention.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    933888
+   ]
+  },
+  "model.encoder.layer.17.intermediate.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    937984
+   ]
+  },
+  "model.encoder.layer.17.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    954368
+   ]
+  },
+  "model.encoder.layer.17.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    958464
+   ]
+  },
+  "model.encoder.layer.17.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    962560
+   ]
+  },
+  "model.encoder.layer.18.attention.self.query_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    966656
+   ]
+  },
+  "model.encoder.layer.18.attention.self.key_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    970752
+   ]
+  },
+  "model.encoder.layer.18.attention.self.value_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    974848
+   ]
+  },
+  "model.encoder.layer.18.attention.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    978944
+   ]
+  },
+  "model.encoder.layer.18.attention.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    983040
+   ]
+  },
+  "model.encoder.layer.18.attention.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    987136
+   ]
+  },
+  "model.encoder.layer.18.intermediate.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    991232
+   ]
+  },
+  "model.encoder.layer.18.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    1007616
+   ]
+  },
+  "model.encoder.layer.18.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    1011712
+   ]
+  },
+  "model.encoder.layer.18.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    1015808
+   ]
+  },
+  "model.encoder.layer.19.attention.self.query_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    1019904
+   ]
+  },
+  "model.encoder.layer.19.attention.self.key_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    1024000
+   ]
+  },
+  "model.encoder.layer.19.attention.self.value_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    1028096
+   ]
+  },
+  "model.encoder.layer.19.attention.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    1032192
+   ]
+  },
+  "model.encoder.layer.19.attention.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    1036288
+   ]
+  },
+  "model.encoder.layer.19.attention.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    1040384
+   ]
+  },
+  "model.encoder.layer.19.intermediate.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    1044480
+   ]
+  },
+  "model.encoder.layer.19.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    1060864
+   ]
+  },
+  "model.encoder.layer.19.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    1064960
+   ]
+  },
+  "model.encoder.layer.19.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    1069056
+   ]
+  },
+  "model.encoder.layer.20.attention.self.query_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    1073152
+   ]
+  },
+  "model.encoder.layer.20.attention.self.key_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    1077248
+   ]
+  },
+  "model.encoder.layer.20.attention.self.value_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    1081344
+   ]
+  },
+  "model.encoder.layer.20.attention.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    1085440
+   ]
+  },
+  "model.encoder.layer.20.attention.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    1089536
+   ]
+  },
+  "model.encoder.layer.20.attention.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    1093632
+   ]
+  },
+  "model.encoder.layer.20.intermediate.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    1097728
+   ]
+  },
+  "model.encoder.layer.20.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    1114112
+   ]
+  },
+  "model.encoder.layer.20.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    1118208
+   ]
+  },
+  "model.encoder.layer.20.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    1122304
+   ]
+  },
+  "model.encoder.layer.21.attention.self.query_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    1126400
+   ]
+  },
+  "model.encoder.layer.21.attention.self.key_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    1130496
+   ]
+  },
+  "model.encoder.layer.21.attention.self.value_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    1134592
+   ]
+  },
+  "model.encoder.layer.21.attention.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    1138688
+   ]
+  },
+  "model.encoder.layer.21.attention.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    1142784
+   ]
+  },
+  "model.encoder.layer.21.attention.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    1146880
+   ]
+  },
+  "model.encoder.layer.21.intermediate.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    1150976
+   ]
+  },
+  "model.encoder.layer.21.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    1167360
+   ]
+  },
+  "model.encoder.layer.21.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    1171456
+   ]
+  },
+  "model.encoder.layer.21.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    1175552
+   ]
+  },
+  "model.encoder.layer.22.attention.self.query_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    1179648
+   ]
+  },
+  "model.encoder.layer.22.attention.self.key_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    1183744
+   ]
+  },
+  "model.encoder.layer.22.attention.self.value_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    1187840
+   ]
+  },
+  "model.encoder.layer.22.attention.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    1191936
+   ]
+  },
+  "model.encoder.layer.22.attention.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    1196032
+   ]
+  },
+  "model.encoder.layer.22.attention.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    1200128
+   ]
+  },
+  "model.encoder.layer.22.intermediate.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    1204224
+   ]
+  },
+  "model.encoder.layer.22.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    1220608
+   ]
+  },
+  "model.encoder.layer.22.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    1224704
+   ]
+  },
+  "model.encoder.layer.22.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    1228800
+   ]
+  },
+  "model.encoder.layer.23.attention.self.query_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    1232896
+   ]
+  },
+  "model.encoder.layer.23.attention.self.key_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    1236992
+   ]
+  },
+  "model.encoder.layer.23.attention.self.value_proj.bias": {
+   "kind": "copy",
+   "targets": [
+    1241088
+   ]
+  },
+  "model.encoder.layer.23.attention.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    1245184
+   ]
+  },
+  "model.encoder.layer.23.attention.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    1249280
+   ]
+  },
+  "model.encoder.layer.23.attention.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    1253376
+   ]
+  },
+  "model.encoder.layer.23.intermediate.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    1257472
+   ]
+  },
+  "model.encoder.layer.23.output.dense.bias": {
+   "kind": "copy",
+   "targets": [
+    1273856
+   ]
+  },
+  "model.encoder.layer.23.output.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    1277952
+   ]
+  },
+  "model.encoder.layer.23.output.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    1282048
+   ]
+  },
+  "model.encoder.rel_embeddings.weight": {
+   "kind": "copy",
+   "targets": [
+    1286144
+   ]
+  },
+  "model.encoder.LayerNorm.weight": {
+   "kind": "copy",
+   "targets": [
+    3383296
+   ]
+  },
+  "model.encoder.LayerNorm.bias": {
+   "kind": "copy",
+   "targets": [
+    3387392
+   ]
+  },
+  "classifier.weight": {
+   "kind": "copy",
+   "targets": [
+    3391488
+   ]
+  },
+  "model.encoder.layer.0.attention.self.value_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 3395584,
+   "scales": 4444160
+  },
+  "model.encoder.layer.0.attention.self.query_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 4575232,
+   "scales": 5623808
+  },
+  "model.encoder.layer.0.attention.self.key_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 5754880,
+   "scales": 6803456
+  },
+  "model.encoder.layer.0.attention.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 6934528,
+   "scales": 7983104
+  },
+  "model.encoder.layer.0.intermediate.dense.weight": {
+   "kind": "nbits8",
+   "rows": 4096,
+   "cols": 1024,
+   "q": 8114176,
+   "scales": 12308480
+  },
+  "model.encoder.layer.0.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 4096,
+   "q": 12832768,
+   "scales": 17027072
+  },
+  "model.encoder.layer.1.attention.self.value_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 17551360,
+   "scales": 18599936
+  },
+  "model.encoder.layer.1.attention.self.query_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 18731008,
+   "scales": 19779584
+  },
+  "model.encoder.layer.1.attention.self.key_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 19910656,
+   "scales": 20959232
+  },
+  "model.encoder.layer.1.attention.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 21090304,
+   "scales": 22138880
+  },
+  "model.encoder.layer.1.intermediate.dense.weight": {
+   "kind": "nbits8",
+   "rows": 4096,
+   "cols": 1024,
+   "q": 22269952,
+   "scales": 26464256
+  },
+  "model.encoder.layer.1.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 4096,
+   "q": 26988544,
+   "scales": 31182848
+  },
+  "model.encoder.layer.2.attention.self.value_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 31707136,
+   "scales": 32755712
+  },
+  "model.encoder.layer.2.attention.self.query_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 32886784,
+   "scales": 33935360
+  },
+  "model.encoder.layer.2.attention.self.key_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 34066432,
+   "scales": 35115008
+  },
+  "model.encoder.layer.2.attention.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 35246080,
+   "scales": 36294656
+  },
+  "model.encoder.layer.2.intermediate.dense.weight": {
+   "kind": "nbits8",
+   "rows": 4096,
+   "cols": 1024,
+   "q": 36425728,
+   "scales": 40620032
+  },
+  "model.encoder.layer.2.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 4096,
+   "q": 41144320,
+   "scales": 45338624
+  },
+  "model.encoder.layer.3.attention.self.value_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 45862912,
+   "scales": 46911488
+  },
+  "model.encoder.layer.3.attention.self.query_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 47042560,
+   "scales": 48091136
+  },
+  "model.encoder.layer.3.attention.self.key_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 48222208,
+   "scales": 49270784
+  },
+  "model.encoder.layer.3.attention.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 49401856,
+   "scales": 50450432
+  },
+  "model.encoder.layer.3.intermediate.dense.weight": {
+   "kind": "nbits8",
+   "rows": 4096,
+   "cols": 1024,
+   "q": 50581504,
+   "scales": 54775808
+  },
+  "model.encoder.layer.3.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 4096,
+   "q": 55300096,
+   "scales": 59494400
+  },
+  "model.encoder.layer.4.attention.self.value_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 60018688,
+   "scales": 61067264
+  },
+  "model.encoder.layer.4.attention.self.query_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 61198336,
+   "scales": 62246912
+  },
+  "model.encoder.layer.4.attention.self.key_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 62377984,
+   "scales": 63426560
+  },
+  "model.encoder.layer.4.attention.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 63557632,
+   "scales": 64606208
+  },
+  "model.encoder.layer.4.intermediate.dense.weight": {
+   "kind": "nbits8",
+   "rows": 4096,
+   "cols": 1024,
+   "q": 64737280,
+   "scales": 68931584
+  },
+  "model.encoder.layer.4.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 4096,
+   "q": 69455872,
+   "scales": 73650176
+  },
+  "model.encoder.layer.5.attention.self.value_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 74174464,
+   "scales": 75223040
+  },
+  "model.encoder.layer.5.attention.self.query_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 75354112,
+   "scales": 76402688
+  },
+  "model.encoder.layer.5.attention.self.key_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 76533760,
+   "scales": 77582336
+  },
+  "model.encoder.layer.5.attention.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 77713408,
+   "scales": 78761984
+  },
+  "model.encoder.layer.5.intermediate.dense.weight": {
+   "kind": "nbits8",
+   "rows": 4096,
+   "cols": 1024,
+   "q": 78893056,
+   "scales": 83087360
+  },
+  "model.encoder.layer.5.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 4096,
+   "q": 83611648,
+   "scales": 87805952
+  },
+  "model.encoder.layer.6.attention.self.value_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 88330240,
+   "scales": 89378816
+  },
+  "model.encoder.layer.6.attention.self.query_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 89509888,
+   "scales": 90558464
+  },
+  "model.encoder.layer.6.attention.self.key_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 90689536,
+   "scales": 91738112
+  },
+  "model.encoder.layer.6.attention.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 91869184,
+   "scales": 92917760
+  },
+  "model.encoder.layer.6.intermediate.dense.weight": {
+   "kind": "nbits8",
+   "rows": 4096,
+   "cols": 1024,
+   "q": 93048832,
+   "scales": 97243136
+  },
+  "model.encoder.layer.6.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 4096,
+   "q": 97767424,
+   "scales": 101961728
+  },
+  "model.encoder.layer.7.attention.self.value_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 102486016,
+   "scales": 103534592
+  },
+  "model.encoder.layer.7.attention.self.query_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 103665664,
+   "scales": 104714240
+  },
+  "model.encoder.layer.7.attention.self.key_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 104845312,
+   "scales": 105893888
+  },
+  "model.encoder.layer.7.attention.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 106024960,
+   "scales": 107073536
+  },
+  "model.encoder.layer.7.intermediate.dense.weight": {
+   "kind": "nbits8",
+   "rows": 4096,
+   "cols": 1024,
+   "q": 107204608,
+   "scales": 111398912
+  },
+  "model.encoder.layer.7.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 4096,
+   "q": 111923200,
+   "scales": 116117504
+  },
+  "model.encoder.layer.8.attention.self.value_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 116641792,
+   "scales": 117690368
+  },
+  "model.encoder.layer.8.attention.self.query_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 117821440,
+   "scales": 118870016
+  },
+  "model.encoder.layer.8.attention.self.key_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 119001088,
+   "scales": 120049664
+  },
+  "model.encoder.layer.8.attention.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 120180736,
+   "scales": 121229312
+  },
+  "model.encoder.layer.8.intermediate.dense.weight": {
+   "kind": "nbits8",
+   "rows": 4096,
+   "cols": 1024,
+   "q": 121360384,
+   "scales": 125554688
+  },
+  "model.encoder.layer.8.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 4096,
+   "q": 126078976,
+   "scales": 130273280
+  },
+  "model.encoder.layer.9.attention.self.value_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 130797568,
+   "scales": 131846144
+  },
+  "model.encoder.layer.9.attention.self.query_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 131977216,
+   "scales": 133025792
+  },
+  "model.encoder.layer.9.attention.self.key_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 133156864,
+   "scales": 134205440
+  },
+  "model.encoder.layer.9.attention.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 134336512,
+   "scales": 135385088
+  },
+  "model.encoder.layer.9.intermediate.dense.weight": {
+   "kind": "nbits8",
+   "rows": 4096,
+   "cols": 1024,
+   "q": 135516160,
+   "scales": 139710464
+  },
+  "model.encoder.layer.9.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 4096,
+   "q": 140234752,
+   "scales": 144429056
+  },
+  "model.encoder.layer.10.attention.self.value_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 144953344,
+   "scales": 146001920
+  },
+  "model.encoder.layer.10.attention.self.query_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 146132992,
+   "scales": 147181568
+  },
+  "model.encoder.layer.10.attention.self.key_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 147312640,
+   "scales": 148361216
+  },
+  "model.encoder.layer.10.attention.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 148492288,
+   "scales": 149540864
+  },
+  "model.encoder.layer.10.intermediate.dense.weight": {
+   "kind": "nbits8",
+   "rows": 4096,
+   "cols": 1024,
+   "q": 149671936,
+   "scales": 153866240
+  },
+  "model.encoder.layer.10.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 4096,
+   "q": 154390528,
+   "scales": 158584832
+  },
+  "model.encoder.layer.11.attention.self.value_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 159109120,
+   "scales": 160157696
+  },
+  "model.encoder.layer.11.attention.self.query_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 160288768,
+   "scales": 161337344
+  },
+  "model.encoder.layer.11.attention.self.key_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 161468416,
+   "scales": 162516992
+  },
+  "model.encoder.layer.11.attention.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 162648064,
+   "scales": 163696640
+  },
+  "model.encoder.layer.11.intermediate.dense.weight": {
+   "kind": "nbits8",
+   "rows": 4096,
+   "cols": 1024,
+   "q": 163827712,
+   "scales": 168022016
+  },
+  "model.encoder.layer.11.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 4096,
+   "q": 168546304,
+   "scales": 172740608
+  },
+  "model.encoder.layer.12.attention.self.value_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 173264896,
+   "scales": 174313472
+  },
+  "model.encoder.layer.12.attention.self.query_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 174444544,
+   "scales": 175493120
+  },
+  "model.encoder.layer.12.attention.self.key_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 175624192,
+   "scales": 176672768
+  },
+  "model.encoder.layer.12.attention.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 176803840,
+   "scales": 177852416
+  },
+  "model.encoder.layer.12.intermediate.dense.weight": {
+   "kind": "nbits8",
+   "rows": 4096,
+   "cols": 1024,
+   "q": 177983488,
+   "scales": 182177792
+  },
+  "model.encoder.layer.12.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 4096,
+   "q": 182702080,
+   "scales": 186896384
+  },
+  "model.encoder.layer.13.attention.self.value_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 187420672,
+   "scales": 188469248
+  },
+  "model.encoder.layer.13.attention.self.query_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 188600320,
+   "scales": 189648896
+  },
+  "model.encoder.layer.13.attention.self.key_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 189779968,
+   "scales": 190828544
+  },
+  "model.encoder.layer.13.attention.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 190959616,
+   "scales": 192008192
+  },
+  "model.encoder.layer.13.intermediate.dense.weight": {
+   "kind": "nbits8",
+   "rows": 4096,
+   "cols": 1024,
+   "q": 192139264,
+   "scales": 196333568
+  },
+  "model.encoder.layer.13.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 4096,
+   "q": 196857856,
+   "scales": 201052160
+  },
+  "model.encoder.layer.14.attention.self.value_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 201576448,
+   "scales": 202625024
+  },
+  "model.encoder.layer.14.attention.self.query_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 202756096,
+   "scales": 203804672
+  },
+  "model.encoder.layer.14.attention.self.key_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 203935744,
+   "scales": 204984320
+  },
+  "model.encoder.layer.14.attention.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 205115392,
+   "scales": 206163968
+  },
+  "model.encoder.layer.14.intermediate.dense.weight": {
+   "kind": "nbits8",
+   "rows": 4096,
+   "cols": 1024,
+   "q": 206295040,
+   "scales": 210489344
+  },
+  "model.encoder.layer.14.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 4096,
+   "q": 211013632,
+   "scales": 215207936
+  },
+  "model.encoder.layer.15.attention.self.value_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 215732224,
+   "scales": 216780800
+  },
+  "model.encoder.layer.15.attention.self.query_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 216911872,
+   "scales": 217960448
+  },
+  "model.encoder.layer.15.attention.self.key_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 218091520,
+   "scales": 219140096
+  },
+  "model.encoder.layer.15.attention.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 219271168,
+   "scales": 220319744
+  },
+  "model.encoder.layer.15.intermediate.dense.weight": {
+   "kind": "nbits8",
+   "rows": 4096,
+   "cols": 1024,
+   "q": 220450816,
+   "scales": 224645120
+  },
+  "model.encoder.layer.15.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 4096,
+   "q": 225169408,
+   "scales": 229363712
+  },
+  "model.encoder.layer.16.attention.self.value_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 229888000,
+   "scales": 230936576
+  },
+  "model.encoder.layer.16.attention.self.query_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 231067648,
+   "scales": 232116224
+  },
+  "model.encoder.layer.16.attention.self.key_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 232247296,
+   "scales": 233295872
+  },
+  "model.encoder.layer.16.attention.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 233426944,
+   "scales": 234475520
+  },
+  "model.encoder.layer.16.intermediate.dense.weight": {
+   "kind": "nbits8",
+   "rows": 4096,
+   "cols": 1024,
+   "q": 234606592,
+   "scales": 238800896
+  },
+  "model.encoder.layer.16.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 4096,
+   "q": 239325184,
+   "scales": 243519488
+  },
+  "model.encoder.layer.17.attention.self.value_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 244043776,
+   "scales": 245092352
+  },
+  "model.encoder.layer.17.attention.self.query_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 245223424,
+   "scales": 246272000
+  },
+  "model.encoder.layer.17.attention.self.key_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 246403072,
+   "scales": 247451648
+  },
+  "model.encoder.layer.17.attention.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 247582720,
+   "scales": 248631296
+  },
+  "model.encoder.layer.17.intermediate.dense.weight": {
+   "kind": "nbits8",
+   "rows": 4096,
+   "cols": 1024,
+   "q": 248762368,
+   "scales": 252956672
+  },
+  "model.encoder.layer.17.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 4096,
+   "q": 253480960,
+   "scales": 257675264
+  },
+  "model.encoder.layer.18.attention.self.value_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 258199552,
+   "scales": 259248128
+  },
+  "model.encoder.layer.18.attention.self.query_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 259379200,
+   "scales": 260427776
+  },
+  "model.encoder.layer.18.attention.self.key_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 260558848,
+   "scales": 261607424
+  },
+  "model.encoder.layer.18.attention.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 261738496,
+   "scales": 262787072
+  },
+  "model.encoder.layer.18.intermediate.dense.weight": {
+   "kind": "nbits8",
+   "rows": 4096,
+   "cols": 1024,
+   "q": 262918144,
+   "scales": 267112448
+  },
+  "model.encoder.layer.18.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 4096,
+   "q": 267636736,
+   "scales": 271831040
+  },
+  "model.encoder.layer.19.attention.self.value_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 272355328,
+   "scales": 273403904
+  },
+  "model.encoder.layer.19.attention.self.query_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 273534976,
+   "scales": 274583552
+  },
+  "model.encoder.layer.19.attention.self.key_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 274714624,
+   "scales": 275763200
+  },
+  "model.encoder.layer.19.attention.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 275894272,
+   "scales": 276942848
+  },
+  "model.encoder.layer.19.intermediate.dense.weight": {
+   "kind": "nbits8",
+   "rows": 4096,
+   "cols": 1024,
+   "q": 277073920,
+   "scales": 281268224
+  },
+  "model.encoder.layer.19.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 4096,
+   "q": 281792512,
+   "scales": 285986816
+  },
+  "model.encoder.layer.20.attention.self.value_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 286511104,
+   "scales": 287559680
+  },
+  "model.encoder.layer.20.attention.self.query_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 287690752,
+   "scales": 288739328
+  },
+  "model.encoder.layer.20.attention.self.key_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 288870400,
+   "scales": 289918976
+  },
+  "model.encoder.layer.20.attention.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 290050048,
+   "scales": 291098624
+  },
+  "model.encoder.layer.20.intermediate.dense.weight": {
+   "kind": "nbits8",
+   "rows": 4096,
+   "cols": 1024,
+   "q": 291229696,
+   "scales": 295424000
+  },
+  "model.encoder.layer.20.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 4096,
+   "q": 295948288,
+   "scales": 300142592
+  },
+  "model.encoder.layer.21.attention.self.value_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 300666880,
+   "scales": 301715456
+  },
+  "model.encoder.layer.21.attention.self.query_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 301846528,
+   "scales": 302895104
+  },
+  "model.encoder.layer.21.attention.self.key_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 303026176,
+   "scales": 304074752
+  },
+  "model.encoder.layer.21.attention.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 304205824,
+   "scales": 305254400
+  },
+  "model.encoder.layer.21.intermediate.dense.weight": {
+   "kind": "nbits8",
+   "rows": 4096,
+   "cols": 1024,
+   "q": 305385472,
+   "scales": 309579776
+  },
+  "model.encoder.layer.21.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 4096,
+   "q": 310104064,
+   "scales": 314298368
+  },
+  "model.encoder.layer.22.attention.self.value_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 314822656,
+   "scales": 315871232
+  },
+  "model.encoder.layer.22.attention.self.query_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 316002304,
+   "scales": 317050880
+  },
+  "model.encoder.layer.22.attention.self.key_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 317181952,
+   "scales": 318230528
+  },
+  "model.encoder.layer.22.attention.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 318361600,
+   "scales": 319410176
+  },
+  "model.encoder.layer.22.intermediate.dense.weight": {
+   "kind": "nbits8",
+   "rows": 4096,
+   "cols": 1024,
+   "q": 319541248,
+   "scales": 323735552
+  },
+  "model.encoder.layer.22.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 4096,
+   "q": 324259840,
+   "scales": 328454144
+  },
+  "model.encoder.layer.23.attention.self.value_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 328978432,
+   "scales": 330027008
+  },
+  "model.encoder.layer.23.attention.self.query_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 330158080,
+   "scales": 331206656
+  },
+  "model.encoder.layer.23.attention.self.key_proj.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 331337728,
+   "scales": 332386304
+  },
+  "model.encoder.layer.23.attention.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 1024,
+   "q": 332517376,
+   "scales": 333565952
+  },
+  "model.encoder.layer.23.intermediate.dense.weight": {
+   "kind": "nbits8",
+   "rows": 4096,
+   "cols": 1024,
+   "q": 333697024,
+   "scales": 337891328
+  },
+  "model.encoder.layer.23.output.dense.weight": {
+   "kind": "nbits8",
+   "rows": 1024,
+   "cols": 4096,
+   "q": 338415616,
+   "scales": 342609920
+  },
+  "model.embeddings.word_embeddings.weight": {
+   "kind": "emb8",
+   "rows": 128100,
+   "cols": 1024,
+   "q": 343134208,
+   "scales": 474308608
+  }
+ }
+}

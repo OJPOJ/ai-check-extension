@@ -117,7 +117,9 @@ def load_desklib():
 def score_desklib_texts(texts: list[str]) -> list[float]:
     load_desklib()
     with torch.no_grad():
-        enc = _desklib_tokenizer(texts, padding="max_length", truncation=True, max_length=768, return_tensors="pt")
+        # Nur auf den längsten Text im Batch auffüllen statt immer auf 768 Tokens: Das Mean-Pooling
+        # maskiert Füll-Tokens ohnehin aus, die Scores bleiben gleich, aber kurze Absätze sind ~5x schneller.
+        enc = _desklib_tokenizer(texts, padding=True, truncation=True, max_length=768, return_tensors="pt")
         logits = _desklib_model(input_ids=enc["input_ids"], attention_mask=enc["attention_mask"])
         return torch.sigmoid(logits).squeeze(-1).tolist()
 

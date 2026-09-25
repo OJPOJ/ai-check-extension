@@ -1,6 +1,6 @@
 importScripts("config.js");
 
-const LOCAL_TIMEOUT_MS = 180_000; // desklib braucht auf CPU ~2 Min pro 25er-Batch
+const LOCAL_TIMEOUT_MS = 180_000; // großzügig: desklib auf langsamer CPU und beim ersten Laden des Modells
 const REMOTE_TIMEOUT_MS = 30_000;
 const CACHE_MAX = 5000;
 const TEST_TEXT =
@@ -133,7 +133,7 @@ async function callOffscreen(type, payload = {}) {
 
 const PROVIDERS = {
   browser: {
-    score: async (texts) => (await callOffscreen("score", { texts })).scores
+    score: async (texts, cfg) => (await callOffscreen("score", { texts, model: cfg.browserModel })).scores
   },
   local: {
     score: (texts, cfg) =>
@@ -219,10 +219,10 @@ async function health() {
   const provider = AIVSAI.providerLabel(cfg);
   if (cfg.provider === "browser") {
     try {
-      const st = await callOffscreen("status");
-      return st.downloaded
-        ? { ok: true, provider, detail: st.loaded ? "Modell geladen" : "Modell bereit" }
-        : { ok: false, provider, error: "Modell noch nicht heruntergeladen" };
+      const st = (await callOffscreen("status")).models[cfg.browserModel];
+      if (st?.downloaded) return { ok: true, provider, detail: st.loaded ? "Modell geladen" : "Modell bereit" };
+      if (st?.downloading) return { ok: false, provider, error: "Modell wird heruntergeladen…" };
+      return { ok: false, provider, error: "Modell noch nicht heruntergeladen" };
     } catch (err) {
       return { ok: false, provider, error: String(err?.message || err) };
     }
@@ -320,15 +320,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     case "MODEL_STATUS":
     case "MODEL_DOWNLOAD":
     case "MODEL_DELETE": {
+      // Download startet nur; Ende kommt als MODEL_DONE vom Offscreen-Dokument
       const type = { MODEL_STATUS: "status", MODEL_DOWNLOAD: "download", MODEL_DELETE: "delete" }[msg.type];
-      callOffscreen(type)
-        .then((result) => {
-          if (type === "download" && result.downloaded) notifyTabs({ type: "MODEL_READY" });
-          sendResponse(result);
-        })
+      callOffscreen(type, { model: msg.model })
+        .then(sendResponse)
         .catch((err) => sendResponse({ ok: false, error: String(err?.message || err) }));
       return true;
     }
+    case "MODEL_DONE":
+      if (msg.ok) notifyTabs({ type: "MODEL_READY" });
+      return false;
     default:
       return false;
   }
