@@ -29,7 +29,48 @@ Läuft auf `127.0.0.1:8787`. TMR/desklib laden lazy beim ersten Request mit dies
 ```powershell
 Invoke-RestMethod http://127.0.0.1:8787/healthz
 # {"ok": true, "laya_upstream": true/false, "tmr_loaded": ..., "desklib_loaded": ...}
+Invoke-RestMethod "http://127.0.0.1:8787/v1/info?model=desklib"
+# {"name": "desklib AI Text Detector v1.01", "version": "5fdea97", "maxChars": 1500, ...}
 ```
+
+## Vertrag für eigene Modelle („Lokal“ und „Eigener Server“)
+
+Ein eigenes Modell ist ein binärer Klassifikator. Jeder Server, der das hier erfüllt, lässt sich in
+der Extension einsetzen; `shim_server.py` ist die Referenz-Implementierung.
+
+**`POST …/v1/score`** (die URL trägt man in der Extension ein)
+
+```json
+{"texts": ["…", "…"], "model": "tmr", "lang": "en"}
+→ {"scores": [0.93, 0.12]}
+```
+
+- `texts`: 1..n Texte, je bis `maxChars` Zeichen (Extension: Batches bis 2500 Zeichen).
+- `model`: optional, nur wenn in der Extension eingetragen.
+- `lang`: optional, Sprache der Texte (BCP-47, z.B. `en`), falls bekannt.
+- `scores`: pro Text **P(KI) in [0,1]**, gleiche Reihenfolge und Anzahl. Werte außerhalb 0..1
+  (z.B. Logits) oder Nicht-Zahlen lässt die Extension unbewertet.
+- Optional `Authorization: Bearer <key>`. Fehler als HTTP-Status mit `{"detail": "…"}` oder
+  `{"error": {"message": "…"}}` – der Text erscheint in der Extension.
+
+**`GET …/v1/info?model=…`** (optional, neben dem Score-Endpunkt: `…/v1/score` → `…/v1/info`)
+
+```json
+{"name": "TMR AI Text Detector", "version": "0ceddea", "maxChars": 2000, "languages": ["en"],
+ "suggestedThresholds": {"yellowFrom": 0.6, "redFrom": 0.9}}
+```
+
+Alle Felder optional. `version` geht in den Modellschlüssel der Extension ein: Ändert sie sich
+(neue Gewichte, andere Quantisierung), gelten gespeicherte Scores nicht mehr. `maxChars` begrenzt
+den Text pro Absatz, `suggestedThresholds` sind die Startwerte der Ampel. Ohne den Endpunkt
+(404/405/501) läuft alles, nur ohne Version.
+
+**„Modell prüfen“** in den Einstellungen (Pflicht für „Eigener Server“) schickt vor dem Speichern
+40 englische Referenztexte und prüft Antwortformat, Richtung (KI höher als Mensch), Trennschärfe
+(AUROC ≥ 0.6, Warnung unter 0.8) und Latenz. Details: `../README.md`, „Eigene Modelle prüfen“.
+
+`shim_server.py` pinnt die Modell-Revisionen (`TMR_REVISION`, `DESKLIB_REVISION`) und meldet sie
+als `version`.
 
 ## `/v1/score` — der Endpunkt, den die Extension nutzt
 

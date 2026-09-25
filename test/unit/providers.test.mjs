@@ -1,5 +1,5 @@
-// Backends aus extension/bg/providers.js mit gemocktem fetch/chrome: Vertrag, Antwortformen der
-// Hugging-Face-API, Label-Zuordnung und Fehlermeldungen. Die E2E-Tests decken nur "Lokal" gegen ein
+// Backends aus extension/bg/providers.js mit gemocktem fetch/chrome: Vertrag, /v1/info, Antwortformen der
+// Hugging-Face-API, Hub-Metadaten, Label-Zuordnung und Fehlermeldungen. Die E2E-Tests decken nur "Lokal" gegen ein
 // Fake-Backend ab; Hugging Face mit echtem Token bleibt ungetestet (README, "Tests").
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
@@ -16,7 +16,7 @@ let calls = [];
 function mockFetch(...responses) {
   calls = [];
   globalThis.fetch = async (url, init) => {
-    calls.push({ url, init, body: JSON.parse(init.body) });
+    calls.push({ url, init, body: init?.body && JSON.parse(init.body) });
     const { status = 200, body } = responses.shift();
     return new Response(typeof body === "string" ? body : JSON.stringify(body), { status });
   };
@@ -65,9 +65,18 @@ describe("Lokal / Eigener Server (Vertrag POST {texts, model?} -> {scores})", ()
     assert.deepEqual(calls[0].body, { texts: ["a"] });
   });
 
-  it("Nicht-Zahlen werden null (Absatz bleibt unbewertet), der Rest bleibt", async () => {
-    mockFetch({ body: { scores: [0.2, null, "0.7"] } });
-    assert.deepEqual(await BACKENDS.custom.score(["a", "b", "c"], custom), [0.2, null, null]);
+  it("Nicht-Zahlen und Werte außerhalb 0..1 werden null (Absatz bleibt unbewertet), der Rest bleibt", async () => {
+    mockFetch({ body: { scores: [0.2, null, "0.7", -0.1, 1.5, 0, 1] } });
+    const texts = ["a", "b", "c", "d", "e", "f", "g"];
+    assert.deepEqual(await BACKENDS.custom.score(texts, custom), [0.2, null, null, null, null, 0, 1]);
+  });
+
+  it("lang geht mit, wenn bekannt", async () => {
+    mockFetch({ body: { scores: [0.5] } }, { body: { scores: [0.5] } });
+    await BACKENDS.local.score(["a"], local, { lang: "en" });
+    await BACKENDS.custom.score(["a"], custom, { lang: "de" });
+    assert.deepEqual(calls[0].body, { texts: ["a"], model: "tmr", lang: "en" });
+    assert.deepEqual(calls[1].body, { texts: ["a"], lang: "de" });
   });
 
   it("lehnt Antworten ohne passendes scores-Array ab", async () => {
@@ -95,6 +104,49 @@ describe("Lokal / Eigener Server (Vertrag POST {texts, model?} -> {scores})", ()
       mockFetch(resp);
       await assert.rejects(BACKENDS.local.score(["a"], local), { message });
     }
+  });
+});
+
+describe("GET /v1/info (inspect für Lokal / Eigener Server)", () => {
+  const info = { name: "Det", version: "v2", maxChars: 1200, languages: ["en"], suggestedThresholds: { yellowFrom: 0.4, redFrom: 0.8 } };
+
+  it("Lokal: neben /v1/score, mit Modell als Parameter", async () => {
+    mockFetch({ body: info });
+    assert.deepEqual(await BACKENDS.local.inspect(local), { info, notes: [] });
+    assert.equal(calls[0].url, "http://127.0.0.1:8787/v1/info?model=tmr");
+    assert.equal(calls[0].init.method, undefined); // GET
+  });
+
+  it("Eigener Server: relativ zur Endpunkt-URL, Bearer-Key", async () => {
+    mockFetch({ body: info }, { body: info });
+    await BACKENDS.custom.inspect({ ...custom, customUrl: "https://s.example/api/v1/score", customApiKey: "k", customModel: "a b" });
+    assert.equal(calls[0].url, "https://s.example/api/v1/info?model=a%20b");
+    assert.equal(calls[0].init.headers.Authorization, "Bearer k");
+    await BACKENDS.custom.inspect(custom);
+    assert.equal(calls[1].url, "https://s.example/info");
+  });
+
+  it("fehlender Endpunkt ist kein Fehler, andere HTTP-Fehler schon", async () => {
+    for (const status of [404, 405, 501]) {
+      mockFetch({ status, body: "" });
+      const r = await BACKENDS.custom.inspect(custom);
+      assert.deepEqual(r.info, {});
+      assert.match(r.notes[0], /Kein \/v1\/info/);
+    }
+    mockFetch({ status: 401, body: { detail: "invalid or missing API key" } });
+    await assert.rejects(BACKENDS.custom.inspect(custom), /HTTP 401/);
+  });
+
+  it("verwirft ungültige Felder mit Hinweis, Version als Text", async () => {
+    mockFetch({
+      body: { name: 3, version: 7, maxChars: 5, languages: "en", suggestedThresholds: { yellowFrom: 0.9, redFrom: 0.5 } }
+    });
+    const r = await BACKENDS.custom.inspect(custom);
+    assert.deepEqual(r.info, { version: "7" });
+    assert.equal(r.notes.length, 4);
+
+    mockFetch({ body: {} });
+    assert.match((await BACKENDS.custom.inspect(custom)).notes[0], /keine Version/);
   });
 });
 
@@ -157,6 +209,63 @@ describe("Hugging Face", () => {
 
     mockFetch({ status: 503, body: { error: "Model is loading" } });
     await assert.rejects(BACKENDS.huggingface.score(["a"], hf), { message: "HTTP 503: Model is loading" });
+  });
+});
+
+describe("Hugging Face: Metadaten vom Hub (inspect)", () => {
+  const meta = (over = {}) => ({ body: { sha: "0123456789abcdef", pipeline_tag: "text-classification", ...over } });
+  const config = (id2label) => ({ body: { id2label } });
+
+  it("liest Modellinfo und config.json derselben Revision, mit Token", async () => {
+    mockFetch(meta(), config({ 0: "Human", 1: "AI" }));
+    const r = await BACKENDS.huggingface.inspect(hf);
+    assert.equal(calls[0].url, "https://huggingface.co/api/models/org/detector");
+    assert.equal(calls[1].url, "https://huggingface.co/org/detector/resolve/0123456789abcdef/config.json");
+    assert.equal(calls[1].init.headers.Authorization, "Bearer hf_x");
+    assert.deepEqual(r.info, { name: "org/detector", version: "0123456", aiLabel: "AI" });
+    assert.deepEqual(r.labels, ["Human", "AI"]);
+  });
+
+  it("KI-Label aus id2label: per KI-Name, per Mensch-Name, sonst offen", async () => {
+    const cases = [
+      [{ 0: "machine-generated", 1: "human" }, "machine-generated"],
+      [{ 0: "Real", 1: "Synthetic" }, "Synthetic"], // nur die Mensch-Klasse ist erkennbar
+      [{ 0: "LABEL_0", 1: "LABEL_1" }, undefined], // Konvention unbekannt -> model-check.js entscheidet
+      [{ 1: "b", 0: "a" }, undefined]
+    ];
+    for (const [id2label, aiLabel] of cases) {
+      mockFetch(meta(), config(id2label));
+      assert.equal((await BACKENDS.huggingface.inspect(hf)).info.aiLabel, aiLabel, JSON.stringify(id2label));
+    }
+    mockFetch(meta(), config({ 1: "b", 0: "a" }));
+    assert.deepEqual((await BACKENDS.huggingface.inspect(hf)).labels, ["a", "b"]);
+  });
+
+  it("eingetragenes Label muss es geben (Groß-/Kleinschreibung egal)", async () => {
+    mockFetch(meta(), config({ 0: "LABEL_0", 1: "LABEL_1" }));
+    assert.equal((await BACKENDS.huggingface.inspect({ ...hf, hfAiLabel: "label_0" })).info.aiLabel, "LABEL_0");
+    mockFetch(meta(), config({ 0: "LABEL_0", 1: "LABEL_1" }));
+    await assert.rejects(BACKENDS.huggingface.inspect({ ...hf, hfAiLabel: "AI" }), /„AI“ gibt es nicht/);
+  });
+
+  it("lehnt falschen Modelltyp, andere Klassenzahl und unbekannte Modelle ab", async () => {
+    mockFetch(meta({ pipeline_tag: "text-generation" }));
+    await assert.rejects(BACKENDS.huggingface.inspect(hf), /pipeline_tag: text-generation/);
+    mockFetch(meta({ pipeline_tag: undefined }));
+    await assert.rejects(BACKENDS.huggingface.inspect(hf), /pipeline_tag: fehlt/);
+    mockFetch(meta(), config({ 0: "neg", 1: "neu", 2: "pos" }));
+    await assert.rejects(BACKENDS.huggingface.inspect(hf), /genau 2 Klassen.*hat 3: neg, neu, pos/);
+    mockFetch(meta(), config(undefined));
+    await assert.rejects(BACKENDS.huggingface.inspect(hf), /hat keine$/);
+    mockFetch({ status: 401, body: { error: "Invalid credentials" } });
+    await assert.rejects(BACKENDS.huggingface.inspect(hf), /nicht gefunden \(oder privat\/gated/);
+  });
+
+  it("Bewertung nutzt das KI-Label aus der bestandenen Prüfung, Top-1 der anderen Klasse -> Gegenwert", async () => {
+    const sig = globalThis.AIVSAI.checkSignature(hf);
+    const checked = { ...hf, modelChecks: { huggingface: { ok: true, sig, info: { aiLabel: "LABEL_0" } } } };
+    mockFetch({ body: [[{ label: "LABEL_1", score: 0.9 }, { label: "LABEL_0", score: 0.1 }], [{ label: "LABEL_1", score: 0.75 }]] });
+    assert.deepEqual(await BACKENDS.huggingface.score(["a", "b"], checked), [0.1, 0.25]);
   });
 });
 

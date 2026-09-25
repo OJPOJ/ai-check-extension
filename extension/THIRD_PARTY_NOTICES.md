@@ -24,6 +24,14 @@ Die mitgelieferte Sperrliste ist aus folgenden Quellen zusammengestellt und steh
   Vereinigten Königreich und den USA, CC0 1.0. https://www.wikidata.org/
 - Handverlesene Ergänzungen (`scripts/build-blocklist.mjs`, `CURATED`).
 
+## Mitgelieferte Daten (`bg/reference-set.js`, per `training/build_reference_set.py`)
+
+Das Referenzset für „Modell prüfen“ (je 20 menschliche und ChatGPT-Texte) stammt aus **HC3**
+(„Human ChatGPT Comparison Corpus“, `Hello-SimpleAI/HC3`) – © Biyang Guo et al., **CC BY-SA 4.0**
+(https://creativecommons.org/licenses/by-sa/4.0/). https://huggingface.co/datasets/Hello-SimpleAI/HC3 –
+übernommen mit vereinheitlichten Leerzeichen (vor Satzzeichen entfernt) und an einer Satzgrenze auf
+höchstens 1200 Zeichen gekürzt. Das Referenzset steht als Ganzes unter CC BY-SA 4.0.
+
 ## Zur Laufzeit geladene Modelle (nicht im Paket enthalten)
 
 - **TMR AI Text Detector** – `Oxidane/tmr-ai-text-detector`, MIT License, © Oxidane.

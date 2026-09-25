@@ -1,6 +1,7 @@
 // Service Worker (ES-Modul): verdrahtet Browser-Events und Nachrichten mit den Bausteinen in bg/.
 //   bg/providers.js        Backends zu den Providern aus config.js (Browser-Modell, Server, Hugging Face)
 //   bg/scoring.js          Konfiguration, Score-Cache, Verbindungstest, Status
+//   bg/model-check.js      „Modell prüfen“: eigenes Modell gegen das Referenzset testen
 //   bg/score-store.js      dauerhafter Score-Speicher (IndexedDB) mit Aufbewahrungsdauer
 //   bg/feedback-store.js   Feedback-Sammlung mit Text (nur nach Einwilligung, nur lokal)
 //   bg/badge.js            Icon-Badge pro Tab
@@ -10,6 +11,7 @@ import "./models.js";
 import "./config.js";
 import { updateBadge } from "./bg/badge.js";
 import * as feedback from "./bg/feedback-store.js";
+import { checkModel } from "./bg/model-check.js";
 import { callOffscreen } from "./bg/offscreen-client.js";
 import { clearStore, getConfig, health, pruneStore, scoreBatch, storeInfo, testProvider } from "./bg/scoring.js";
 
@@ -130,6 +132,8 @@ const HANDLERS = {
   },
   HEALTH: () => health(),
   TEST_PROVIDER: () => testProvider(),
+  // Einstellungen aus dem (noch nicht gespeicherten) Formular - nur von Extension-Seiten, enthält URLs und Tokens
+  CHECK_MODEL: (msg, sender) => fromExtensionPage(sender) && withError(checkModel(msg.cfg)),
   SCORE_STORE_INFO: () => storeInfo().catch((err) => ({ ok: false, error: String(err?.message || err) })),
   SCORE_STORE_CLEAR: () => clearStore().catch((err) => ({ ok: false, error: String(err?.message || err) })),
   // Download startet nur; Ende kommt als MODEL_DONE vom Offscreen-Dokument

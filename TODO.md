@@ -3,39 +3,22 @@
 Offene Punkte, Reihenfolge = Priorität. Erledigtes steht in der Roadmap im `README.md`.
 Stand: 2026-09-25.
 
-## 1. BYOM: Rahmen für eigene Modelle
+## 1. BYOM: Rest
 
-Eigenes Modell = binärer Klassifikator, also können wir den Rahmen festlegen und jedes Modell vor
-dem Einsatz dagegen prüfen. Bisher ungetestet: Hugging Face nur mit gemocktem `fetch`
-(`providers.test.mjs`), eigener Server nur gegen das Fake-Backend.
+Rahmen, „Modell prüfen“ und Hugging-Face-Metadaten sind erledigt (README, „Eigene Modelle prüfen“;
+Vertrag in `server/README.md`). Offen:
 
-- **Vertrag festschreiben** (für „Lokal“ und „Eigener Server“):
-  - Eingabe `texts[]` (je bis `maxChars`), optional `lang`.
-  - Ausgabe `scores[]` in [0,1], definiert als P(KI).
-  - Optional `GET /v1/info` → `{name, version, maxChars, languages, suggestedThresholds}`. Die
-    Version geht in `modelKey` ein (ersetzt den alten Punkt „Modellversion vom Server abfragen“).
-    `shim_server.py` bietet den Endpunkt an.
-- **„Modell prüfen“ in den Einstellungen**, Pflicht vor dem Aktivieren. Mitgeliefertes
-  Referenzset (z.B. 20 Mensch- und 20 KI-Texte, Englisch) ans Modell schicken und prüfen:
-  - **Form:** Anzahl, Wertebereich 0..1, Antwort vor dem Timeout.
-  - **Richtung:** KI-Texte im Mittel höher als Mensch-Texte? Sonst Label vertauscht (typisch bei
-    `LABEL_0`/`LABEL_1`).
-  - **Trennschärfe:** AUROC auf dem Mini-Set. Unter ~0.8 Warnung, unter ~0.6 ablehnen
-    (Vergleich Laya zero-shot: 0.549).
-  - **Schwellen:** Startwerte für die Ampel aus den Scores vorschlagen, statt `generic` 0.6/0.9.
-  - **Latenz:** ms pro Text messen, daraus den Scan-Modus empfehlen.
-- **Hugging Face: Metadaten lesen statt raten.** Vor dem Speichern Modellinfo und `config.json`
-  vom Hub holen:
-  - `pipeline_tag` muss `text-classification` sein.
-  - Genau 2 Labels.
-  - Das KI-Label kommt aus `id2label` statt aus dem Regex in `providers.js`.
-- **Mit echtem Token testen:** 2–3 bekannte Detektor-Modelle, Referenzset als Testfall
-  (bisher „Zurückgestellt“).
+- **Mit echtem Token testen:** 2–3 bekannte Detektor-Modelle über „Modell prüfen“ (Hub-Metadaten,
+  Router-Antwortformen, KI-Label aus `id2label`). Bisher nur gemockt (`providers.test.mjs`,
+  `model-check.test.mjs`).
+- **`lang` im Betrieb mitschicken:** Der Vertrag kennt `lang`, die Extension schickt es bisher nur
+  bei der Prüfung („en“). Hängt an Punkt 2 (Spracherkennung) und 6.
+- **Referenzset verbreitern**, sobald die Eval-Suite (Punkt 3) steht: bisher nur HC3 (ChatGPT 2023).
 - **Später – eigenes ONNX im Browser:**
   - HF-Repo mit `onnx/` + Tokenizer.
   - Architektur aus fester Liste (BERT, RoBERTa, DeBERTa-v2, XLM-R, DistilBERT).
   - 2 Labels, Größenlimit.
-  - Wäre ein weiterer Eintrag in `models.js`.
+  - Wäre ein weiterer Eintrag in `models.js`; „Modell prüfen“ ließe sich dafür wiederverwenden.
 
 ## 2. Fehlalarme reduzieren (Vertrauen)
 

@@ -13,12 +13,18 @@ export const scoreByLength = (text) => [0.2, 0.7, 0.95][text.length % 3];
 
 /**
  * Fake-Backend auf zufälligem Port (kollidiert nicht mit einem laufenden shim_server.py).
+ * `info` = Antwort auf GET /v1/info (ohne: 404, wie ein Server, der den optionalen Endpunkt nicht hat).
  * @returns {Promise<{url: string, texts: string[], batches: string[][], requests: number, close: () => Promise<void>}>}
  */
-export async function startBackend(score = scoreByLength) {
+export async function startBackend(score = scoreByLength, { info } = {}) {
   const backend = { texts: [], batches: [], requests: 0 };
   const server = http.createServer((req, res) => {
     if (req.url === "/healthz") return res.end("ok");
+    if (req.url.startsWith("/v1/info")) {
+      res.statusCode = info ? 200 : 404;
+      res.setHeader("content-type", "application/json");
+      return res.end(JSON.stringify(info ?? { detail: "Not Found" }));
+    }
     let body = "";
     req.on("data", (c) => (body += c));
     req.on("end", () => {

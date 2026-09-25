@@ -63,8 +63,9 @@ Unit-Tests (`test/unit/`, ohne Browser, Sekunden):
 
 | Datei | Prüft |
 |---|---|
-| `config.test.mjs` | Ampel-Schwellen, Sperrliste (eigene Einträge, mitgelieferte Liste, Ausnahmen), `scanPolicy`, `modelKey`, Presets, `remoteTarget` |
-| `providers.test.mjs` | Backends mit gemocktem `fetch`: Server-Vertrag, Bearer-Key, HTTP-Fehlermeldungen, Hugging-Face-Antwortformen und Label-Zuordnung, Offscreen-Aufruf |
+| `config.test.mjs` | Ampel-Schwellen, Sperrliste (eigene Einträge, mitgelieferte Liste, Ausnahmen), `scanPolicy`, `modelKey` (inkl. Version aus der Modellprüfung), Presets, `remoteTarget` |
+| `providers.test.mjs` | Backends mit gemocktem `fetch`: Server-Vertrag (inkl. `lang`, Wertebereich), `/v1/info`, Bearer-Key, HTTP-Fehlermeldungen, Hugging-Face-Antwortformen, Hub-Metadaten (`pipeline_tag`, `id2label`) und Label-Zuordnung, Offscreen-Aufruf |
+| `model-check.test.mjs` | „Modell prüfen“: Referenzset, AUROC, Ampel-Vorschlag, Urteil (Form, Richtung, Trennschärfe), Ablauf gegen gemockten Server und Hugging Face (KI-Label per Referenzset) |
 | `desklib-build.test.mjs` | desklib-Umwandlung an einer Mini-`safetensors`-Datei: Kopieren, 8-Bit-Quantisierung (Rundung zur geraden Zahl), Stückgrenzen im Download, Abbruch bei falscher Datei |
 | `blocklist.test.mjs` | Erzeugte Sperrliste: Format, kompakt, Umfang, Stichproben (Banking gesperrt, Inhaltsseiten nicht) |
 | `length-buckets.test.mjs` | Längen-Gruppierung vor dem Modellaufruf |
@@ -81,6 +82,7 @@ und jeden gesendeten Text mitschreibt (zufälliger Port, ein laufender `shim_ser
 | `text-length.test.mjs` | Bis 2000 Zeichen, gekürzt am Satzende, Batch-Budget 2500 Zeichen, Rechtsklick = gleicher Ausschnitt wie Auto-Scan |
 | `feedback.test.mjs` | Feedback im Popover: Klick aufs Badge (auch in Links, ohne Neu-Bewertung), Einwilligung vor dem ersten Speichern, Rückgängig, Export ohne Adresse, Widerruf, Abschalten |
 | `score-store.test.mjs` | Dauerhafter Speicher: SW-Neustart, Zuordnung über Seiten, Modellwechsel, Aufbewahrung, „Nicht speichern“ |
+| `model-check.test.mjs` | „Modell prüfen“ in den Einstellungen: Pflicht vor dem Speichern, vertauschte Labels abgelehnt, Ampel vom Server übernommen, Version im Modellschlüssel, neue URL entwertet die Prüfung |
 
 Nicht abgedeckt: Bewertung mit dem echten Browser-Modell (bräuchte den Modell-Download) und der
 Hugging-Face-Provider mit echtem Token (nur gemockt, siehe `providers.test.mjs`).
@@ -136,9 +138,24 @@ Hugging-Face-Provider mit echtem Token (nur gemockt, siehe `providers.test.mjs`)
   abschaltbar. Auf gesperrten Seiten (Sperrliste, Passwort-/Zahlungsfeld) keine Feedback-Knöpfe. Weiterverarbeitung:
   `training/import_feedback.py`, Begründung und Grenzen: `training/README.md` („Feedback als Datenquelle“).
 - **Backends** (`extension/bg/providers.js`): Im Browser (TMR oder desklib), Lokal
-  (`shim_server.py`), Eigener Server (Vertrag `POST {texts, model?} -> {scores}`, optional Bearer-Key),
-  Hugging Face Inference API (Label-Mapping automatisch oder manuell). Host-Berechtigungen für
-  Remote-Backends werden erst beim Speichern angefragt; Tokens nur in `storage.local`.
+  (`shim_server.py`), Eigener Server (Vertrag in `server/README.md`: `POST {texts, model?, lang?} ->
+  {scores}` mit P(KI) in 0..1, optional `GET /v1/info`, optional Bearer-Key), Hugging Face Inference
+  API. Host-Berechtigungen für Remote-Backends werden erst beim Speichern bzw. Prüfen angefragt;
+  Tokens nur in `storage.local`.
+- **Eigene Modelle prüfen** (`extension/bg/model-check.js`): Ein eigenes Modell ist ein binärer
+  Klassifikator, „Modell prüfen“ in den Einstellungen testet es vor dem Einsatz – Pflicht für
+  „Eigener Server“ und Hugging Face, freiwillig für „Lokal“. Das Referenzset (je 20 menschliche und
+  ChatGPT-Texte aus HC3, fünf Domänen, `extension/bg/reference-set.js`, erzeugt von
+  `training/build_reference_set.py`) geht in Batches wie im Betrieb ans Modell. Geprüft: Form (Anzahl,
+  0..1, vor dem Timeout), Richtung (KI im Mittel höher, sonst Label vertauscht), Trennschärfe (AUROC:
+  unter 0.8 Warnung, unter 0.6 abgelehnt), dazu Ampel-Vorschlag (vom Server per `/v1/info`, sonst aus
+  den Scores: rot knapp über dem höchsten Mensch-Text) und Latenz mit Empfehlung für den Scan-Modus.
+  Hugging Face: vorher Modellinfo und `config.json` vom Hub – `pipeline_tag` muss
+  `text-classification` sein, genau 2 Klassen; das KI-Label kommt aus `id2label`, bei
+  `LABEL_0`/`LABEL_1` aus dem Referenzset. Die Version (`/v1/info` bzw. Commit auf dem Hub) geht in
+  `modelKey` ein, Textlänge und Ampel-Startwerte gelten für das geprüfte Modell. Das Ergebnis gilt,
+  bis sich Modell oder URL ändern (Token/API-Key zählen nicht). Messwerte auf dem Referenzset über den
+  Shim: TMR AUROC 0.99, ~0,5 s/Text; desklib AUROC 0.99, ~2,4 s/Text.
 
 ### Was bewertet wird
 
@@ -177,7 +194,8 @@ Veröffentlichung im Web Store: Kontakt eintragen und die Seite zusätzlich öff
 - Provider „Im Browser“ und „Lokal“: Texte verlassen den Rechner nicht. Einziger Netzwerkzugriff ist
   der einmalige Modell-Download von Hugging Face.
 - Eigener Server / Hugging Face: bis zu 2000 Zeichen pro Absatz gehen an diesen
-  Dienst – die Einstellungen weisen darauf hin.
+  Dienst – die Einstellungen weisen darauf hin. „Modell prüfen“ schickt nur das mitgelieferte,
+  öffentliche Referenzset (bei Hugging Face zusätzlich eine Abfrage der Modellinfo auf huggingface.co).
 - **Score-Speicher** (IndexedDB, `extension/bg/score-store.js`, nicht synchronisiert): pro Absatz nur
   ein 128-Bit-Hash (SHA-256 über Modell-Konfiguration + Text), Score, Modell und Zeitpunkt –
   **kein Text, keine URL**. Gemessen ~235 Byte pro Eintrag (50.000 = 11,7 MB, 30 Tage intensives
@@ -193,7 +211,8 @@ Veröffentlichung im Web Store: Kontakt eintragen und die Seite zusätzlich öff
 - **Zuordnung:** Der Schlüssel enthält Provider-Einstellungen und Modellversion (`modelKey`, z.B.
   `browser:tmr@b9aa251-q8`). Modellwechsel → neu bewerten, alte Einträge bleiben fürs Zurückwechseln;
   neue Modell-Revision/Quantisierung → `version` in `config.js` ändern, alte Scores gelten nicht mehr.
-  Einschränkung: bei „Lokal“/„Eigener Server“ kennt die Extension die Modellversion des Servers nicht.
+  Bei „Lokal“/„Eigener Server“/Hugging Face kommt die Version aus „Modell prüfen“ (`/v1/info` bzw.
+  Commit auf dem Hub); ein Update auf dem Server ohne erneute Prüfung bleibt unbemerkt.
 
 ## Modelle
 
@@ -225,7 +244,9 @@ extension/
                         scanPolicy/blockReason (darf gescannt werden?), modelKey (Modell + Version),
                         Presets, Ampel-Stufen
   background.js         Service Worker (ES-Modul): verdrahtet Events und Nachrichten mit bg/
-  bg/providers.js       Backends (Anfrage + Health-Check je Provider)
+  bg/providers.js       Backends (Anfrage, Health-Check, Modellinfo je Provider)
+  bg/model-check.js     „Modell prüfen“: eigenes Modell gegen das Referenzset testen
+  bg/reference-set.js   Referenzset (HC3, CC BY-SA 4.0), erzeugt von training/build_reference_set.py
   bg/scoring.js         Konfig-Cache, Score-Cache (Arbeitsspeicher → IndexedDB → Modell), Test, Status
   bg/score-store.js     dauerhafter Score-Speicher mit Aufbewahrungsdauer
   bg/feedback-store.js  Feedback-Sammlung (mit Text, nur nach Einwilligung, nur lokal)
@@ -259,6 +280,8 @@ scripts/                vendor.mjs, build-blocklist.mjs, build_desklib_skeleton.
   Modellkennung) plus Anfrage unter demselben Schlüssel in `BACKENDS` (`extension/bg/providers.js`).
   Einstellungsformular, Defaults, Secrets (`secret: true` → `storage.local`), Cache-Signatur und
   Datenschutz-Hinweis leiten sich daraus ab. Die Unit-Tests prüfen, dass beide Seiten zusammenpassen.
+  Mit `check` bekommt der Provider „Modell prüfen“; was das Backend über das Modell weiß (Version,
+  Textlänge, Labels), liefert es über `inspect` in `BACKENDS`.
 
 Performance-Grundsätze im Content-Script: Beim Einsammeln und Priorisieren erst alles lesen, dann
 schreiben (kein Layout-Thrashing); `MutationObserver` nur auf Seiten, die gescannt werden;
@@ -281,11 +304,14 @@ Statistik aus dem Register statt Dokument-Scans.
   Datenschutzerklärung.
 - Feedback Stufe 1: „Weißt du, woher der Text stammt?“ im Prüfergebnis, nur lokal, mit Einwilligung,
   JSONL-Export, `training/import_feedback.py`.
+- BYOM-Rahmen: Vertrag mit `lang` und `GET /v1/info` (Shim mit gepinnten Revisionen), „Modell prüfen“
+  gegen ein Referenzset, Hugging-Face-Metadaten statt Raten, Version im Modellschlüssel.
 
 **Offen:** siehe `TODO.md`.
 
 ## Lizenz
 
-Der Code steht unter der MIT-Lizenz (`LICENSE`). Ausgenommen ist die mitgelieferte Sperrliste
-`extension/generated/blocklist.js`, die unter CC BY-SA 4.0 steht. Quellen und Lizenzen aller
+Der Code steht unter der MIT-Lizenz (`LICENSE`). Ausgenommen sind die mitgelieferte Sperrliste
+`extension/generated/blocklist.js` und das Referenzset `extension/bg/reference-set.js` (Texte aus HC3),
+die unter CC BY-SA 4.0 stehen. Quellen und Lizenzen aller
 Drittkomponenten: `extension/THIRD_PARTY_NOTICES.md`.

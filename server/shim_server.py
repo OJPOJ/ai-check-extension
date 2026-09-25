@@ -10,10 +10,13 @@ Backends:
   - "desklib"                                        -> lokal geladenes
     desklib/ai-text-detector-v1.01 (DeBERTa-v3-large, 430M, eigene Pooling-Klasse)
 
-Zusaetzlich gibt es POST /v1/score mit einem schlanken Vertrag, den die
-Extension fuer die Provider "Lokal" und "Eigener Server" verwendet:
+Zusaetzlich gibt es den schlanken Vertrag, den die Extension fuer die Provider
+"Lokal" und "Eigener Server" verwendet (Details: README.md, "Vertrag"):
 
-    {"texts": ["...", ...], "model": "tmr"}  ->  {"scores": [0.93, ...]}
+    POST /v1/score  {"texts": ["...", ...], "model": "tmr", "lang": "en"}  ->  {"scores": [0.93, ...]}
+    GET  /v1/info?model=tmr  ->  {"name", "version", "maxChars", "languages", "suggestedThresholds"}
+
+scores = P(KI) in [0,1] pro Text, gleiche Reihenfolge; "model" und "lang" optional.
 
 Fuer Betrieb ausserhalb von localhost (z.B. Cloud-VM) per Env konfigurierbar:
     AIVSAI_HOST     (Default 127.0.0.1)
@@ -43,6 +46,10 @@ LAYA_UPSTREAM = "http://127.0.0.1:11500"
 LAYA_MODELS = {"english", "multilingual", "typed-decisions"}
 TMR_MODEL_ID = "Oxidane/tmr-ai-text-detector"
 DESKLIB_MODEL_ID = "desklib/ai-text-detector-v1.01"
+# Fest gepinnt, damit sich Scores nicht durch ein Upstream-Update unbemerkt aendern. Die Revision geht
+# ueber /v1/info in den Modellschluessel der Extension ein - neue Revision = alte Scores ungueltig.
+TMR_REVISION = "0ceddea903015ef99cbaa040a4d8a216aed9c683"
+DESKLIB_REVISION = "5fdea974cd4287c61674951ec78803aa274e2fb7"
 CANDIDATE_QID = re.compile(r"^c(\d+)$")
 API_KEY = os.environ.get("AIVSAI_API_KEY") or None
 MAX_TEXTS_PER_REQUEST = 64
@@ -62,8 +69,8 @@ def load_tmr():
     global _tmr_tokenizer, _tmr_model, _tmr_ai_index
     if _tmr_model is not None:
         return
-    _tmr_tokenizer = AutoTokenizer.from_pretrained(TMR_MODEL_ID)
-    _tmr_model = AutoModelForSequenceClassification.from_pretrained(TMR_MODEL_ID)
+    _tmr_tokenizer = AutoTokenizer.from_pretrained(TMR_MODEL_ID, revision=TMR_REVISION)
+    _tmr_model = AutoModelForSequenceClassification.from_pretrained(TMR_MODEL_ID, revision=TMR_REVISION)
     _tmr_model.eval()
     ai_idx = [k for k, v in _tmr_model.config.id2label.items() if v.lower() in ("ai", "machine", "generated")]
     _tmr_ai_index = ai_idx[0] if ai_idx else 1
@@ -132,8 +139,8 @@ def load_desklib():
     global _desklib_tokenizer, _desklib_model
     if _desklib_model is not None:
         return
-    _desklib_tokenizer = AutoTokenizer.from_pretrained(DESKLIB_MODEL_ID)
-    _desklib_model = DesklibAIDetectionModel.from_pretrained(DESKLIB_MODEL_ID)
+    _desklib_tokenizer = AutoTokenizer.from_pretrained(DESKLIB_MODEL_ID, revision=DESKLIB_REVISION)
+    _desklib_model = DesklibAIDetectionModel.from_pretrained(DESKLIB_MODEL_ID, revision=DESKLIB_REVISION)
     _desklib_model.eval()
 
 
@@ -152,6 +159,24 @@ def score_desklib_texts(texts: list[str]) -> list[float]:
 
 
 LOCAL_SCORERS = {"tmr": score_tmr_texts, "desklib": score_desklib_texts}
+
+# Antwort von /v1/info - Textlaenge und Ampel wie in extension/models.js
+MODEL_INFO = {
+    "tmr": {
+        "name": "TMR AI Text Detector",
+        "version": TMR_REVISION[:7],
+        "maxChars": 2000,
+        "languages": ["en"],
+        "suggestedThresholds": {"yellowFrom": 0.6, "redFrom": 0.9},
+    },
+    "desklib": {
+        "name": "desklib AI Text Detector v1.01",
+        "version": DESKLIB_REVISION[:7],
+        "maxChars": 1500,
+        "languages": ["en"],
+        "suggestedThresholds": {"yellowFrom": 0.5, "redFrom": 0.87},
+    },
+}
 
 
 def extract_candidate_texts(state, questions) -> dict[str, str]:
@@ -231,15 +256,31 @@ async def systemone(request: Request):
 class ScoreRequest(BaseModel):
     texts: list[str] = Field(min_length=1, max_length=MAX_TEXTS_PER_REQUEST)
     model: str = "tmr"
+    lang: str | None = None  # Sprache der Seite, falls bekannt; TMR/desklib koennen nur Englisch
+
+
+def check_auth(authorization: str | None) -> None:
+    if API_KEY and authorization != f"Bearer {API_KEY}":
+        raise HTTPException(status_code=401, detail="invalid or missing API key")
+
+
+def check_model(model: str) -> None:
+    if model not in LOCAL_SCORERS:
+        raise HTTPException(status_code=422, detail=f"unknown model '{model}', expected one of {sorted(LOCAL_SCORERS)}")
+
+
+@app.get("/v1/info")
+def info(model: str = "tmr", authorization: str | None = Header(default=None)):
+    check_auth(authorization)
+    check_model(model)
+    return MODEL_INFO[model]
 
 
 @app.post("/v1/score")
 def score(req: ScoreRequest, authorization: str | None = Header(default=None)):
     # sync def -> FastAPI fuehrt das im Threadpool aus, Inferenz blockiert den Event-Loop nicht
-    if API_KEY and authorization != f"Bearer {API_KEY}":
-        raise HTTPException(status_code=401, detail="invalid or missing API key")
-    if req.model not in LOCAL_SCORERS:
-        raise HTTPException(status_code=422, detail=f"unknown model '{req.model}', expected one of {sorted(LOCAL_SCORERS)}")
+    check_auth(authorization)
+    check_model(req.model)
     texts = [t[:MAX_CHARS_PER_TEXT] for t in req.texts]
     scores = LOCAL_SCORERS[req.model](texts)
     return {"model": req.model, "scores": [round(s, 4) for s in scores]}

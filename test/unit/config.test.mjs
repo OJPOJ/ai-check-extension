@@ -110,6 +110,60 @@ describe("modelKey", () => {
   });
 });
 
+describe("modelCheck („Modell prüfen“)", () => {
+  const custom = cfg({ provider: "custom", customUrl: "https://s.example/v1/score", customModel: "m1" });
+  const passed = (c, over = {}) => ({
+    sig: A.checkSignature(c),
+    at: 1,
+    ok: true,
+    info: { version: "abc1234", maxChars: 800 },
+    thresholds: { yellowFrom: 0.3, redFrom: 0.7 },
+    ...over
+  });
+  const withCheck = (c, check) => ({ ...c, modelChecks: { [c.provider]: check } });
+
+  it("gilt nur, solange Modell/URL dieselben sind und bestanden wurde", () => {
+    assert.ok(A.modelCheck(withCheck(custom, passed(custom))));
+    assert.equal(A.modelCheck(custom), null);
+    assert.equal(A.modelCheck({ ...withCheck(custom, passed(custom)), customModel: "m2" }), null);
+    assert.equal(A.modelCheck({ ...withCheck(custom, passed(custom)), customUrl: "https://t.example/v1/score" }), null);
+    assert.equal(A.modelCheck(withCheck(custom, passed(custom, { ok: false }))), null);
+    // anderer Provider mit derselben Prüfung: nein
+    assert.equal(A.modelCheck({ ...withCheck(custom, passed(custom)), provider: "huggingface" }), null);
+  });
+
+  it("API-Key/Token gehören nicht zur Signatur", () => {
+    assert.equal(A.checkSignature(custom), A.checkSignature({ ...custom, customApiKey: "neu" }));
+    const hf = cfg({ provider: "huggingface", hfModel: "org/m" });
+    assert.equal(A.checkSignature(hf), A.checkSignature({ ...hf, hfToken: "hf_neu" }));
+    assert.notEqual(A.checkSignature(hf), A.checkSignature({ ...hf, hfAiLabel: "AI" }));
+  });
+
+  it("Version geht in modelKey ein, Textlänge und Ampel kommen aus der Prüfung", () => {
+    const c = withCheck(custom, passed(custom));
+    assert.equal(A.modelKey(c), "custom:m1@abc1234");
+    assert.equal(A.maxChars(c), 800);
+    assert.deepEqual(A.presetFor(c), { yellowFrom: 0.3, redFrom: 0.7 });
+    // ohne Version bleibt der Schlüssel wie bisher
+    assert.equal(A.modelKey(withCheck(custom, passed(custom, { info: {} }))), "custom:m1");
+  });
+
+  it("Lokal: Modellfamilie aus models.js geht vor, Version aus der Prüfung", () => {
+    const local = cfg({ provider: "local", localModel: "desklib" });
+    const c = withCheck(local, passed(local));
+    assert.equal(A.modelKey(c), "local:desklib@abc1234");
+    assert.equal(A.maxChars(c), 1500);
+    assert.equal(A.presetFor(c), A.PRESETS.desklib);
+  });
+
+  it("Pflicht für eigene Modelle, freiwillig für den lokalen Server, nicht im Browser", () => {
+    assert.equal(A.PROVIDERS.custom.check, "required");
+    assert.equal(A.PROVIDERS.huggingface.check, "required");
+    assert.equal(A.PROVIDERS.local.check, "optional");
+    assert.equal(A.PROVIDERS.browser.check, undefined);
+  });
+});
+
 describe("maxChars / presetFor / maxInFlight", () => {
   it("Browser und Lokal kennen die Modellfamilie, andere Provider nicht", () => {
     assert.equal(A.maxChars(cfg()), 2000);

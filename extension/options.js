@@ -58,6 +58,28 @@ function inputField(f) {
   return el("div", { className: "field" }, label, input, f.hint ? el("div", { className: "hint", textContent: f.hint }) : null);
 }
 
+// „Modell prüfen“ (bg/model-check.js) für Provider mit `check`
+function checkField(id, def) {
+  const button = el("button", { textContent: "Modell prüfen", id: `check-${id}` });
+  button.addEventListener("click", () => runCheck(id));
+  const lead =
+    "Schickt 40 englische Referenztexte (je 20 von Menschen und von ChatGPT, aus HC3) ans Modell und prüft " +
+    "Antwortformat, Richtung, Trennschärfe und Tempo. Schlägt dazu Startwerte für die Ampel vor.";
+  return el(
+    "div",
+    { className: "field model-check" },
+    el("div", { className: "label", textContent: def.check === "required" ? "Modell prüfen (Pflicht)" : "Modell prüfen" }),
+    el("div", { className: "hint", textContent: lead }),
+    el(
+      "div",
+      { className: "row", style: "margin-top:8px" },
+      el("div", { className: "hint", id: `check-${id}-status`, style: "margin:0" }),
+      button
+    ),
+    el("ul", { className: "checks", id: `check-${id}-list` })
+  );
+}
+
 function buildProviderForms() {
   for (const [id, def] of Object.entries(AIVSAI.PROVIDERS)) {
     $("providerChoices").append(choiceCard("provider", id, def.title, def.description));
@@ -66,6 +88,7 @@ function buildProviderForms() {
     form.append(...def.fields.map((f) => (f.type === "model" ? modelField(f) : inputField(f))));
     const extra = $(`extra-${id}`);
     if (extra) form.append(extra.content.cloneNode(true));
+    if (def.check) form.append(checkField(id, def));
     $("providerForms").append(form);
   }
 }
@@ -93,7 +116,8 @@ function readForm() {
     provider: radioValue("provider"),
     yellowFrom: parseFloat($("yellowFrom").value),
     redFrom: parseFloat($("redFrom").value),
-    scoreRetentionDays: parseInt($("scoreRetentionDays").value, 10)
+    scoreRetentionDays: parseInt($("scoreRetentionDays").value, 10),
+    modelChecks
   };
   const secrets = {};
   for (const f of PROVIDER_FIELDS) (f.secret ? secrets : cfg)[f.key] = readField(f);
@@ -108,21 +132,50 @@ function formConfig() {
   return { ...secrets, ...cfg };
 }
 
-function validate(cfg, secrets) {
+function missingField(cfg, secrets) {
   const missing = AIVSAI.PROVIDERS[cfg.provider].fields.find((f) => f.required && !(f.secret ? secrets : cfg)[f.key]);
-  if (missing) return `Bitte „${missing.label}“ angeben.`;
+  return missing ? `Bitte „${missing.label}“ angeben.` : null;
+}
+
+function validate(cfg, secrets) {
+  const missing = missingField(cfg, secrets);
+  if (missing) return missing;
+  if (AIVSAI.PROVIDERS[cfg.provider].check === "required" && !AIVSAI.modelCheck(cfg)) {
+    return checkFor(cfg)
+      ? "Das Modell hat die Prüfung nicht bestanden – so nicht verwendbar."
+      : "Bitte zuerst „Modell prüfen“ – für eigene Modelle Pflicht vor dem Speichern.";
+  }
   if (cfg.yellowFrom >= cfg.redFrom) return "„Gelb ab“ muss kleiner als „Rot ab“ sein.";
   return null;
 }
 
-// Liefert die Origin, für die eine optionale Host-Berechtigung nötig ist (oder null).
-function requiredOrigin(cfg) {
-  const endpoint = AIVSAI.PROVIDERS[cfg.provider].endpoint(cfg);
-  if (!endpoint) return null; // Browser-Modell: Download per CORS, keine Host-Berechtigung nötig
+// Origins, für die eine optionale Host-Berechtigung nötig ist (Endpunkt und ggf. Metadaten-Quelle)
+function requiredOrigins(cfg) {
+  const def = AIVSAI.PROVIDERS[cfg.provider];
+  const origins = [...(def.origins ?? [])];
+  const endpoint = def.endpoint(cfg);
+  if (!endpoint) return origins; // Browser-Modell: Download per CORS, keine Host-Berechtigung nötig
   const url = new URL(endpoint); // wirft bei ungültiger URL
   if (!/^https?:$/.test(url.protocol)) throw new Error("URL muss mit http:// oder https:// beginnen");
-  if (LOOPBACK_HOSTS.has(url.hostname)) return null; // im Manifest bereits erlaubt
-  return `${url.protocol}//${url.hostname}/*`;
+  if (!LOOPBACK_HOSTS.has(url.hostname)) origins.push(`${url.protocol}//${url.hostname}/*`); // Loopback: im Manifest
+  return origins;
+}
+
+// Fragt (synchron im Klick-Handler gestartet) nach den Host-Berechtigungen; false mit Meldung, wenn nicht
+function requestOrigins(cfg) {
+  let origins;
+  try {
+    origins = requiredOrigins(cfg);
+  } catch (err) {
+    showStatus(`Ungültige URL: ${err.message}`, "err");
+    return Promise.resolve(false);
+  }
+  if (!origins.length) return Promise.resolve(true);
+  return chrome.permissions.request({ origins }).then((granted) => {
+    const hosts = origins.map((o) => o.replace("/*", "")).join(", ");
+    if (!granted) showStatus(`Zugriff auf ${hosts} nicht erlaubt – Backend nicht erreichbar.`, "err");
+    return granted;
+  });
 }
 
 let dirty = false;
@@ -140,23 +193,73 @@ function saveFromClick() {
     showStatus(invalid, "err");
     return Promise.resolve(false);
   }
-  let origin;
-  try {
-    origin = requiredOrigin(cfg);
-  } catch (err) {
-    showStatus(`Ungültige URL: ${err.message}`, "err");
-    return Promise.resolve(false);
-  }
-  const permission = origin ? chrome.permissions.request({ origins: [origin] }) : Promise.resolve(true);
-  return permission.then(async (granted) => {
-    if (!granted) {
-      showStatus(`Zugriff auf ${origin.replace("/*", "")} nicht erlaubt – Backend nicht erreichbar.`, "err");
-      return false;
-    }
+  return requestOrigins(cfg).then(async (granted) => {
+    if (!granted) return false;
     await Promise.all([chrome.storage.sync.set(cfg), chrome.storage.local.set(secrets)]);
     for (const f of SITE_FIELDS) $(f).value = cfg[f].join("\n");
     dirty = false;
     return true;
+  });
+}
+
+// --- Modell prüfen ---
+
+// Prüfergebnisse je Provider: gespeicherter Stand, nach einer Prüfung der neue - gespeichert wird er mit
+// dem Formular. Die Einzelergebnisse (checks) nur für die Anzeige, nicht im Storage (Sync-Quota).
+let modelChecks = {};
+const checkDetails = {};
+
+// Letzte Prüfung für die Formularwerte (auch durchgefallene), sonst null
+function checkFor(cfg) {
+  const check = modelChecks[cfg.provider];
+  return check?.sig === AIVSAI.checkSignature(cfg) ? check : null;
+}
+
+function renderCheck() {
+  const cfg = formConfig();
+  const def = AIVSAI.PROVIDERS[cfg.provider];
+  if (!def?.check || !$(`check-${cfg.provider}-status`)) return;
+  const check = checkFor(cfg);
+  const status = $(`check-${cfg.provider}-status`);
+  if (!check) {
+    status.textContent = def.check === "required" ? "Noch nicht geprüft – Pflicht vor dem Speichern." : "Noch nicht geprüft.";
+  } else if (!check.ok) {
+    status.textContent = "Nicht bestanden – siehe unten.";
+  } else {
+    const version = check.info?.version ? `, Version ${check.info.version}` : "";
+    status.textContent =
+      `Bestanden am ${new Date(check.at).toLocaleString("de-DE")}: AUROC ${check.auroc.toFixed(2)}, ` +
+      `~${Math.round(check.msPerText)} ms pro Text${version}.`;
+  }
+  status.style.color = check ? (check.ok ? "var(--green)" : "var(--red)") : "";
+  const list = $(`check-${cfg.provider}-list`);
+  const details = check && checkDetails[cfg.provider]?.sig === check.sig ? checkDetails[cfg.provider].checks : [];
+  list.replaceChildren(...details.map((c) => el("li", { className: c.status, textContent: c.text })));
+}
+
+function runCheck(provider) {
+  const { cfg, secrets } = readForm();
+  const missing = missingField(cfg, secrets);
+  if (missing) return showStatus(missing, "err");
+  requestOrigins(cfg).then(async (granted) => {
+    if (!granted) return;
+    const button = $(`check-${provider}`);
+    button.disabled = true;
+    showStatus("Prüfe Modell… (40 Referenztexte, lädt ggf. erst das Modell)");
+    const r = await chrome.runtime.sendMessage({ type: "CHECK_MODEL", cfg: { ...cfg, ...secrets } });
+    button.disabled = false;
+    if (!r?.sig) return showStatus(`Prüfung fehlgeschlagen: ${r?.error ?? "keine Antwort"}`, "err");
+    const { checks, ...stored } = r;
+    modelChecks = { ...modelChecks, [provider]: stored };
+    checkDetails[provider] = { sig: r.sig, checks };
+    setDirty(true);
+    renderProvider();
+    if (r.ok) {
+      applyPreset(); // vorgeschlagene Ampel übernehmen
+      showStatus("Modell geprüft – bestanden. Speichern, um es zu verwenden.", "ok");
+    } else {
+      showStatus("Modell hat die Prüfung nicht bestanden.", "err");
+    }
   });
 }
 
@@ -174,6 +277,7 @@ function renderProvider() {
   $("privacyTarget").textContent = target || "";
   $("privacyChars").textContent = AIVSAI.maxChars(cfg);
   renderPresetInfo();
+  renderCheck();
 }
 
 function renderScanMode() {
@@ -376,6 +480,7 @@ async function init() {
     chrome.storage.local.get(AIVSAI.SECRET_DEFAULTS)
   ]);
   $("enabled").checked = cfg.enabled;
+  modelChecks = cfg.modelChecks;
   setRadio("scanMode", cfg.scanMode);
   for (const f of SITE_FIELDS) $(f).value = cfg[f].join("\n");
   setRadio("provider", cfg.provider);
@@ -429,7 +534,8 @@ function bindEvents() {
       applyPreset();
     }
   });
-  ["customUrl", "localUrl"].forEach((id) => $(id).addEventListener("input", renderProvider));
+  // URL, Modell-ID usw.: Datenschutz-Hinweis und ob die letzte Prüfung noch zu den Werten passt
+  $("providerForms").addEventListener("input", renderProvider);
   $("yellowFrom").addEventListener("input", renderScale);
   $("redFrom").addEventListener("input", renderScale);
   $("applyPreset").addEventListener("click", () => {

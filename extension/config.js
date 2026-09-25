@@ -21,8 +21,11 @@ globalThis.AIVSAI = (() => {
   //   model(cfg)     stabile Kennung des Modells inkl. Version (Teil von modelKey)
   //   detail(cfg)    Zusatz zum Namen, z.B. das Modell
   //   endpoint(cfg)  URL, an die Texte gehen (null = bleiben in der Extension) -> Host-Berechtigung
+  //   origins        weitere Host-Berechtigungen (z.B. für Modell-Metadaten)
   //   remote         fester Text für den Datenschutz-Hinweis statt des Hosts aus endpoint()
   //   serial         rechnet ohnehin nur ein Prozess -> keine parallelen Batches
+  //   check          „Modell prüfen“ (bg/model-check.js): "required" = Pflicht vor dem Speichern, "optional".
+  //                  Das Ergebnis liefert Version (-> modelKey), Textlänge und Ampel-Startwerte, siehe modelCheck()
   const PROVIDERS = {
     browser: {
       name: "Im Browser",
@@ -47,7 +50,8 @@ globalThis.AIVSAI = (() => {
       model: (cfg) => cfg.localModel,
       detail: (cfg) => cfg.localModel,
       endpoint: (cfg) => cfg.localUrl || LOCAL_URL,
-      serial: true
+      serial: true,
+      check: "optional"
     },
     custom: {
       name: "Eigener Server",
@@ -64,7 +68,8 @@ globalThis.AIVSAI = (() => {
       family: () => null, // unbekannt, was der Server rechnet
       model: (cfg) => cfg.customModel || cfg.customUrl,
       detail: (cfg) => cfg.customModel,
-      endpoint: (cfg) => cfg.customUrl
+      endpoint: (cfg) => cfg.customUrl,
+      check: "required"
     },
     huggingface: {
       name: "Hugging Face",
@@ -86,7 +91,9 @@ globalThis.AIVSAI = (() => {
       model: (cfg) => cfg.hfModel,
       detail: (cfg) => cfg.hfModel,
       endpoint: () => "https://router.huggingface.co/",
-      remote: "Hugging Face (router.huggingface.co)"
+      origins: ["https://huggingface.co/*"], // Modellinfo und config.json vom Hub
+      remote: "Hugging Face (router.huggingface.co)",
+      check: "required"
     }
   };
 
@@ -123,7 +130,11 @@ globalThis.AIVSAI = (() => {
     scoreRetentionDays: 30,
 
     // Feedback-Knöpfe im Ergebnis-Popover (gespeichert wird erst nach Einwilligung, siehe bg/feedback-store.js)
-    feedbackButtons: true
+    feedbackButtons: true,
+
+    // Letztes Ergebnis von „Modell prüfen“ je Provider (bg/model-check.js, gespeichert von options.js):
+    // { sig, at, ok, info: {name?, version?, maxChars?, languages?, aiLabel?}, thresholds, auroc, msPerText }
+    modelChecks: {}
   };
 
   // Secrets liegen in storage.local, damit sie nicht über das Browser-Konto synchronisiert werden
@@ -195,21 +206,40 @@ globalThis.AIVSAI = (() => {
   const providerDef = (cfg) => PROVIDERS[cfg.provider];
   const family = (cfg) => MODELS[providerDef(cfg)?.family(cfg)] ?? null;
 
+  // Welches Modell eine Prüfung betrifft: die nicht geheimen Felder des Providers. Token/API-Key gehören
+  // nicht dazu - ein neuer Schlüssel ändert das Modell nicht.
+  function checkSignature(cfg) {
+    const def = providerDef(cfg);
+    if (!def) return "";
+    return JSON.stringify([cfg.provider, ...def.fields.filter((f) => !f.secret).map((f) => cfg[f.key] ?? "")]);
+  }
+
+  // Bestandene Prüfung („Modell prüfen“) für die aktuellen Einstellungen, sonst null (nie geprüft,
+  // durchgefallen oder seitdem anderes Modell/andere URL eingetragen)
+  function modelCheck(cfg) {
+    const check = cfg.modelChecks?.[cfg.provider];
+    return check?.ok && check.sig === checkSignature(cfg) ? check : null;
+  }
+
   // Stabile Kennung des gerade gewählten Modells inkl. Version, z.B. "browser:tmr@b9aa251-q8" - für Cache,
   // und später Kalibrierung, Feedback und Berichte (damit Scores ihrem Modell zugeordnet bleiben).
+  // Server und Hugging Face: Version aus „Modell prüfen“ (GET /v1/info bzw. Commit auf dem Hub).
   function modelKey(cfg) {
-    return `${cfg.provider}:${providerDef(cfg)?.model(cfg) ?? ""}`;
+    const version = modelCheck(cfg)?.info?.version;
+    return `${cfg.provider}:${providerDef(cfg)?.model(cfg) ?? ""}${version ? `@${version}` : ""}`;
   }
 
   // Wie viel Text pro Absatz ans Modell geht - mehr als der Kontext des Modells bringt nichts.
-  // Unbekannte Modelle (eigener Server, Hugging Face): 2000 Zeichen, typisch für 512-Token-Encoder.
+  // Unbekannte Modelle (eigener Server, Hugging Face): Angabe des Servers, sonst 2000 Zeichen, typisch
+  // für 512-Token-Encoder.
   function maxChars(cfg) {
-    return family(cfg)?.maxChars ?? 2000;
+    return family(cfg)?.maxChars ?? modelCheck(cfg)?.info?.maxChars ?? 2000;
   }
 
-  // Ampel-Preset der Modellfamilie: lokal und im Browser sind TMR bzw. desklib dasselbe Modell
+  // Ampel-Preset der Modellfamilie (lokal und im Browser sind TMR bzw. desklib dasselbe Modell), für
+  // eigene Modelle der Vorschlag aus „Modell prüfen“
   function presetFor(cfg) {
-    return family(cfg)?.thresholds ?? PRESETS.generic;
+    return family(cfg)?.thresholds ?? modelCheck(cfg)?.thresholds ?? PRESETS.generic;
   }
 
   // Wie viele Batches ein Tab gleichzeitig schicken darf. Lokal/im Browser rechnet ohnehin nur ein
@@ -253,6 +283,8 @@ globalThis.AIVSAI = (() => {
     builtinMatch,
     blockReason,
     scanPolicy,
+    checkSignature,
+    modelCheck,
     modelKey,
     presetFor,
     maxChars,
