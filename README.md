@@ -22,6 +22,18 @@ versehentlich gesperrte Content-Seiten (`RESOURCES.md`, „Pflege“).
 Das Skript bricht ab, wenn eine Quelle nicht erreichbar ist oder deutlich weniger Einträge liefert
 als erwartet – dann wird keine halb leere Liste ausgeliefert.
 
+**Paket bauen:** `npm run package` → `dist/ai-content-flag-<version>.zip` (Version aus
+`manifest.json`), fertig zum Hochladen in den Web Store oder zum Weitergeben. Inhalt: die im Git
+erfassten Dateien unter `extension/` plus `extension/vendor/` (führt vorher `npm run vendor` aus) –
+lokale, nicht committete Dateien kommen nicht hinein. Die Sperrliste wird dabei *nicht* neu erzeugt
+(Warnung, wenn sie älter als 30 Tage ist). Ablauf für ein Release: `npm run build`, Diff der
+Sperrliste prüfen, committen, `npm run package`.
+Das Skript (`scripts/package.mjs`) bricht ab bei nicht committeten Änderungen unter `extension/`
+(`node scripts/package.mjs --allow-dirty` baut trotzdem, Dateiname mit `-dirty`), fehlendem
+`vendor/` oder wenn eine Datei fehlt, auf die Manifest, HTML-Seiten, Imports oder `models.js`
+verweisen. Es warnt bei offenen Store-Punkten (Icon, Kontakt in `privacy.html`). Das Zip ist
+reproduzierbar: Zeitstempel = Commit-Zeit, gleicher Commit ergibt dieselbe SHA-256.
+
 In Chrome/Edge:
 
 1. `chrome://extensions` → „Entwicklermodus“ an → „Entpackte Erweiterung laden“ → `extension/`.
@@ -56,6 +68,7 @@ Unit-Tests (`test/unit/`, ohne Browser, Sekunden):
 | `desklib-build.test.mjs` | desklib-Umwandlung an einer Mini-`safetensors`-Datei: Kopieren, 8-Bit-Quantisierung (Rundung zur geraden Zahl), Stückgrenzen im Download, Abbruch bei falscher Datei |
 | `blocklist.test.mjs` | Erzeugte Sperrliste: Format, kompakt, Umfang, Stichproben (Banking gesperrt, Inhaltsseiten nicht) |
 | `length-buckets.test.mjs` | Längen-Gruppierung vor dem Modellaufruf |
+| `zip.test.mjs` | Zip-Schreiber für `npm run package`: verlustfrei, sortiert, reproduzierbar, von `tar`/`unzip` lesbar |
 
 Die E2E-Tests (`test/e2e/*.test.mjs`, Node-Test-Runner + Playwright) laden die echte Extension in
 Chromium und lassen sie gegen ein Fake-Backend laufen, das den Vertrag von `shim_server.py` spricht
@@ -152,7 +165,7 @@ Ausschnitt – also gleicher Score-Speicher-Eintrag und gleicher Feedback-Eintra
   Doku, Wikipedia, Rezepte): 0 von 752 bewerteten Absätzen lagen in einem `aside` – die vorhandenen
   `aside`-Elemente sind Werbe-/Nachlade-Slots ohne Text oder Teaser-Listen, die schon an der
   40-Wörter-Grenze scheitern. Ausschließen brächte nichts, würde aber Randnotizen und
-  Info-Kästen im Artikel verlieren. Neu bewerten, falls das Feedback (Roadmap 2) Fehlalarme dort zeigt.
+  Info-Kästen im Artikel verlieren. Neu bewerten, falls das Feedback Fehlalarme dort zeigt.
 - **Nicht erreicht:** Shadow DOM, iframes.
 
 ## Datenschutz und Speicher
@@ -232,7 +245,8 @@ extension/
 server/                 shim_server.py (TMR/desklib per PyTorch, optional Laya-Proxy), Port 8787
 test/                   harness.html (Testseite), e2e/ (Playwright-Tests)
 training/               Datensatz-Aufbereitung (HC3), Backend-Vergleich, Messergebnisse
-scripts/                vendor.mjs, build-blocklist.mjs, build_desklib_skeleton.py
+scripts/                vendor.mjs, build-blocklist.mjs, build_desklib_skeleton.py,
+                        package.mjs + zip.mjs (Zip nach dist/)
 ```
 
 ### Neues Modell oder neuer Provider
@@ -268,34 +282,7 @@ Statistik aus dem Register statt Dokument-Scans.
 - Feedback Stufe 1: „Weißt du, woher der Text stammt?“ im Prüfergebnis, nur lokal, mit Einwilligung,
   JSONL-Export, `training/import_feedback.py`.
 
-**Als Nächstes (Reihenfolge = Priorität)**
-
-1. **Feedback:** Stufe 1 (lokal sammeln, Einwilligung, Export) erledigt, siehe „Funktionen“.
-   Offen, nur bei Bedarf: Stufe 2 = freiwilliger Upload an einen eigenen Sammel-Server – braucht
-   Verantwortlichen/Impressum, Löschweg pro Einsender (Pseudonym-ID), Schutz gegen absichtlich falsche
-   Labels (Data Poisoning) und eine erweiterte Datenschutzerklärung. Fürs Training wichtiger sind
-   generierte Daten mehrerer LLMs (`training/README.md`, „Feedback als Datenquelle“).
-2. **Score-Kalibrierung pro Modell**, damit Schwellen modellübergreifend dasselbe bedeuten. In
-   `bg/scoring.js` pro `modelKey` auf den Rohwert anwenden – gespeichert werden Rohwerte, eine neue
-   Kalibrierung braucht also kein Neu-Bewerten.
-3. **Deutsch/mehrsprachig:** Fine-Tuning eines mehrsprachigen Encoders (mDeBERTa-v3/XLM-R) ähnlich
-   desklib; Content-Script schickt dann `lang` pro Absatz mit, der Provider wählt das Modell.
-   Vorarbeit: Laya-Datensatz liegt fertig (`training/data/`, 142k Beispiele), Training offen
-   (`training/README.md`).
-4. **Berichte pro Seite exportieren/importieren** (URL, Absätze, Scores, Modell, Zeitpunkt) aus dem
-   Ergebnis-Register; Ausbaustufe Konto/Sync/Teilen → Datenschutz/Einwilligung.
-5. **Zurückgestellt:** Hugging-Face-Provider mit echtem Token testen (bisher nur gemockt).
-
-**Technische Punkte aus der v0.5-Analyse**
-
-- Batch-Budget pro Modell (neben `maxInFlight` in `config.js`): Batches sind auf 2500 Zeichen
-  begrenzt und werden vor dem Modell nach Länge aufgeteilt; ein langer desklib-Absatz braucht im
-  Browser trotzdem mehrere Sekunden, in der Zeit reagiert die Priorisierung nicht aufs Scrollen.
-- Server-Backends: Modellversion vom Server abfragen (z.B. `/healthz`) und in den Schlüssel nehmen.
-- Gleichzeitige Anfragen für denselben Absatz aus mehreren Tabs im Service Worker zusammenfassen.
-- Sperrliste UK: nur ~60 `.uk`-Domains aus UT1, 71 Banken aus Wikidata plus handverlesene
-  Großbanken. Vollständig wäre das FCA-Register (API mit kostenlosem Key, Weitergabebedingungen noch
-  nicht geprüft). DE: BaFin-Export hat keine Websites. Lücken fängt die Passwortfeld-Heuristik ab.
+**Offen:** siehe `TODO.md`.
 
 ## Lizenz
 
