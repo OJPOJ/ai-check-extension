@@ -311,7 +311,8 @@ function renderBuiltinInfo() {
   const date = new Date(list.generated).toLocaleDateString("de-DE");
   $("builtinInfo").textContent =
     `${list.count.toLocaleString("de-DE")} Domains, Stand ${date}. Quellen: UT1-Blacklists (Université Toulouse ` +
-    `Capitole, CC BY-SA 4.0), FDIC BankFind (US-Banken) und eine handverlesene Liste.`;
+    `Capitole, CC BY-SA 4.0), FDIC und NCUA (US-Banken und Credit Unions), Wikidata (Banken DE/AT/CH/UK/US) ` +
+    `und eine handverlesene Liste. Die Liste steht unter CC BY-SA 4.0.`;
 }
 
 // Popup und Tastenkürzel ändern "enabled" und die Domainlisten, während diese Seite offen sein kann -

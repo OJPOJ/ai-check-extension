@@ -47,28 +47,77 @@ Repo: https://github.com/realZachi/typesafe-adblock — fast 1:1 übertragbares 
 
 ## Quellen für die Sperrliste (Stand 2026-09-25)
 
-Es gibt keine offizielle API „sensible Seiten“. Brauchbar zum Erzeugen einer statischen Liste beim
-Build (ausliefern statt zur Laufzeit abfragen – sonst verrät die Abfrage das Surfverhalten).
-**Eingebaut** (`scripts/build-blocklist.mjs`): UT1 `bank` + `webmail` (offizielles tar.gz, nicht der
-GitHub-Spiegel), FDIC, handverlesene Liste. Erster Lauf: UT1 bank 6.645, webmail 404, FDIC 4.147,
-handverlesen 87 → 10.384 Domains nach Zusammenfassen. UT1 `financial` bewusst nicht: das sind
-überwiegend Börsen-/Finanz-*News*. Ausgeschlossen, weil Portale mit Inhalt: `web.de`, `gmx.net`
-(dafür nur deren Mail-Subdomains), `bankrate.com`.
+Es gibt keine offizielle API „sensible Seiten“. Die Liste wird deshalb beim Build aus mehreren Quellen
+erzeugt und ausgeliefert (`npm run build:blocklist`) – nicht zur Laufzeit abgefragt, sonst verriete die
+Abfrage das Surfverhalten.
 
-- **UT1-Blacklists** (Université Toulouse Capitole): Kategorien u.a. `bank` und `webmail`,
-  international, regelmäßig gepflegt, **CC BY-SA** (Namensnennung + Weitergabe unter gleicher Lizenz
-  für die abgeleitete Liste). https://dsi.ut-capitole.fr/blacklists/index_en.php, Spiegel:
-  https://github.com/olbat/ut1-blacklists. Qualität für DE/UK/US vor Einbau stichprobenartig prüfen.
-- **FDIC BankFind API** (USA): alle US-Banken inkl. Web-Adresse (Feld `WEBADDR`), ohne API-Key.
-  https://api.fdic.gov/banks/docs/
-- **Wikidata (SPARQL)**: Banken/Mail-Dienste mit offizieller Website (P856) pro Land, CC0 – deckt DE
-  und UK ab, aber lückenhaft und teils veraltete Domains.
-- **Chrome Topics API Override-Liste** (~50k Top-Hosts mit Kategorie, u.a. Finanzen): nur aus dem
-  Chrome-Profil extrahierbar, Lizenz unklar – eher nicht.
+### Eingebaut
+
+| Quelle | Inhalt | Lizenz | Einträge | davon neu* |
+|---|---|---|---|---|
+| [UT1-Blacklists](https://dsi.ut-capitole.fr/blacklists/index_en.php) `bank` | Online-Banking weltweit | CC BY-SA 4.0 | 6.645 | 6.579 |
+| UT1-Blacklists `webmail` | Webmail weltweit | CC BY-SA 4.0 | 404 | 402 |
+| [FDIC BankFind](https://api.fdic.gov/banks/docs/) | alle aktiven US-Banken (`WEBADDR`) | gemeinfrei (US-Bundesbehörde) | 4.146 | 3.290 |
+| [NCUA Call Report Data](https://ncua.gov/analysis/credit-union-corporate-call-report-data/quarterly-data) | alle US-Credit-Unions (`FS220D.txt`, Feld `Acct_891` = Website) | gemeinfrei (US-Bundesbehörde) | 3.834 | 2.907 |
+| [Wikidata](https://query.wikidata.org/) | Banken in DE/AT/CH/UK/US mit offizieller Website (P856) | CC0 1.0 | 1.314 | 871 |
+| handverlesen (`CURATED`) | Mail, Zahlungsdienste, Neobanken, Behördenportale mit Login | – | 87 | 41 |
+
+\* nicht schon durch eine vorherige Quelle (oder deren Eltern-Domain) abgedeckt. Ergebnis:
+**14.090 Domains**, 233 KB. Die Zahlen gibt das Skript bei jedem Lauf aus und schreibt sie in
+`generated/blocklist.js` (`sources`).
+
+**Lizenzfolge:** Weil UT1 unter CC BY-SA 4.0 steht, steht die erzeugte Gesamtliste ebenfalls unter
+CC BY-SA 4.0 (Namensnennung in `THIRD_PARTY_NOTICES.md`, im Dateikopf und in den Einstellungen). Die
+übrigen Quellen (gemeinfrei, CC0) verlangen nichts, werden aber trotzdem genannt. Die Extension selbst
+bleibt davon unberührt – ShareAlike gilt nur für die Daten.
+
+Details je Quelle:
+
+- **UT1:** offizielles tar.gz (nicht der [GitHub-Spiegel](https://github.com/olbat/ut1-blacklists)),
+  wird täglich gepflegt. Enthält viele Nicht-Banken (Händler, Airlines, Zentralbanken, Fachmedien,
+  `purdue.edu` …) → Ausschlussliste `NEVER_BLOCK`, siehe „Pflege“. UT1 `financial` bewusst nicht: das
+  sind überwiegend Börsen-/Finanz-*News*.
+- **NCUA:** Quartals-Zip (~8 MB), erscheint ca. 2 Monate nach Quartalsende; das Skript nimmt das
+  neueste vorhandene (probiert bis zu fünf Quartale zurück). 3.881 von 4.299 Credit Unions haben eine
+  Website eingetragen.
+- **Wikidata:** schließt Zentral-, Förder- und Abwicklungsbanken per Klasse aus (Lesetext, keine
+  Kundenkonten) sowie aufgelöste Banken (P576). Übernommen werden nur Websites ohne Pfad bzw. mit
+  reinem Sprachpfad (`/en/`) – Einträge wie `stadt.de/sparkasse`, `notar.at/…`, `web.archive.org/…`
+  oder eine Bar-Website für eine historische Bankfiliale würden sonst ganze fremde Domains sperren.
+  Bringt vor allem Sparkassen, Volks- und Raiffeisenbanken (DE hat mit 702 die meisten Treffer).
+- **Nicht übernommen:** `web.de`, `gmx.net` usw. (Portale mit Nachrichten; nur deren Mail-Subdomains
+  stehen in `CURATED`), Plattformen, die in FDIC/NCUA als Bank-Website stehen (`facebook.com`,
+  `sites.google.com`, `wixsite.com`).
+
+### Geprüft, nicht eingebaut
+
+- **FCA Financial Services Register** (UK): API frei, aber mit Registrierung und API-Key
+  ([Developer Portal](https://register.fca.org.uk/Developer/s/), 50 Anfragen/10 s) – für ein
+  Build-Skript im Repo unpraktisch (Key müsste jeder Maintainer selbst beantragen). Nutzungsbedingungen
+  für das Weitergeben der Daten noch nicht geprüft. UK-Abdeckung derzeit: UT1 (~60 `.uk`), Wikidata
+  (71 Banken), handverlesene Großbanken.
+- **BaFin-Unternehmensdatenbank** (DE): CSV-Export vorhanden, enthält aber **keine Websites** (nur Name,
+  BAK-Nr., LEI, Adresse) – geprüft am 2026-09-25. Nur über Namensabgleich mit anderen Quellen nutzbar.
+- **Chrome Topics API Override-Liste** (~50k Top-Hosts mit Kategorie): nur aus dem Chrome-Profil
+  extrahierbar, Lizenz unklar.
+- **Krankenkassen, Versicherer, Broker, Krypto-Börsen:** keine saubere offene Liste gefunden; die
+  Seiten haben viel Lesetext, Login-Bereiche fängt die Passwortfeld-Heuristik ab.
 - Nicht mehr gepflegt: Shalla-Liste (2020 eingestellt), DMOZ/Curlie-Dumps.
 
-Keine Liste ist vollständig (Sparkassen/Volksbanken haben hunderte Domains) → ergänzend Heuristik
-auf der Seite (Passwort-/Kreditkartenfeld → nicht automatisch scannen).
+### Pflege
+
+1. `npm run build:blocklist` – bricht ab, wenn eine Quelle fehlt oder weit unter der Mindestgröße
+   liegt (`MIN_COUNT`).
+2. Diff von `extension/generated/blocklist.js` durchsehen. Die Domains stehen sortiert in *einem*
+   String, `git diff --word-diff-regex='[^\\n]+'` zeigt einzelne hinzugekommene/entfernte Domains.
+3. Gelegentlich (z.B. vor einem Release) auf versehentlich gesperrte Content-Seiten prüfen:
+   `node scripts/build-blocklist.mjs --dump <ordner>` schreibt die Domains je Quelle; mit der
+   [Tranco-Liste](https://tranco-list.eu/) (Top 100.000) abgleichen und Nicht-Banken in
+   `NEVER_BLOCK` eintragen. Stand der letzten Durchsicht: 2026-09-25 (311 UT1-Einträge in den Top
+   100.000, davon ~65 ausgeschlossen). Tranco selbst wird nicht ausgeliefert.
+
+Keine Liste ist vollständig → ergänzend die Heuristik auf der Seite (Passwort-/Kreditkartenfeld →
+nicht automatisch scannen).
 
 ## Offene Fragen / nicht verifiziert
 

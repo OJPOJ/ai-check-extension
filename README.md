@@ -16,7 +16,9 @@ npm run vendor     # transformers.js + ONNX-Runtime-WASM nach extension/vendor/ 
 
 **Vor jeder Auslieferung** (Web Store, Zip für andere): `npm run build` – macht `vendor` und
 `build:blocklist` (lädt die aktuelle Sperrliste, schreibt `extension/generated/blocklist.js`, braucht
-Internet, ~10 s). Die erzeugte Liste liegt im Git: Änderungen im Diff gegenlesen und mit committen.
+Internet, ~30 s, darunter ein 8-MB-Download von der NCUA). Die erzeugte Liste liegt im Git:
+Änderungen im Diff gegenlesen und mit committen, vor einem Release zusätzlich die Prüfung auf
+versehentlich gesperrte Content-Seiten (`RESOURCES.md`, „Pflege“).
 Das Skript bricht ab, wenn eine Quelle nicht erreichbar ist oder deutlich weniger Einträge liefert
 als erwartet – dann wird keine halb leere Liste ausgeliefert.
 
@@ -68,9 +70,11 @@ Hugging-Face-Provider mit echtem Token.
 - **Sperrliste „nie scannen“:** gilt vor jedem Scan-Modus, auch „Seite jetzt scannen“ ist dort
   gesperrt. Erlaubt bleibt die bewusste Einzelprüfung per Auswahl/Rechtsklick – das Popover weist
   dann auf die Sperre hin und nennt bei externen Backends, wohin der Text ging. Drei Bausteine:
-  - *Mitgelieferte Liste* (`builtinBlocklist`, ~10.400 Domains: Online-Banking weltweit mit
-    Schwerpunkt DE/UK/US, Webmail, Zahlungsdienste, Behördenportale mit Login) – erzeugt von
-    `scripts/build-blocklist.mjs` aus UT1-Blacklists, FDIC BankFind und einer handverlesenen Liste.
+  - *Mitgelieferte Liste* (`builtinBlocklist`, ~14.100 Domains: Online-Banking weltweit mit
+    Schwerpunkt DE/AT/CH/UK/US inkl. Sparkassen, Volksbanken und US-Credit-Unions, Webmail,
+    Zahlungsdienste, Behördenportale mit Login) – erzeugt von `scripts/build-blocklist.mjs` aus
+    UT1-Blacklists, FDIC, NCUA, Wikidata und einer handverlesenen Liste. Lizenz der Liste:
+    CC BY-SA 4.0 (wegen UT1). Quellen, Lizenzen, Umfang und Pflege: `RESOURCES.md`.
   - *Eigene Einträge* (`blockedSites`) und *Ausnahmen* von der mitgelieferten Liste
     (`unblockedSites`) – in den Einstellungen oder per „Hier nie scannen“ / „Von der Sperrliste
     nehmen“ im Popup.
@@ -82,7 +86,7 @@ Hugging-Face-Provider mit echtem Token.
   Doppelt abgesichert: `content.js` entscheidet, der Service Worker lehnt Auto-Batches von Seiten
   der Listen zusätzlich ab (die Heuristik kennt nur das Content-Script). Die Liste liegt als ein
   String `"\nd1\nd2\n…\n"` vor und wird pro Host mit allen Eltern-Domains durchsucht – kein Set mit
-  10.000 Einträgen in jedem Tab (171 KB pro Content-Script).
+  14.000 Einträgen in jedem Tab (233 KB pro Content-Script).
 - **Ampel:** zwei Schwellen (Gelb ab / Rot ab, Presets pro Modell), grün = geprüft und *nicht* als
   KI erkannt (abschaltbar), Prozent-Badge, auch ohne Farbwahrnehmung unterscheidbar
   (dünn / gestrichelt / kräftig). Popup mit Zählern pro Seite und Backend-Status; Icon-Badge mit
@@ -226,7 +230,7 @@ Statistik aus dem Register statt Dokument-Scans.
   Aufbewahrungsdauer, Modellversion im Schlüssel, genauere Textauswahl (Navigation per Rolle,
   Dialoge, Code, Icon-Fonts, unsichtbare Absätze), E2E-Tests im Repo (`npm test`).
 - Sperrliste „nie scannen“ (`scanPolicy` → `"blocked"`): mitgelieferte Liste per Build-Skript
-  (UT1 + FDIC + handverlesen), eigene Einträge, Ausnahmen, Passwortfeld-Heuristik;
+  (UT1 + FDIC + NCUA + Wikidata + handverlesen), eigene Einträge, Ausnahmen, Passwortfeld-Heuristik;
   Datenschutzerklärung.
 - Feedback Stufe 1: „Weißt du, woher der Text stammt?“ im Prüfergebnis, nur lokal, mit Einwilligung,
   JSONL-Export, `training/import_feedback.py`.
@@ -255,9 +259,9 @@ Statistik aus dem Register statt Dokument-Scans.
   ~5 s, in der Zeit reagiert die Priorisierung nicht aufs Scrollen.
 - Server-Backends: Modellversion vom Server abfragen (z.B. `/healthz`) und in den Schlüssel nehmen.
 - Gleichzeitige Anfragen für denselben Absatz aus mehreren Tabs im Service Worker zusammenfassen.
-- Sperrliste: UK-Banken sind in UT1 dünn (~60 `.uk`-Domains) – bei Bedarf FCA-Register als Quelle
-  prüfen (Zugang und Lizenz noch nicht geklärt). Deutsche Genossenschaftsbanken/Sparkassen haben teils eigene Domains, die in
-  keiner Liste stehen; die Passwortfeld-Heuristik fängt deren Login-Seiten ab.
+- Sperrliste UK: nur ~60 `.uk`-Domains aus UT1, 71 Banken aus Wikidata plus handverlesene
+  Großbanken. Vollständig wäre das FCA-Register (API mit kostenlosem Key, Weitergabebedingungen noch
+  nicht geprüft). DE: BaFin-Export hat keine Websites. Lücken fängt die Passwortfeld-Heuristik ab.
 
 ## Stolpersteine (gelöst)
 

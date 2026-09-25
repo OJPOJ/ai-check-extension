@@ -17,6 +17,11 @@ Die mitgelieferte Sperrliste ist aus folgenden Quellen zusammengestellt und steh
   ohne einzelne Portale mit überwiegend redaktionellem Inhalt (Liste `NEVER_BLOCK` im Build-Skript).
 - **FDIC BankFind Suite** – Web-Adressen aller aktiven US-Banken, Werk der US-Bundesregierung
   (gemeinfrei). https://api.fdic.gov/banks/docs/
+- **NCUA Call Report Data** – Web-Adressen der US-Credit-Unions (Quartalsdaten, Feld `Acct_891`),
+  National Credit Union Administration, Werk der US-Bundesregierung (gemeinfrei).
+  https://ncua.gov/analysis/credit-union-corporate-call-report-data/quarterly-data
+- **Wikidata** – offizielle Websites (P856) von Banken in Deutschland, Österreich, der Schweiz, dem
+  Vereinigten Königreich und den USA, CC0 1.0. https://www.wikidata.org/
 - Handverlesene Ergänzungen (`scripts/build-blocklist.mjs`, `CURATED`).
 
 ## Zur Laufzeit geladene Modelle (nicht im Paket enthalten)
