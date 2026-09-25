@@ -282,3 +282,9 @@ Statistik aus dem Register statt Dokument-Scans.
 - desklibs Beispielcode crasht mit `transformers>=5` (`all_tied_weights_keys`) → Property-Fix in
   `server/shim_server.py` / `training/evaluate_backends.py`.
 - `laya-serve` hat `/health`, nicht `/healthz`.
+
+## Lizenz
+
+Der Code steht unter der MIT-Lizenz (`LICENSE`). Ausgenommen ist die mitgelieferte Sperrliste
+`extension/generated/blocklist.js`, die unter CC BY-SA 4.0 steht. Quellen und Lizenzen aller
+Drittkomponenten: `extension/THIRD_PARTY_NOTICES.md`.
