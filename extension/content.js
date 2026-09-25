@@ -445,7 +445,8 @@
     if (visible && (!el.hasAttribute("title") || el.dataset.aivsaiTitle)) {
       el.title =
         `${AIVSAI.LEVEL_TEXT[level]} – ${pct}% KI-Wahrscheinlichkeit ` +
-        `(${AIVSAI.providerLabel(config)}; Schätzung, kann falsch liegen)`;
+        `(${AIVSAI.providerLabel(config)}; Schätzung, kann falsch liegen)` +
+        (config.showBadge ? " · Klick aufs Badge: Details und Feedback" : "");
       el.dataset.aivsaiTitle = "1";
     } else if (!visible && el.dataset.aivsaiTitle) {
       el.removeAttribute("title");
@@ -531,6 +532,54 @@
 
   document.addEventListener("contextmenu", (e) => (contextTarget = e.target), true);
 
+  // Klick aufs Prozent-Badge: Details und Feedback zum schon bewerteten Absatz, ohne neu zu rechnen.
+  // Das Badge ist ein ::after des Absatzes - Klicks darauf landen beim Absatz selbst, deshalb entscheidet
+  // die Position. Nur Klicks genau auf dem Badge werden abgefangen (sonst z.B. Links im Absatz kaputt).
+  function badgeHit(e) {
+    const el = e.target instanceof Element ? e.target.closest(".aivsai-badge") : null;
+    if (!el || !results.has(el)) return null;
+    const r = el.getBoundingClientRect();
+    const b = getComputedStyle(el, "::after");
+    // Lage aus content.css: top -12px, right -6px (relativ zur Padding-Box des Absatzes)
+    const right = r.right - parseFloat(getComputedStyle(el).borderRightWidth) + 6;
+    const top = r.top + parseFloat(getComputedStyle(el).borderTopWidth) - 12;
+    const width = parseFloat(b.width) + parseFloat(b.paddingLeft) + parseFloat(b.paddingRight);
+    const height = parseFloat(b.height);
+    const hit = e.clientX >= right - width - 1 && e.clientX <= right + 1 && e.clientY >= top - 1 && e.clientY <= top + height + 1;
+    return hit ? el : null;
+  }
+
+  window.addEventListener(
+    "mousedown",
+    (e) => {
+      if (e.button === 0 && badgeHit(e)) e.preventDefault(); // keine Textauswahl/Fokus der Seite
+    },
+    true
+  );
+
+  window.addEventListener(
+    "click",
+    (e) => {
+      const el = e.button === 0 && badgeHit(e);
+      if (!el) return;
+      e.preventDefault(); // Absatz in einem Link: nicht navigieren
+      e.stopPropagation();
+      showDetails(el);
+    },
+    true
+  );
+
+  async function showDetails(el) {
+    const rec = results.get(el);
+    const token = Popover.claim();
+    const view = resultView(rec.p, wordCount(rec.text), false);
+    if (rec.source === "auto" && rec.text.length >= MAX_CHARS) {
+      view.notes.unshift(`Bewertet wurden die ersten ${MAX_CHARS} Zeichen des Absatzes.`);
+    }
+    const scored = { text: rec.text, p: rec.p, model: rec.model, source: rec.source };
+    await openWithFeedback({ target: { el }, token, view, scored });
+  }
+
   function checkSelection() {
     const sel = getSelection();
     const text = sel && !sel.isCollapsed ? sel.toString().replace(/\s+/g, " ").trim() : "";
@@ -601,7 +650,7 @@
     markManual(target, { text, p, model: resp.model, at: Date.now() });
     const view = resultView(p, words, fullText.length > MANUAL_MAX_CHARS);
     const scored = { text, p, model: resp.model, source: target.range ? "selection" : "manual" };
-    Popover.show(target, token, withFeedback({ target, token, view, scored }));
+    await openWithFeedback({ target, token, view, scored });
     reportStats();
   }
 
@@ -657,18 +706,53 @@
     });
   }
 
-  // fb: { target, token, view (Ergebnisansicht), scored: { text, p, model, source } }
+  // Sperrliste bzw. Passwort-/Zahlungsfeld (Mail, Banking): dort keine Texte sammeln, auch nicht lokal
+  const feedbackOffered = () => config.feedbackButtons && !blockReason();
+
+  // fb: { target, token, view (Ergebnisansicht), scored: { text, p, model, source },
+  //       saved: bisherige Angabe zu diesem Text { id, label, basis, at } oder null }
+  async function openWithFeedback(fb) {
+    fb.saved = null;
+    if (feedbackOffered()) {
+      fb.saved = (await sendMessage({ type: "FEEDBACK_GET", text: fb.scored.text }))?.entry ?? null;
+    }
+    Popover.show(fb.target, fb.token, withFeedback(fb));
+  }
+
+  function basisText(label, basis) {
+    return FEEDBACK_BASES[label].find(([b]) => b === basis)?.[1] ?? basis;
+  }
+
   function withFeedback(fb) {
-    // Sperrliste bzw. Passwort-/Zahlungsfeld (Mail, Banking): dort keine Texte sammeln, auch nicht lokal
-    if (!config.feedbackButtons || blockReason()) return fb.view;
-    return {
-      ...fb.view,
-      prompt: "Weißt du, woher der Text stammt?",
-      buttons: [
-        { text: "Von einem Menschen", onClick: () => askBasis(fb, "human") },
-        { text: "Von einer KI", onClick: () => askBasis(fb, "ai") }
-      ]
-    };
+    if (!feedbackOffered()) return fb.view;
+    if (fb.saved) {
+      const { label, basis, at } = fb.saved;
+      return {
+        ...fb.view,
+        prompt:
+          `Deine Angabe: ${FEEDBACK_LABELS[label]} – ${basisText(label, basis)} ` +
+          `(${new Date(at).toLocaleDateString("de-DE")})`,
+        buttons: [
+          { text: "Ändern", onClick: () => askLabel(fb) },
+          { text: "Entfernen", onClick: () => removeFeedback(fb) }
+        ]
+      };
+    }
+    return { ...fb.view, prompt: "Weißt du, woher der Text stammt?", buttons: labelButtons(fb) };
+  }
+
+  function labelButtons(fb) {
+    return [
+      { text: "Von einem Menschen", onClick: () => askBasis(fb, "human") },
+      { text: "Von einer KI", onClick: () => askBasis(fb, "ai") }
+    ];
+  }
+
+  function askLabel(fb) {
+    showFeedback(fb, {
+      prompt: "Woher stammt der Text?",
+      buttons: [...labelButtons(fb), { text: "Zurück", onClick: () => Popover.show(fb.target, fb.token, withFeedback(fb)) }]
+    });
   }
 
   function showFeedback(fb, extra) {
@@ -680,7 +764,7 @@
       prompt: `Text ${FEEDBACK_LABELS[label]} – woher weißt du das?`,
       buttons: [
         ...FEEDBACK_BASES[label].map(([basis, text]) => ({ text, onClick: () => saveFeedback(fb, label, basis) })),
-        { text: "Zurück", onClick: () => Popover.show(fb.target, fb.token, withFeedback(fb)) }
+        { text: "Zurück", onClick: () => (fb.saved ? askLabel(fb) : Popover.show(fb.target, fb.token, withFeedback(fb))) }
       ]
     });
   }
@@ -688,8 +772,8 @@
   async function saveFeedback(fb, label, basis) {
     const { [FEEDBACK_CONSENT]: consentAt } = await chrome.storage.local.get(FEEDBACK_CONSENT);
     if (!consentAt) return askConsent(fb, label, basis);
-    const entry = { ...fb.scored, label, basis, lang: document.documentElement.lang || "" };
-    const resp = await sendMessage({ type: "FEEDBACK_SAVE", entry });
+    const previous = fb.saved;
+    const resp = await storeFeedback(fb, label, basis);
     if (!resp?.ok) {
       showFeedback(fb, { prompt: `Nicht gespeichert: ${resp?.error || "Extension nicht erreichbar"}`, buttons: [] });
       return;
@@ -703,12 +787,33 @@
     showFeedback(fb, {
       notes,
       prompt: `Danke! Gespeichert: ${FEEDBACK_LABELS[label]}.`,
-      buttons: [{ text: "Rückgängig", onClick: () => undoFeedback(fb, resp.id) }]
+      buttons: [{ text: "Rückgängig", onClick: () => undoFeedback(fb, previous) }]
     });
   }
 
-  async function undoFeedback(fb, id) {
-    await sendMessage({ type: "FEEDBACK_DELETE", id });
+  // Pro Text gibt es genau einen Eintrag - Speichern ersetzt eine frühere Angabe
+  async function storeFeedback(fb, label, basis) {
+    const entry = { ...fb.scored, label, basis, lang: document.documentElement.lang || "" };
+    const resp = await sendMessage({ type: "FEEDBACK_SAVE", entry });
+    if (resp?.ok) fb.saved = { id: resp.id, label, basis, at: Date.now() };
+    return resp;
+  }
+
+  // Rückgängig: frühere Angabe wiederherstellen bzw. den neuen Eintrag löschen
+  async function undoFeedback(fb, previous) {
+    if (previous) {
+      await storeFeedback(fb, previous.label, previous.basis);
+      fb.saved = previous;
+    } else {
+      await removeFeedback(fb);
+      return;
+    }
+    Popover.show(fb.target, fb.token, withFeedback(fb));
+  }
+
+  async function removeFeedback(fb) {
+    if (fb.saved) await sendMessage({ type: "FEEDBACK_DELETE", id: fb.saved.id });
+    fb.saved = null;
     Popover.show(fb.target, fb.token, withFeedback(fb));
   }
 

@@ -53,7 +53,7 @@ und jeden gesendeten Text mitschreibt (zufälliger Port, ein laufender `shim_ser
 |---|---|
 | `scan.test.mjs` | Auto-Scan, Popup-Zähler, Icon-Badge, nachgeladene Absätze, Cache, Schwellen, Auswahl-/Rechtsklick-Prüfung, An/Aus, Lazy-Scan, Freigabe pro Seite, Sperrliste (eigene Einträge, mitgelieferte Liste, Ausnahmen, Passwortfeld-Heuristik), Backend-Status, Einstellungen |
 | `extraction.test.mjs` | Was ans Modell geht: 23 Grenzfälle (Navigation, Cookie-Banner, versteckte Absätze, Code, Icon-Fonts, Formulare …), mit und ohne Lazy-Scan |
-| `feedback.test.mjs` | Feedback im Popover: Einwilligung vor dem ersten Speichern, Rückgängig, Export ohne Adresse, Widerruf, Abschalten |
+| `feedback.test.mjs` | Feedback im Popover: Klick aufs Badge (auch in Links, ohne Neu-Bewertung), Einwilligung vor dem ersten Speichern, Rückgängig, Export ohne Adresse, Widerruf, Abschalten |
 | `score-store.test.mjs` | Dauerhafter Speicher: SW-Neustart, Zuordnung über Seiten, Modellwechsel, Aufbewahrung, „Nicht speichern“ |
 
 Nicht abgedeckt: Bewertung mit dem echten Browser-Modell (bräuchte den Modell-Download) und der
@@ -97,11 +97,14 @@ Hugging-Face-Provider mit echtem Token.
 - **Bewertungen merken (Default 30 Tage, einstellbar bis 1 Jahr oder „nicht speichern“):**
   bekannte Absätze werden sofort markiert, ohne neu zu rechnen – auch nach Browser-Neustart und
   auf anderen Seiten mit demselben Text.
-- **Feedback (Roadmap 2, Stufe 1 – nur lokal):** Im Ergebnis-Popover der manuellen Prüfung (auch
-  Rechtsklick auf einen schon markierten Absatz) „Weißt du, woher der Text stammt?“ → Mensch/KI →
+- **Feedback (Stufe 1 – nur lokal):** Klick aufs Prozent-Badge eines markierten Absatzes öffnet
+  Details (ohne neu zu rechnen); dort und im Ergebnis der manuellen Prüfung: „Weißt du, woher der Text stammt?“ → Mensch/KI →
   *woher* man es weiß: selbst geschrieben bzw. Autor:in bekannt, vor 2023 veröffentlicht, als KI
   gekennzeichnet oder „nur mein Eindruck“. Vor dem ersten Speichern Einwilligung im Popover, danach
-  „Rückgängig“. Einstellungen → Feedback: Zähler, Export als JSONL, Löschen + Widerruf, Knöpfe
+  „Rückgängig“. Eine gespeicherte Angabe zeigt das Popover beim nächsten Öffnen wieder an
+  („Deine Angabe: … – Ändern / Entfernen“, auch nach Neuladen); Ändern ersetzt den Eintrag, Rückgängig
+  stellt die vorige Angabe wieder her. Zuordnung über den Text: Badge (erste 500 Zeichen) und
+  Rechtsklick-Prüfung (bis 2000 Zeichen) eines langen Absatzes sind zwei Einträge. Einstellungen → Feedback: Zähler, Export als JSONL, Löschen + Widerruf, Knöpfe
   abschaltbar. Auf gesperrten Seiten (Sperrliste, Passwort-/Zahlungsfeld) keine Feedback-Knöpfe. Weiterverarbeitung:
   `training/import_feedback.py`, Begründung und Grenzen: `training/README.md` („Feedback als Datenquelle“).
 - **Backends** (`extension/bg/providers.js`): Im Browser (TMR oder desklib), Lokal

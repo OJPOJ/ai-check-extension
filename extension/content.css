@@ -1,4 +1,4 @@
-/* Rein visuelle Marker - kein Einfluss auf Layout, Klicks oder Text-Selektion.
+/* Rein visuelle Marker - kein Einfluss auf Layout oder Text-Selektion; anklickbar ist nur das Badge.
    Die Stufen unterscheiden sich auch ohne Farbwahrnehmung: grün dünn/durchgezogen,
    gelb gestrichelt, rot kräftig mit Glow - plus Prozentwert in der Badge. */
 
@@ -62,7 +62,9 @@
   white-space: nowrap !important;
   color: #fff !important;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
-  pointer-events: none !important;
+  /* anklickbar: öffnet Details + Feedback (content.js, badgeHit) - das einzige Bedienelement am Absatz */
+  pointer-events: auto !important;
+  cursor: pointer !important;
 }
 
 .aivsai-green.aivsai-badge::after { background: #15803d !important; }

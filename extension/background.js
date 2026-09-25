@@ -141,6 +141,11 @@ const HANDLERS = {
   FEEDBACK_SAVE: (msg) => withError(saveFeedback(msg.entry)),
   FEEDBACK_DELETE: (msg) => withError(feedback.remove(msg.id).then(feedbackInfo)),
   FEEDBACK_INFO: () => withError(feedbackInfo()),
+  // Nur die Angabe zurück, nicht den Text - den kennt der Absender ja
+  FEEDBACK_GET: (msg) =>
+    withError(
+      feedback.get(msg.text).then((row) => ({ ok: true, entry: row && { id: row.id, label: row.label, basis: row.basis, at: row.at } }))
+    ),
   // Export und Widerruf nur aus den Einstellungen, nie aus einem Content-Script
   FEEDBACK_EXPORT: (msg, sender) =>
     fromExtensionPage(sender) && withError(feedback.all().then((rows) => ({ ok: true, rows }))),

@@ -85,6 +85,14 @@ export async function put(entry) {
   return id;
 }
 
+/** Gespeicherte Angabe zu genau diesem Text oder null - damit das Popover sie zeigen und ändern kann. */
+export async function get(text) {
+  const clean = typeof text === "string" ? text.trim().slice(0, 2000) : "";
+  if (!clean) return null;
+  const row = await done((await openDb()).transaction(STORE).objectStore(STORE).get(await idFor(clean)));
+  return row ?? null;
+}
+
 export async function remove(id) {
   const tx = (await openDb()).transaction(STORE, "readwrite");
   tx.objectStore(STORE).delete(String(id));
