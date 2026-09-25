@@ -283,24 +283,68 @@ async function toggleEnabled() {
   await chrome.storage.sync.set({ enabled: !enabled });
 }
 
+// ---------------------------------------------------------------------------
+// Kontextmenü: markierten Text bzw. Absatz unter dem Mauszeiger manuell prüfen -
+// unabhängig vom Scan-Modus, solange die Extension eingeschaltet ist
+// ---------------------------------------------------------------------------
+
+const MENU_ITEMS = {
+  "check-selection": { title: "Markierten Text auf KI prüfen", contexts: ["selection"], message: "CHECK_SELECTION" },
+  "check-element": { title: "Diesen Absatz auf KI prüfen", contexts: ["page", "link"], message: "CHECK_ELEMENT" }
+};
+
+async function createMenus() {
+  const { enabled } = await chrome.storage.sync.get({ enabled: AIVSAI.DEFAULTS.enabled });
+  await chrome.contextMenus.removeAll();
+  for (const [id, { title, contexts }] of Object.entries(MENU_ITEMS)) {
+    chrome.contextMenus.create({ id, title, contexts, visible: enabled }, () => void chrome.runtime.lastError);
+  }
+}
+
+function setMenusVisible(visible) {
+  for (const id of Object.keys(MENU_ITEMS)) {
+    chrome.contextMenus.update(id, { visible }, () => void chrome.runtime.lastError);
+  }
+}
+
+function sendToTab(tabId, msg, frameId = 0) {
+  // kein Content-Script: chrome://-Seiten, Web Store, Tabs von vor der Installation
+  chrome.tabs.sendMessage(tabId, msg, { frameId }, () => void chrome.runtime.lastError);
+}
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  const item = MENU_ITEMS[info.menuItemId];
+  if (item && tab?.id !== undefined) sendToTab(tab.id, { type: item.message }, info.frameId);
+});
+
 chrome.runtime.onInstalled.addListener(({ reason }) => {
   updateBadge();
+  createMenus();
   // Erstinstallation: Einstellungen öffnen, damit das Modell heruntergeladen werden kann
   if (reason === "install") chrome.runtime.openOptionsPage();
 });
 chrome.runtime.onStartup.addListener(() => updateBadge());
 
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === "sync" && "enabled" in changes) updateBadge();
+  if (area === "sync" && "enabled" in changes) {
+    updateBadge();
+    setMenusVisible(changes.enabled.newValue ?? AIVSAI.DEFAULTS.enabled);
+  }
 });
 
 chrome.commands.onCommand.addListener(async (command) => {
   if (command === "toggle-enabled") {
     await toggleEnabled();
-  } else if (command === "scan-page") {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab?.id) chrome.tabs.sendMessage(tab.id, { type: "SCAN_NOW" }, () => void chrome.runtime.lastError);
+    return;
   }
+  const message = { "scan-page": "SCAN_NOW", "check-selection": "CHECK_SELECTION" }[command];
+  if (!message) return;
+  if (command === "check-selection") {
+    const { enabled } = await chrome.storage.sync.get({ enabled: AIVSAI.DEFAULTS.enabled });
+    if (!enabled) return;
+  }
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (tab?.id) sendToTab(tab.id, { type: message });
 });
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {

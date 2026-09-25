@@ -69,6 +69,28 @@
 .aivsai-yellow.aivsai-badge::after { background: #a16207 !important; }
 .aivsai-red.aivsai-badge::after { background: #dc2626 !important; }
 
+/* Manuell geprüfter markierter Text (CSS Custom Highlight API, kein Eingriff ins DOM).
+   Auch hier ohne Farbwahrnehmung unterscheidbar: gepunktet / durchgezogen / gestrichelt / wellig. */
+::highlight(aivsai-pending) {
+  background-color: rgba(148, 163, 184, 0.3);
+  text-decoration: underline dotted rgba(100, 116, 139, 0.9);
+}
+
+::highlight(aivsai-green) {
+  background-color: rgba(22, 163, 74, 0.18);
+  text-decoration: underline solid rgba(22, 163, 74, 0.8);
+}
+
+::highlight(aivsai-yellow) {
+  background-color: rgba(234, 179, 8, 0.28);
+  text-decoration: underline dashed rgba(161, 98, 7, 0.9);
+}
+
+::highlight(aivsai-red) {
+  background-color: rgba(220, 38, 38, 0.22);
+  text-decoration: underline wavy rgba(220, 38, 38, 0.95);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .aivsai-red {
     animation: none;

@@ -6,7 +6,8 @@
   "permissions": [
     "storage",
     "tabs",
-    "offscreen"
+    "offscreen",
+    "contextMenus"
   ],
   "host_permissions": [
     "http://127.0.0.1/*",
@@ -67,6 +68,12 @@
         "default": "Alt+Shift+S"
       },
       "description": "Aktuelle Seite jetzt scannen"
+    },
+    "check-selection": {
+      "suggested_key": {
+        "default": "Alt+Shift+C"
+      },
+      "description": "Markierten Text auf KI prüfen"
     }
   }
 }

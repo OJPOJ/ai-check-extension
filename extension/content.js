@@ -12,6 +12,11 @@
     "[contenteditable], [contenteditable='true'], textarea, input, select, button, " +
     "[role='textbox']";
   const LEVEL_CLASSES = ["aivsai-green", "aivsai-yellow", "aivsai-red", "aivsai-badge"];
+  // Manuelle Prüfung: kürzere Texte erlaubt und mehr Text als beim Auto-Scan
+  // (die Modelle schneiden ohnehin bei 512 Tokens ab)
+  const MANUAL_MIN_WORDS = 5;
+  const MANUAL_MAX_CHARS = 2000;
+  const HIGHLIGHT_STATES = ["pending", "green", "yellow", "red"];
   const host = location.hostname;
 
   let config = { ...AIVSAI.DEFAULTS };
@@ -27,6 +32,10 @@
   let statsTimer = null;
   const addedNodes = new Set();
   let pumpTimer = null;
+  let contextTarget = null; // Element unter dem letzten Rechtsklick
+  const manualRanges = new Map(); // Range -> probability (null = wird geprüft)
+  let popover = null;
+  let popoverToken = 0;
 
   // Meldet, wenn ein zurückgestellter Absatz in die Nähe des sichtbaren Bereichs kommt -
   // deckt Scrollen, Fenstergröße und aufgeklappte Inhalte ab, ohne Scroll-Listener.
@@ -49,7 +58,8 @@
     for (const [key, change] of Object.entries(changes)) config[key] = change.newValue ?? AIVSAI.DEFAULTS[key];
 
     if (!isActive()) {
-      if (wasActive) clearAll();
+      // beim Ausschalten auch manuell geprüfte Stellen entfernen, die es ohne Auto-Scan geben kann
+      if (wasActive || ("enabled" in changes && !config.enabled)) clearAll();
     } else if (!wasActive || AIVSAI.PROVIDER_KEYS.some((k) => k in changes)) {
       rescanAll();
     } else {
@@ -68,6 +78,10 @@
       if (isActive() && lastError) rescanAll();
     } else if (msg?.type === "GET_STATS") {
       sendResponse(stats());
+    } else if (msg?.type === "CHECK_SELECTION") {
+      checkSelection();
+    } else if (msg?.type === "CHECK_ELEMENT") {
+      checkElement();
     }
   });
 
@@ -203,19 +217,24 @@
     pumpTimer = setTimeout(pump, 150);
   }
 
+  function requestScores(items) {
+    return new Promise((resolve) => {
+      try {
+        chrome.runtime.sendMessage({ type: "SCORE_BATCH", items }, (resp) =>
+          resolve(chrome.runtime.lastError ? null : resp)
+        );
+      } catch {
+        // Extension wurde neu geladen - dieses Content-Script ist verwaist
+        resolve(null);
+      }
+    });
+  }
+
   function sendBatch(batch) {
     const gen = generation;
     batchesInFlight++;
     batch.forEach((b) => inFlight.set(b.id, b));
-    try {
-      chrome.runtime.sendMessage(
-        { type: "SCORE_BATCH", items: batch.map((b) => ({ id: b.id, text: b.text })) },
-        (resp) => handleBatchResult(batch, gen, chrome.runtime.lastError ? null : resp)
-      );
-    } catch {
-      // Extension wurde neu geladen - dieses Content-Script ist verwaist
-      handleBatchResult(batch, gen, null);
-    }
+    requestScores(batch.map((b) => ({ id: b.id, text: b.text }))).then((resp) => handleBatchResult(batch, gen, resp));
   }
 
   function handleBatchResult(batch, gen, resp) {
@@ -282,6 +301,7 @@
 
   function restyleAll() {
     document.querySelectorAll("[data-aivsai-score]").forEach(style);
+    for (const [range, p] of manualRanges) highlightRange(range, p);
   }
 
   function clearAll() {
@@ -295,6 +315,9 @@
       delete el.dataset.aivsaiHash;
     });
     lastError = null;
+    for (const range of manualRanges.keys()) highlightRange(range, undefined);
+    manualRanges.clear();
+    hidePopover();
   }
 
   function rescanAll() {
@@ -321,6 +344,208 @@
       }
     }, 200);
   }
+
+  // ---------------------------------------------------------------------------
+  // Manuelle Prüfung per Rechtsklick/Tastenkürzel: markierter Text oder der Absatz unter
+  // dem Mauszeiger - auch wenn die Seite nicht automatisch gescannt wird oder der Text
+  // für den Auto-Scan zu kurz ist bzw. ausgeschlossen wurde.
+  // ---------------------------------------------------------------------------
+
+  document.addEventListener("contextmenu", (e) => (contextTarget = e.target), true);
+
+  function checkSelection() {
+    const sel = getSelection();
+    const text = sel && !sel.isCollapsed ? sel.toString().replace(/\s+/g, " ").trim() : "";
+    if (!text) {
+      showPopover({}, ++popoverToken, { error: "Kein Text markiert." });
+      return;
+    }
+    const range = sel.getRangeAt(0).cloneRange();
+    sel.collapseToEnd(); // sonst verdeckt die Auswahlfarbe die Markierung
+    checkManual(text, { range });
+  }
+
+  // Nächstes Block-Element mit genug Text, z.B. ein <div> ohne <p> oder ein kurzer Listeneintrag
+  function blockFor(node) {
+    for (let el = node instanceof Element ? node : node?.parentElement; el && el !== document.body; el = el.parentElement) {
+      if (getComputedStyle(el).display.startsWith("inline")) continue;
+      if (wordCount(el.innerText || "") >= MANUAL_MIN_WORDS) return el;
+    }
+    return null;
+  }
+
+  function checkElement() {
+    const target = contextTarget?.isConnected ? contextTarget : null;
+    const el = blockFor(target);
+    if (!el) {
+      const words = wordCount(target?.innerText || target?.textContent || "");
+      showPopover({ el: target }, ++popoverToken, { error: tooShort(words) });
+      return;
+    }
+    // Hash wie beim Auto-Scan, damit der Absatz dort nicht noch einmal eingereiht wird
+    const text = el.innerText.trim();
+    const hash = hashText(text);
+    pending.delete(hash);
+    el.dataset.aivsaiHash = hash;
+    checkManual(text, { el });
+  }
+
+  function tooShort(words) {
+    return `Zu wenig Text (${words} ${words === 1 ? "Wort" : "Wörter"}) – mindestens ${MANUAL_MIN_WORDS} Wörter nötig.`;
+  }
+
+  async function checkManual(fullText, target) {
+    const token = ++popoverToken;
+    const words = wordCount(fullText);
+    if (!config.enabled) {
+      showPopover(target, token, { error: "Die Extension ist ausgeschaltet." });
+      return;
+    }
+    if (words < MANUAL_MIN_WORDS) {
+      showPopover(target, token, { error: tooShort(words) });
+      return;
+    }
+    const text = fullText.slice(0, MANUAL_MAX_CHARS);
+    const id = `m_${hashText(text)}`;
+    const gen = generation;
+    markManual(target, null);
+    showPopover(target, token, { loading: true });
+
+    const resp = await requestScores([{ id, text }]);
+    if (gen !== generation) return;
+    const p = resp?.scores?.[id];
+    if (typeof p !== "number") {
+      markManual(target, undefined);
+      const error = resp?.error || (resp ? "Keine Bewertung erhalten." : "Extension nicht erreichbar – Seite neu laden.");
+      showPopover(target, token, { error });
+      return;
+    }
+    markManual(target, p);
+    showPopover(target, token, { p, words, truncated: fullText.length > MANUAL_MAX_CHARS });
+    reportStats();
+  }
+
+  // probability: Zahl = Ergebnis, null = wird geprüft, undefined = Markierung entfernen
+  function markManual({ range, el }, probability) {
+    if (range) {
+      if (probability === undefined) manualRanges.delete(range);
+      else manualRanges.set(range, probability);
+      highlightRange(range, probability);
+    }
+    if (el) {
+      if (probability === null) {
+        unstyle(el);
+        el.classList.add("aivsai-pending");
+      } else if (probability === undefined) {
+        el.classList.remove("aivsai-pending");
+      } else {
+        applyScore(el, probability);
+      }
+    }
+  }
+
+  // CSS Custom Highlight API: färbt beliebige Textbereiche, ohne das DOM der Seite anzufassen
+  function highlightRange(range, probability) {
+    if (!window.CSS?.highlights) return;
+    for (const state of HIGHLIGHT_STATES) CSS.highlights.get(`aivsai-${state}`)?.delete(range);
+    if (probability === undefined) return;
+    const name = `aivsai-${probability === null ? "pending" : AIVSAI.level(probability, config)}`;
+    if (!CSS.highlights.has(name)) CSS.highlights.set(name, new Highlight());
+    CSS.highlights.get(name).add(range);
+  }
+
+  const POPOVER_CSS = `
+    :host { all: initial; position: absolute; z-index: 2147483647; }
+    .box {
+      --bg: #fff; --fg: #1f2937; --muted: #6b7280; --border: rgba(0, 0, 0, 0.12); --error: #dc2626;
+      box-sizing: border-box; width: 280px; max-width: calc(100vw - 16px); position: relative;
+      padding: 10px 30px 10px 12px; border: 1px solid var(--border); border-radius: 10px;
+      background: var(--bg); color: var(--fg); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+      font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      .box { --bg: #1f2937; --fg: #f3f4f6; --muted: #9ca3af; --border: rgba(255, 255, 255, 0.15); --error: #f87171; }
+    }
+    .close {
+      position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; padding: 0;
+      border: 0; border-radius: 6px; background: none; color: var(--muted);
+      font: 16px/22px system-ui, sans-serif; cursor: pointer;
+    }
+    .close:hover { background: var(--border); color: var(--fg); }
+    .head { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+    .pill { padding: 0 7px; border-radius: 999px; color: #fff; font-size: 12px; line-height: 19px; white-space: nowrap; }
+    .green { background: #15803d; }
+    .yellow { background: #a16207; }
+    .red { background: #dc2626; }
+    .note { margin-top: 4px; color: var(--muted); font-size: 12px; }
+    .error { color: var(--error); }
+  `;
+
+  function showPopover(target, token, state) {
+    if (token !== popoverToken) return; // eine neuere Prüfung hat das Popover übernommen
+    if (!popover) {
+      popover = document.createElement("aivsai-popover");
+      const shadow = popover.attachShadow({ mode: "open" });
+      shadow.innerHTML =
+        `<style>${POPOVER_CSS}</style>` +
+        `<div class="box" role="status" aria-live="polite">` +
+        `<button class="close" type="button" aria-label="Schließen" title="Schließen">×</button>` +
+        `<div class="body"></div></div>`;
+      shadow.querySelector(".close").addEventListener("click", hidePopover);
+    }
+    const div = (cls, text) => {
+      const node = document.createElement(cls === "pill" ? "span" : "div");
+      node.className = cls;
+      node.textContent = text;
+      return node;
+    };
+    const body = popover.shadowRoot.querySelector(".body");
+    body.replaceChildren();
+
+    if (state.loading) {
+      body.append(div("head", "Wird auf KI geprüft…"), div("note", AIVSAI.providerLabel(config)));
+    } else if (state.error) {
+      body.append(div("error", state.error));
+    } else {
+      const level = AIVSAI.level(state.p, config);
+      const pill = div("pill", `${Math.round(state.p * 100)} % KI`);
+      pill.classList.add(level);
+      const head = div("head", "");
+      head.append(pill, AIVSAI.LEVEL_TEXT[level]);
+      body.append(head);
+      if (state.words < MIN_WORDS) {
+        body.append(div("note", `Kurzer Text (${state.words} Wörter) – Ergebnis wenig verlässlich.`));
+      }
+      if (state.truncated) body.append(div("note", `Nur die ersten ${MANUAL_MAX_CHARS} Zeichen bewertet.`));
+      body.append(div("note", `${AIVSAI.providerLabel(config)} · Schätzung, kann falsch liegen`));
+    }
+
+    if (!popover.isConnected) document.documentElement.append(popover);
+    positionPopover(target);
+  }
+
+  // Unter den geprüften Text, aber immer im sichtbaren Bereich - lange Absätze ragen oft darüber hinaus
+  function positionPopover({ range, el }) {
+    const anchor = range || (el?.isConnected ? el : null);
+    const rect = anchor?.getBoundingClientRect();
+    const box = popover.getBoundingClientRect();
+    const x = Math.max(8, Math.min(rect ? rect.left : innerWidth, innerWidth - box.width - 8));
+    const y = Math.max(8, Math.min(rect ? rect.bottom + 8 : 8, innerHeight - box.height - 8));
+    popover.style.left = `${x + scrollX}px`;
+    popover.style.top = `${y + scrollY}px`;
+  }
+
+  function hidePopover() {
+    popoverToken++;
+    popover?.remove();
+  }
+
+  document.addEventListener("keydown", (e) => e.key === "Escape" && popover?.isConnected && hidePopover(), true);
+  document.addEventListener(
+    "mousedown",
+    (e) => popover?.isConnected && !e.composedPath().includes(popover) && hidePopover(),
+    true
+  );
 
   // Nachgeladene Inhalte (Infinite Scroll, SPAs) - Knoten über die Debounce-Zeit sammeln,
   // damit keine Mutationen verloren gehen, wenn der Timer neu startet.

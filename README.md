@@ -28,6 +28,12 @@ Hintergrund/Architektur: `RESOURCES.md`.
 - **Lazy-Scan (Default an, abschaltbar):** bewertet nur Absätze bis 1,5 Bildschirmhöhen
   um den sichtbaren Bereich; der Rest wird per `IntersectionObserver` nachgeholt, sobald er
   in die Nähe kommt (Scrollen, Resize, aufgeklappte Inhalte). Spart Rechenzeit/Cloud-Kosten.
+- **Einzelne Stellen prüfen:** Rechtsklick auf markierten Text → „Markierten Text auf KI
+  prüfen“ (oder `Alt+Shift+C`), Rechtsklick irgendwo sonst → „Diesen Absatz auf KI prüfen“.
+  Funktioniert unabhängig vom Scan-Modus und auch für Text, den der Auto-Scan auslässt
+  (unter 40 Wörtern, kein `<p>`/`<li>`, Navigation usw.; Minimum 5 Wörter, bis 2000 Zeichen).
+  Markierter Text wird per CSS Custom Highlight API eingefärbt (kein DOM-Eingriff), das
+  Ergebnis erscheint in einem kleinen Popover.
 - E2E in Chromium (Playwright) gegen echten Shim-Server getestet: Scan-Modi, Toggle,
   dynamisch nachgeladene Absätze, toter Server (fail open), Options-„Verbindung testen“.
 
@@ -96,12 +102,15 @@ Hintergrund/Architektur: `RESOURCES.md`.
    Lizenzen geprüft (alles MIT bzw. transformers.js Apache-2.0): `extension/THIRD_PARTY_NOTICES.md`.
    HC3 (unser Laya-Datensatz) ist CC-BY-SA-4.0 → bei eigenem Fine-Tuning beachten.
 2. **Sperrliste „nie scannen“** (Banking, Mail, …) + Datenschutzerklärung – Web-Store-Pflicht.
-3. **Rechtsklick → „Auf KI prüfen“** für markierten Text (kurze Texte, Nicht-`<p>`-Inhalte).
-4. **Feedback „Falsch erkannt“** am Absatz → Trainingsdaten fürs eigene Fine-Tuning.
-5. **Score-Kalibrierung pro Modell**, damit Schwellen modellübergreifend dasselbe bedeuten.
-6. **Deutsch/mehrsprachig:** TMR und desklib sind nur auf Englisch trainiert (deutscher
+3. **Feedback „Falsch erkannt“** am Absatz → Trainingsdaten fürs eigene Fine-Tuning.
+4. **Score-Kalibrierung pro Modell**, damit Schwellen modellübergreifend dasselbe bedeuten.
+5. **Deutsch/mehrsprachig:** TMR und desklib sind nur auf Englisch trainiert (deutscher
    Fachtext im Harness: 78 % → gelb, Fehlalarm). Eigenes Fine-Tuning eines
    mehrsprachigen Encoders (z.B. mDeBERTa-v3/XLM-R) ähnlich desklib.
+6. **Berichte pro Seite exportieren/importieren:** Ergebnisse einer Seite (URL, geprüfte
+   Absätze/Textstellen, Scores, Modell, Zeitpunkt) als Datei exportieren und später wieder
+   laden bzw. weitergeben. Ausbaustufe: Ablage in einem Speicher/Konto (Sync über Geräte,
+   Verlauf pro Seite, Teilen im Team) – dann Datenschutz/Einwilligung mitdenken.
 7. **Zurückgestellt:** Hugging-Face-Provider mit echtem Token testen (bisher nur gemockt).
 
 ## Quick Start
