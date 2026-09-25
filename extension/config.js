@@ -7,6 +7,14 @@ globalThis.AIVSAI = (() => {
     // "manual" = nur per Popup-Knopf, "sites" = nur Seiten aus `sites`, "all" = jede Seite
     scanMode: "sites",
     sites: [],
+    // Sperrliste: hier nie automatisch scannen, auch nicht per "Seite jetzt scannen" (Banking, Mail, ...).
+    // Die manuelle Prüfung einzelner Stellen bleibt erlaubt - sie ist immer eine bewusste Einzelaktion.
+    // Mitgeliefert: generated/blocklist.js (scripts/build-blocklist.mjs), dazu eigene Einträge und Ausnahmen.
+    builtinBlocklist: true,
+    blockedSites: [], // eigene Einträge, gelten immer
+    unblockedSites: [], // Ausnahmen von der mitgelieferten Liste
+    // Seiten mit sichtbarem Passwort- oder Zahlungsfeld wie gesperrt behandeln (fängt ab, was keine Liste kennt)
+    sensitiveHeuristic: true,
     // nur Absätze nahe am sichtbaren Bereich bewerten, Rest erst beim Scrollen (spart Cloud-Kosten)
     lazyScan: true,
 
@@ -91,12 +99,36 @@ globalThis.AIVSAI = (() => {
     return sites.some((s) => host === s || host.endsWith(`.${s}`));
   }
 
+  // Mitgelieferte Liste als "\nd1\nd2\n...\n"-String: Suche nach Host und allen Eltern-Domains,
+  // ohne ein Set mit 10.000 Einträgen in jedem Tab aufzubauen. Ergebnis pro Host gemerkt.
+  const builtinCache = new Map();
+  function builtinMatch(host) {
+    if (!builtinCache.has(host)) {
+      const list = globalThis.AIVSAI_BLOCKLIST?.domains || "";
+      let match = null;
+      for (let d = host; d.includes(".") && !match; d = d.slice(d.indexOf(".") + 1)) {
+        if (list.includes(`\n${d}\n`)) match = d;
+      }
+      builtinCache.set(host, match);
+    }
+    return builtinCache.get(host);
+  }
+
+  // Warum eine Seite gesperrt ist: "user" (eigener Eintrag), "builtin" (mitgelieferte Liste) oder null
+  function blockReason(host, cfg) {
+    if (siteMatches(host, cfg.blockedSites || [])) return "user";
+    if (cfg.builtinBlocklist && builtinMatch(host) && !siteMatches(host, cfg.unblockedSites || [])) return "builtin";
+    return null;
+  }
+
   // Einzige Stelle, die entscheidet, ob auf einer Seite gescannt werden darf:
-  //   "off"    = gar nicht (Extension aus; später auch Sperrliste)
-  //   "manual" = nur auf ausdrücklichen Wunsch (Popup-Knopf, Tastenkürzel, Rechtsklick)
-  //   "auto"   = automatisch beim Laden
+  //   "off"     = gar nicht (Extension aus)
+  //   "blocked" = Sperrliste: kein Scan der Seite, nur Einzelprüfung per Auswahl/Rechtsklick
+  //   "manual"  = nur auf ausdrücklichen Wunsch (Popup-Knopf, Tastenkürzel, Rechtsklick)
+  //   "auto"    = automatisch beim Laden
   function scanPolicy(host, cfg) {
     if (!cfg.enabled) return "off";
+    if (blockReason(host, cfg)) return "blocked";
     if (cfg.scanMode === "all") return "auto";
     if (cfg.scanMode === "sites" && siteMatches(host, cfg.sites || [])) return "auto";
     return "manual";
@@ -131,6 +163,19 @@ globalThis.AIVSAI = (() => {
     return cfg.provider === "local" || cfg.provider === "browser" ? 1 : 2;
   }
 
+  // Wohin Texte das Gerät verlassen - null, wenn sie auf diesem Rechner bleiben
+  function remoteTarget(cfg) {
+    if (cfg.provider === "huggingface") return "Hugging Face (router.huggingface.co)";
+    const url = cfg.provider === "custom" ? cfg.customUrl : cfg.provider === "local" ? cfg.localUrl || DEFAULTS.localUrl : null;
+    if (url === null) return null;
+    try {
+      const { hostname, host } = new URL(url);
+      return hostname === "127.0.0.1" || hostname === "localhost" ? null : host;
+    } catch {
+      return "den eingetragenen Server";
+    }
+  }
+
   function providerLabel(cfg) {
     if (cfg.provider === "custom") return `Eigener Server${cfg.customModel ? ` (${cfg.customModel})` : ""}`;
     if (cfg.provider === "huggingface") return `Hugging Face (${cfg.hfModel})`;
@@ -147,10 +192,13 @@ globalThis.AIVSAI = (() => {
     LEVEL_TEXT,
     level,
     siteMatches,
+    builtinMatch,
+    blockReason,
     scanPolicy,
     modelKey,
     presetFor,
     maxInFlight,
+    remoteTarget,
     providerLabel
   };
 })();

@@ -1,5 +1,5 @@
 // Scan, Anzeige und Bedienung: Auto-Scan, Badge, dynamische Inhalte, Caches, Schwellen,
-// manuelle Prüfung (Auswahl/Rechtsklick), An/Aus, Lazy-Scan, Freigabe pro Seite, Backend-Status.
+// manuelle Prüfung (Auswahl/Rechtsklick), An/Aus, Lazy-Scan, Freigabe pro Seite, Sperrliste (eigene, mitgelieferte, Heuristik), Backend-Status.
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -16,7 +16,17 @@ describe("Scan und Bedienung", () => {
 
   before(async () => {
     backend = await startBackend();
-    ext = await launchExtension({ pages: { "harness.test": harness, "tall.test": tall } });
+    ext = await launchExtension({
+      pages: {
+        "harness.test": harness,
+        "tall.test": tall,
+        "bank.test": tall,
+        "sub.bank.test": tall,
+        "www.chase.com": tall, // steht in der mitgelieferten Sperrliste
+        "login.test": tall.replace("<body>", '<body><form><input type="password"></form>'),
+        "news.test": tall.replace("<body>", '<body><div role="dialog"><input type="password"></div><input type="password" hidden>')
+      }
+    });
     await ext.configure({ provider: "local", localUrl: backend.url, sites: ["harness.test", "tall.test"], lazyScan: false });
     // STATS-Nachrichten mitschneiden (das Popup lebt davon statt von Polling)
     await ext.options.evaluate(() => {
@@ -149,6 +159,80 @@ describe("Scan und Bedienung", () => {
     assert.equal(stats.active, false);
     assert.equal(stats.red + stats.yellow + stats.green + stats.pending, 0);
     await tallPage.close();
+  });
+
+  it("scannt Seiten der Sperrliste weder automatisch noch auf Knopfdruck", async () => {
+    await ext.configure({ scanMode: "all", blockedSites: ["bank.test"] });
+    const before = backend.requests;
+    const bank = await ext.open("http://sub.bank.test/");
+    await sleep(1500);
+    const stats = await ext.sendToTab("sub.bank.test", { type: "SCAN_NOW" });
+    assert.equal(stats.blocked, true);
+    assert.equal(stats.active, false);
+    await sleep(1200);
+    assert.equal(backend.requests, before, "Text von gesperrter Seite gesendet");
+    assert.match(await bank.evaluate(() => document.querySelector("aivsai-popover").shadowRoot.textContent), /Sperrliste/);
+    await bank.keyboard.press("Escape");
+
+    // Einzelprüfung bleibt erlaubt, mit Hinweis
+    await bank.click("#p0", { button: "right" });
+    await ext.sendToTab("sub.bank.test", { type: "CHECK_ELEMENT" });
+    await bank.waitForFunction(() => document.querySelector("#p0").dataset.aivsaiLevel);
+    assert.match(await bank.evaluate(() => document.querySelector("aivsai-popover").shadowRoot.textContent), /Sperrliste – geprüft/);
+    assert.equal(await bank.$$eval("[data-aivsai-level]", (els) => els.length), 1);
+    await bank.close();
+  });
+
+  it("scannt nach dem Entfernen von der Sperrliste wieder", async () => {
+    const bank = await ext.open("http://bank.test/");
+    await ext.configure({ blockedSites: [] });
+    await bank.waitForFunction(() => document.querySelector("#p0")?.dataset.aivsaiLevel, null, { timeout: 10_000 });
+    await bank.close();
+  });
+
+  it("sperrt Domains der mitgelieferten Liste, mit Ausnahme pro Host", async () => {
+    const info = await ext.options.evaluate(() => ({ count: AIVSAI_BLOCKLIST.count, reason: AIVSAI.blockReason("secure.chase.com", AIVSAI.DEFAULTS) }));
+    assert.ok(info.count > 5000, "mitgelieferte Liste fehlt oder ist zu klein");
+    assert.equal(info.reason, "builtin");
+
+    const before = backend.requests;
+    const bank = await ext.open("http://www.chase.com/");
+    await sleep(1500);
+    const stats = await ext.sendToTab("www.chase.com", { type: "GET_STATS" });
+    assert.equal(stats.blockReason, "list");
+    assert.equal(backend.requests, before);
+
+    await ext.configure({ unblockedSites: ["www.chase.com"] });
+    await bank.waitForFunction(() => document.querySelector("#p0")?.dataset.aivsaiLevel, null, { timeout: 10_000 });
+    await ext.configure({ unblockedSites: [], builtinBlocklist: false });
+    assert.equal((await ext.sendToTab("www.chase.com", { type: "GET_STATS" })).blocked, false);
+    await ext.configure({ builtinBlocklist: true });
+    await bank.close();
+  });
+
+  it("scannt keine Seiten mit sichtbarem Passwortfeld, Login-Dialoge zählen nicht", async () => {
+    const before = backend.requests;
+    const login = await ext.open("http://login.test/");
+    await sleep(1500);
+    const stats = await ext.sendToTab("login.test", { type: "GET_STATS" });
+    assert.equal(stats.blockReason, "sensitive");
+    assert.equal(backend.requests, before);
+    await login.close();
+
+    // Passwortfeld nur im Dialog bzw. versteckt: normal scannen
+    const news = await ext.open("http://news.test/");
+    await news.waitForFunction(() => document.querySelector("#p0")?.dataset.aivsaiLevel, null, { timeout: 10_000 });
+
+    // SPA wechselt auf eine Login-Ansicht: Markierungen verschwinden, nichts Neues wird gesendet
+    await news.evaluate(() => document.body.insertAdjacentHTML("afterbegin", '<input type="password" id="pw">'));
+    await news.waitForFunction(() => !document.querySelector("[data-aivsai-level]"), null, { timeout: 5000 });
+    assert.equal((await ext.sendToTab("news.test", { type: "GET_STATS" })).blockReason, "sensitive");
+
+    // Heuristik abschaltbar
+    await ext.configure({ sensitiveHeuristic: false });
+    await news.waitForFunction(() => document.querySelector("#p0")?.dataset.aivsaiLevel, null, { timeout: 10_000 });
+    await ext.configure({ sensitiveHeuristic: true, scanMode: "sites" });
+    await news.close();
   });
 
   it("meldet Backend-Status und Verbindungstest", async () => {

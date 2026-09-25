@@ -25,6 +25,15 @@
   const MANUAL_MIN_WORDS = 5;
   const MANUAL_MAX_CHARS = 2000;
   const HIGHLIGHT_STATES = ["pending", "green", "yellow", "red"];
+  // Heuristik "sensible Seite": sichtbares Passwort-, Zahlungs- oder Einmalcode-Feld. Felder in Dialogen
+  // zählen nicht - sonst beendet das Login-Popup einer News-Seite den Scan des Artikels darunter.
+  const SENSITIVE_SELECTOR =
+    "input[type='password'], input[autocomplete^='cc-'], input[autocomplete='one-time-code']";
+  const DIALOG_SELECTOR = "dialog, [role='dialog'], [role='alertdialog'], [aria-modal='true']";
+  const BLOCK_MESSAGES = {
+    list: "Diese Seite steht auf der Sperrliste",
+    sensitive: "Diese Seite enthält ein Passwort- oder Zahlungsfeld"
+  };
   const host = location.hostname;
   const Popover = AIVSAIPopover;
 
@@ -32,6 +41,7 @@
   let manualScan = false; // "Diese Seite scannen" aus Popup/Tastenkürzel, gilt bis zum Neuladen
   let generation = 0; // erhöht bei jedem Neu-Scan, damit veraltete Antworten verworfen werden
   let lastError = null;
+  let sensitive = false; // Heuristik hat angeschlagen - gilt bis zum Neuladen
 
   // Ergebnis-Register - die eine Quelle für Statistik, Neu-Einfärben und später Feedback/Berichte.
   //   results:      Element -> { hash, text, p, model, source: "auto" | "manual", at }
@@ -80,12 +90,20 @@
     mutationTimer = setTimeout(() => {
       const nodes = Array.from(addedNodes).filter((n) => n.isConnected);
       addedNodes.clear();
+      // z.B. SPA, die nach dem Laden auf die Login-Seite wechselt: sofort aufhören
+      if (nodes.some(detectSensitive)) {
+        clearAll();
+        syncObserver();
+        reportStats();
+        return;
+      }
       nodes.forEach(scanAndQueue);
     }, DEBOUNCE_MS);
   });
 
   chrome.storage.sync.get(AIVSAI.DEFAULTS, (stored) => {
     config = { ...AIVSAI.DEFAULTS, ...stored };
+    detectSensitive(document.body);
     syncObserver();
     if (isActive()) scanAndQueue(document.body);
     reportStats();
@@ -95,6 +113,7 @@
     if (area !== "sync") return;
     const wasActive = isActive();
     for (const [key, change] of Object.entries(changes)) config[key] = change.newValue ?? AIVSAI.DEFAULTS[key];
+    if ("sensitiveHeuristic" in changes) detectSensitive(document.body);
     syncObserver();
 
     if (!isActive()) {
@@ -111,6 +130,16 @@
 
   const MESSAGE_HANDLERS = {
     SCAN_NOW: () => {
+      // auf Seiten ohne Auto-Scan lief bisher keine Erkennung (kein MutationObserver)
+      detectSensitive(document.body);
+      // Popup bietet den Knopf dort gar nicht an - bleibt das Tastenkürzel
+      if (policy() === "blocked") {
+        Popover.show({}, Popover.claim(), {
+          error: `${BLOCK_MESSAGES[blockReason()]} und wird nicht gescannt.`,
+          notes: ["Einzelne Stellen: Text markieren oder Absatz rechtsklicken → „Auf KI prüfen“."]
+        });
+        return stats();
+      }
       manualScan = true;
       syncObserver();
       rescanAll();
@@ -131,9 +160,31 @@
     if (result !== undefined) sendResponse(result);
   });
 
+  // "list" (Sperrliste), "sensitive" (Heuristik) oder null
+  function blockReason() {
+    if (!config.enabled) return null;
+    if (AIVSAI.blockReason(host, config)) return "list";
+    return sensitive && config.sensitiveHeuristic ? "sensitive" : null;
+  }
+
+  function policy() {
+    const p = AIVSAI.scanPolicy(host, config);
+    return p !== "off" && blockReason() ? "blocked" : p;
+  }
+
+  // true, wenn in `root` ein sichtbares sensibles Feld steckt (dann bleibt `sensitive` gesetzt)
+  function detectSensitive(root) {
+    if (sensitive || !config.sensitiveHeuristic || root?.nodeType !== Node.ELEMENT_NODE) return false;
+    const fields = root.matches(SENSITIVE_SELECTOR) ? [root] : root.querySelectorAll(SENSITIVE_SELECTOR);
+    for (const field of fields) {
+      if (!field.closest(DIALOG_SELECTOR) && field.checkVisibility()) return (sensitive = true);
+    }
+    return false;
+  }
+
   function isActive() {
-    const policy = AIVSAI.scanPolicy(host, config);
-    return policy === "auto" || (manualScan && policy !== "off");
+    const p = policy();
+    return p === "auto" || (manualScan && p === "manual");
   }
 
   function syncObserver() {
@@ -319,10 +370,11 @@
     pumpTimer = setTimeout(pump, 150);
   }
 
-  function requestScores(items) {
+  // manual: ausdrücklich angeforderte Einzelprüfung - der Service Worker lässt nur die auf Seiten der Sperrliste zu
+  function requestScores(items, manual = false) {
     return new Promise((resolve) => {
       try {
-        chrome.runtime.sendMessage({ type: "SCORE_BATCH", items }, (resp) =>
+        chrome.runtime.sendMessage({ type: "SCORE_BATCH", items, manual }, (resp) =>
           resolve(chrome.runtime.lastError ? null : resp)
         );
       } catch {
@@ -451,6 +503,8 @@
       pending: pendingEls.length,
       deferred: deferredEls.length,
       active: isActive(),
+      blocked: policy() === "blocked",
+      blockReason: blockReason(),
       manualScan,
       error: lastError,
       host
@@ -533,9 +587,9 @@
     const id = `m_${hashText(text)}`;
     const gen = generation;
     markManual(target, null);
-    Popover.show(target, token, { title: "Wird auf KI geprüft…", notes: [AIVSAI.providerLabel(config)] });
+    Popover.show(target, token, { title: "Wird auf KI geprüft…", notes: [AIVSAI.providerLabel(config), ...blockedNotes()] });
 
-    const resp = await requestScores([{ id, text }]);
+    const resp = await requestScores([{ id, text }], true);
     if (gen !== generation) return;
     const p = resp?.scores?.[id];
     if (typeof p !== "number") {
@@ -554,8 +608,19 @@
     const notes = [];
     if (words < MIN_WORDS) notes.push(`Kurzer Text (${words} Wörter) – Ergebnis wenig verlässlich.`);
     if (truncated) notes.push(`Nur die ersten ${MANUAL_MAX_CHARS} Zeichen bewertet.`);
-    notes.push(`${AIVSAI.providerLabel(config)} · Schätzung, kann falsch liegen`);
+    notes.push(`${AIVSAI.providerLabel(config)} · Schätzung, kann falsch liegen`, ...blockedNotes());
     return { pill: { text: `${Math.round(p * 100)} % KI`, level }, title: AIVSAI.LEVEL_TEXT[level], notes };
+  }
+
+  // Auf gesperrten Seiten ist nur die Einzelprüfung erlaubt - dann transparent machen, was passiert ist
+  function blockedNotes() {
+    const reason = blockReason();
+    if (!reason) return [];
+    const target = AIVSAI.remoteTarget(config);
+    return [
+      `${BLOCK_MESSAGES[reason]} – geprüft, weil du es ausdrücklich angefordert hast.`,
+      ...(target ? [`Der Text wurde an ${target} gesendet.`] : [])
+    ];
   }
 
   // record: Ergebnis-Objekt, null = wird geprüft, undefined = Markierung entfernen

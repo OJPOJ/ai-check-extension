@@ -4,6 +4,7 @@
 //   bg/score-store.js      dauerhafter Score-Speicher (IndexedDB) mit Aufbewahrungsdauer
 //   bg/badge.js            Icon-Badge pro Tab
 //   bg/offscreen-client.js Brücke zum Offscreen-Dokument mit dem Browser-Modell
+import "./generated/blocklist.js";
 import "./config.js";
 import { updateBadge } from "./bg/badge.js";
 import { callOffscreen } from "./bg/offscreen-client.js";
@@ -114,7 +115,13 @@ const OFFSCREEN_COMMANDS = { MODEL_STATUS: "status", MODEL_DOWNLOAD: "download",
 
 // Handler liefern eine Antwort (auch als Promise) oder undefined für "keine Antwort"
 const HANDLERS = {
-  SCORE_BATCH: (msg) => scoreBatch(msg.items),
+  SCORE_BATCH: async (msg, sender) => {
+    // Zweite Absicherung zur Sperrliste (die erste ist content.js): von dort nur Einzelprüfungen
+    if (!msg.manual && (await isBlocked(sender))) {
+      return { ok: false, scores: {}, error: "Seite steht auf der Sperrliste" };
+    }
+    return scoreBatch(msg.items);
+  },
   STATS: (msg, sender) => {
     if (sender.tab?.id !== undefined) updateBadge(sender.tab.id, msg.stats);
   },
@@ -130,6 +137,16 @@ const HANDLERS = {
     if (msg.ok) notifyTabs({ type: "MODEL_READY" });
   }
 };
+
+async function isBlocked(sender) {
+  let host;
+  try {
+    host = new URL(sender.url).hostname;
+  } catch {
+    return false; // Extension-Seiten
+  }
+  return AIVSAI.scanPolicy(host, await getConfig()) === "blocked";
+}
 
 function modelCommand(msg) {
   return callOffscreen(OFFSCREEN_COMMANDS[msg.type], { model: msg.model }).catch((err) => ({

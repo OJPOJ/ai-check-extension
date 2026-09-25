@@ -41,6 +41,7 @@
         "*://localhost/*"
       ],
       "js": [
+        "generated/blocklist.js",
         "config.js",
         "content-popover.js",
         "content.js"

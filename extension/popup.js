@@ -28,12 +28,18 @@ function renderScale() {
 function renderSite() {
   const supported = /^https?:$/.test(tab?.url ? new URL(tab.url).protocol : "");
   $("host").textContent = supported ? host : "Diese Seite";
-  $("siteSwitch").hidden = !supported || config.scanMode === "manual";
-  $("scanNow").disabled = !supported;
+  const reason = supported ? AIVSAI.blockReason(host, config) : null;
+  $("siteSwitch").hidden = !supported || !!reason || config.scanMode === "manual";
+  $("scanNow").disabled = !supported || !!reason;
+  $("blockToggle").hidden = !supported;
+  $("blockToggle").textContent = reason ? "Von der Sperrliste nehmen" : "Hier nie scannen (Sperrliste)";
   const siteAuto = $("siteAuto");
 
   if (!supported) {
     $("siteHint").textContent = "Hier kann nicht gescannt werden";
+  } else if (reason) {
+    $("siteHint").textContent =
+      reason === "builtin" ? "Mitgelieferte Sperrliste (Bank/Mail) – wird nie gescannt" : "Sperrliste – wird nie gescannt";
   } else if (config.scanMode === "all") {
     siteAuto.checked = true;
     siteAuto.disabled = true;
@@ -58,6 +64,12 @@ function renderStats(stats) {
   set("cYellow", stats.yellow);
   set("cGreen", stats.green);
   $("scanNow").textContent = stats.active ? "Seite neu scannen" : "Diese Seite jetzt scannen";
+  // Heuristik aus dem Content-Script - kennt das Popup nicht aus den Einstellungen
+  if (stats.blockReason === "sensitive") {
+    $("siteHint").textContent = "Passwort-/Zahlungsfeld erkannt – wird nicht gescannt";
+    $("siteSwitch").hidden = true;
+    $("scanNow").disabled = true;
+  }
 
   if (stats.error) {
     $("pending").textContent = `Fehler: ${stats.error}`;
@@ -67,6 +79,8 @@ function renderStats(stats) {
     $("pending").textContent = `${stats.deferred} weitere Absätze werden beim Scrollen geprüft.`;
   } else if (stats.active && !stats.red && !stats.yellow && !stats.green) {
     $("pending").textContent = "Keine ausreichend langen Textabsätze gefunden.";
+  } else if (stats.blocked) {
+    $("pending").textContent = "Keine automatische Prüfung – einzelne Stellen per Rechtsklick.";
   } else if (!stats.active) {
     $("pending").textContent = "Auf dieser Seite nicht aktiv.";
   } else {
@@ -123,6 +137,21 @@ $("siteAuto").addEventListener("change", async (e) => {
   config.sites = e.target.checked ? [...others, host] : others;
   await chrome.storage.sync.set({ sites: config.sites });
   renderSite();
+});
+
+$("blockToggle").addEventListener("click", async () => {
+  const notHost = (list) => list.filter((s) => !AIVSAI.siteMatches(host, [s]));
+  if (AIVSAI.blockReason(host, config)) {
+    // eigene Einträge entfernen; greift dann noch die mitgelieferte Liste, Ausnahme für diesen Host
+    config.blockedSites = notHost(config.blockedSites);
+    if (AIVSAI.blockReason(host, config)) config.unblockedSites = [...config.unblockedSites, host];
+  } else {
+    config.unblockedSites = notHost(config.unblockedSites);
+    if (!AIVSAI.blockReason(host, config)) config.blockedSites = [...config.blockedSites, host];
+  }
+  await chrome.storage.sync.set({ blockedSites: config.blockedSites, unblockedSites: config.unblockedSites });
+  renderSite();
+  refreshStats();
 });
 
 $("scanNow").addEventListener("click", async () => {

@@ -6,6 +6,19 @@
   © Hugging Face. Lizenztext: `vendor/LICENSE.transformers.js.txt`.
 - **ONNX Runtime Web** (`onnxruntime-web`) – MIT License, © Microsoft Corporation.
 
+## Mitgelieferte Daten (`generated/blocklist.js`, per `npm run build:blocklist`)
+
+Die mitgelieferte Sperrliste ist aus folgenden Quellen zusammengestellt und steht als Ganzes unter
+**CC BY-SA 4.0** (https://creativecommons.org/licenses/by-sa/4.0/):
+
+- **UT1-Blacklists**, Kategorien `bank` und `webmail` – © Université Toulouse Capitole, gepflegt von
+  Fabrice Prigent, CC BY-SA 4.0. https://dsi.ut-capitole.fr/blacklists/ – übernommen nach
+  Normalisierung (Kleinschreibung, ohne `www.`, ohne Einträge, deren Eltern-Domain enthalten ist) und
+  ohne einzelne Portale mit überwiegend redaktionellem Inhalt (Liste `NEVER_BLOCK` im Build-Skript).
+- **FDIC BankFind Suite** – Web-Adressen aller aktiven US-Banken, Werk der US-Bundesregierung
+  (gemeinfrei). https://api.fdic.gov/banks/docs/
+- Handverlesene Ergänzungen (`scripts/build-blocklist.mjs`, `CURATED`).
+
 ## Zur Laufzeit geladene Modelle (nicht im Paket enthalten)
 
 - **TMR AI Text Detector** – `Oxidane/tmr-ai-text-detector`, MIT License, © Oxidane.
