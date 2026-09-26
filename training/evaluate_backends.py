@@ -183,6 +183,42 @@ def score_tmr(texts):
     return scores
 
 
+def score_hf(texts, model_id, batch_size=8, max_length=512):
+    """Generischer Scorer fuer WP-06-Kandidaten: beliebiges HF-Repo mit
+    AutoModelForSequenceClassification. Erkennt selbst, ob das Modell einen
+    einzelnen Logit (Sigmoid, wie desklib/gradient) oder mehrere Klassen
+    (Softmax + AI-Index aus id2label, wie TMR) ausgibt."""
+    import torch
+    from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
+    tok = AutoTokenizer.from_pretrained(model_id)
+    model = AutoModelForSequenceClassification.from_pretrained(model_id)
+    model.eval()
+    num_labels = model.config.num_labels
+
+    idx = None
+    if num_labels != 1:
+        id2label = model.config.id2label
+        ai_index = [k for k, v in id2label.items() if "ai" in str(v).lower() or "machine" in str(v).lower() or "generated" in str(v).lower()]
+        idx = ai_index[0] if ai_index else 1
+        print(f"({model_id}: id2label={id2label}, genutzter AI-Index={idx})")
+    else:
+        print(f"({model_id}: num_labels=1, Sigmoid-Ausgabe)")
+
+    scores = []
+    with torch.no_grad():
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i : i + batch_size]
+            enc = tok(batch, return_tensors="pt", truncation=True, padding=True, max_length=max_length)
+            logits = model(**enc).logits
+            if num_labels == 1:
+                probs = torch.sigmoid(logits).squeeze(-1)
+            else:
+                probs = torch.softmax(logits, dim=-1)[:, idx]
+            scores.extend(probs.tolist())
+    return scores
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--backend", choices=["laya", "tmr", "desklib"], required=True)
