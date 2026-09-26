@@ -348,6 +348,7 @@ Statistik aus dem Register statt Dokument-Scans.
   an Speicher und Backend.
 - Berechtigung `tabs` durch `activeTab` ersetzt: gebraucht wird nur die URL des aktiven Tabs im Popup.
 - Kurze Absätze zusammen bewerten (benachbarte Absätze unter `reliableWords` als ein Text).
+- Breitere Eval-Suite: 1200 Texte, 6 Domänen, 7 Generatoren bis GPT-4o (`training/evaluate_suite.py`).
 - Store-Vorbereitung: Icons, Seite „Über / Lizenzen“ (`about.html`), Store-Texte und Begründung der
   Berechtigungen (`store/`), Screenshot-Skript.
 

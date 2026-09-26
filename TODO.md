@@ -36,8 +36,9 @@ Erledigt: Sprache pro Absatz, Stufe „unsicher“, strengere TMR-Schwellen, Wor
   Wie viele Absätze auf typischen Nachrichtenseiten tatsächlich gruppiert werden (Regel „gleiches
   Elternelement“ ist bewusst streng), und ob gemischte Gruppen (ein KI-Absatz zwischen menschlichen)
   ein Problem sind. Nachgeladene Absätze (Infinite Scroll) werden nicht mit schon bewerteten gruppiert.
-- **Default-Modell:** desklib als Empfehlung statt TMR? Genauer, aber 1,7 GB Download und ~1,3 s pro
-  Absatz. Entscheidung nach Punkt 3 (breitere Eval) und Rückmeldungen zur Geschwindigkeit.
+- **Default-Modell:** desklib als Empfehlung statt TMR? Die breitere Eval spricht dafür (AUROC 0.990
+  vs. 0.929, Fehlalarme wie angezeigt 1,2 % vs. 4,7 %, kein Einbruch bei WikiHow/Gemma/Cohere), dagegen
+  1,7 GB Download und ~1,3–2,3 s pro Absatz. Offen: Rückmeldungen zur Geschwindigkeit.
 - **Spracherkennung auf echten Seiten prüfen:** Funktionswörter (en/de/fr/es/it/nl/pt) zuerst, dann
   die Browser-Erkennung `i18n.detectLanguage` (CLD3 in Chromium, CLD2 in Firefox), dann `lang`-Attribut.
   CLD3 irrt bei ungewöhnlichem Text auch „verlässlich“ (wiederholter englischer Testtext →
@@ -49,16 +50,20 @@ Erledigt: Sprache pro Absatz, Stufe „unsicher“, strengere TMR-Schwellen, Wor
 - **Übersprungene Absätze sichtbar machen?** Bisher nur als Zahl im Popup. Falls Nutzer denken, die
   Seite sei nicht gescannt: dezente Markierung oder Hinweis beim ersten Mal.
 
-## 3. Eval-Suite verbreitern
+## 3. Eval-Suite: Rest
 
-Bisher 100 Beispiele aus HC3 (fast nur Reddit-ELI5 gegen ChatGPT 2023). Schwellen stützen sich nur
-darauf.
+Erledigt: 1200 Texte, 6 Domänen, 7 Generatoren bis GPT-4o (`training/EVAL_RESULTS.md`, „Breitere
+Eval-Suite“). Ergebnis wie angezeigt: TMR 4,7 % Fehlalarme (ohne WikiHow 1,6 %), desklib 1,2 %. Offen:
 
-- **KI-Texte aktueller LLMs:** GPT-5, Claude, Gemini, Llama; auch nachbearbeitet.
-- **Menschliche Texte aus mehreren Domänen:** News, Wikipedia, Foren, Fachtext, vor 2023
-  veröffentlicht.
-- **Nutzen:** Grundlage für Kalibrierung (Punkt 5), Default-Schwellen (Punkt 2) und das
-  BYOM-Referenzset (Punkt 1).
+- **TMR auf Anleitungen:** 20 % der menschlichen WikiHow-Texte werden rot (alle ≥ 120 Wörter). Auf
+  echten Anleitungsseiten nachprüfen; Optionen: `redFrom` ~0.985 (kostet Erkennung überall), oder
+  desklib als Default (Punkt 2).
+- **Claude/Gemini/GPT-5 fehlen:** kein öffentlicher gelabelter Datensatz gefunden. Eigene Generierung
+  bräuchte API-Keys (einige hundert Absätze zu den Themen der Mensch-Texte).
+- **desklib auf der ganzen Suite** (bisher 480 von 1200, ~46 Min.) und Kreuzvalidierung, bevor
+  Schwellen geändert werden.
+- **Lizenz:** M4GT-Bench ohne Lizenzangabe – die Suite nur lokal nutzen, nicht als BYOM-Referenzset
+  mitliefern (Punkt 1); dafür MAGE-/HC3-Anteile (Apache-2.0) auswählen.
 
 ## 4. Veröffentlichung (Chrome Web Store / Edge Add-ons)
 
@@ -80,7 +85,8 @@ Offen (Details und Reihenfolge in `store/CHECKLIST.md`):
 - **Ziel:** Schwellen bedeuten modellübergreifend dasselbe.
 - **Umsetzung:** In `bg/scoring.js` pro `modelKey` auf den Rohwert anwenden. Gespeichert werden
   Rohwerte, eine neue Kalibrierung braucht also kein Neu-Bewerten.
-- **Datenbasis:** Eval-Suite aus Punkt 3.
+- **Datenbasis:** Eval-Suite aus Punkt 3 (`training/evaluate_suite.py`, Rohscores in
+  `training/data/eval_scores_*_suite.jsonl`).
 
 ## 6. Deutsch/mehrsprachig
 

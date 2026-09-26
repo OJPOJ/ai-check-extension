@@ -335,6 +335,35 @@ statt gelb/rot (außer desklib mit `shortRedFrom`). Die 150+-Zahlen liegen etwas
 Wikipedia-only-Messung (TMR 1,3 % → 6,4 %, desklib ~1,3 % → 1,2 %, hier eher gleich), weil jetzt auch
 `news`/`howto`/`forum` einfließen, nicht nur Wikipedia/HC3.
 
+### Korrektur: Fehlalarme so, wie die Extension sie anzeigt
+
+Die Spalten „FA@red“ oben zählen jeden Mensch-Text ab `redFrom`, auch kurze. Die Extension färbt Texte
+unter `reliableWords` (120 Wörter) aber nicht nach `redFrom`: TMR nie rot, desklib erst ab
+`shortRedFrom` 0.98. Mit dieser Regel (`evaluate_suite.py`, Zeile „wie angezeigt“; bei den kurzen
+Absätzen ohne Gruppierung aus WP-02):
+
+| Domäne | TMR FA rot | TMR KI rot | desklib FA rot | desklib KI rot |
+|---|---|---|---|---|
+| forum | 2 % | 81 % | 0 % | 100 % |
+| howto | **20 %** | 64 % | 2,5 % | 92,5 % |
+| news | 3 % | 73 % | 2,5 % | 90 % |
+| reviews | 2 % | 13 % | 0 % | 70 % |
+| sci_abstract | 0 % | 79 % | 2,5 % | 95 % |
+| wikipedia | 1 % | 92 % | 0 % | 97,5 % |
+| **gesamt** | **4,7 %** | 67 % | **1,2 %** | 91 % |
+
+Damit verschiebt sich das Bild:
+
+- **Die hohen News-Fehlalarme (TMR 34 %, desklib 10 %) betreffen fast nur kurze Texte**, die ohnehin
+  „unsicher“ bleiben (48 von 100 menschlichen News-Texten haben unter 120 Wörter). Angezeigt: 3 % bzw. 2,5 %.
+- **Das eigentliche Problem ist TMR auf `howto` (WikiHow):** alle Texte ≥ 120 Wörter, 20 % der
+  menschlichen werden rot. Ohne `howto` läge TMR bei ~1,6 %.
+- **desklib liegt mit den aktuellen Schwellen schon bei ~1 %** (3 von 240). Eine Anhebung von `redFrom`
+  auf 0.92–0.95 (unten) ist damit nicht nötig; die Messung gibt dafür zu wenige Fälle her.
+- Die Perzentil-Schwellen unten beziehen sich auf die Rohscores aller Längen und sind entsprechend
+  zu lesen: Für TMR müsste `redFrom` für ~1 % bei langen Texten auf ~0.985 steigen, fast nur wegen
+  `howto`.
+
 ### Schwellen-Empfehlung für ~1 % Fehlalarme auf dieser Suite
 
 Perzentil-Methode (99. Perzentil der Mensch-Scores dieser Suite), getrennt nach `reliableWords`:

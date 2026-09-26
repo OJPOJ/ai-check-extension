@@ -106,6 +106,21 @@ def report(backend, scored, out_dir: Path):
         f"Fehlalarme (Mensch) >=yellow {fa_yellow:.3f}, >=red {fa_red:.3f}; KI erkannt >=red {det_red:.3f}"
     )
 
+    # Rot wie in der Extension (config.js, levelOf): unter reliableWords erst ab shortRedFrom, ohne
+    # shortRedFrom nie rot ("unsicher"). Das ist die Fehlalarmrate, die Nutzer tatsächlich sehen.
+    def shown_red(r):
+        if r["words"] >= cur["reliableWords"]:
+            return r["score"] >= cur["redFrom"]
+        return cur["shortRedFrom"] is not None and r["score"] >= cur["shortRedFrom"]
+
+    def rate(rs):
+        return sum(map(shown_red, rs)) / len(rs) if rs else float("nan")
+
+    print(
+        f"Wie angezeigt (kurze Absätze nach shortRedFrom): Fehlalarme rot "
+        f"{rate([r for r in scored if r['label'] == 0]):.3f}; KI rot {rate([r for r in scored if r['label'] == 1]):.3f}"
+    )
+
     print("\nAUROC je Domäne:")
     by_domain = defaultdict(list)
     for r in scored:
@@ -115,7 +130,12 @@ def report(backend, scored, out_dir: Path):
         a_d = eb.auroc([r["label"] for r in rs], [r["score"] for r in rs])
         fa_d = share([r["score"] for r in rs if r["label"] == 0], cur["redFrom"])
         det_d = share([r["score"] for r in rs if r["label"] == 1], cur["redFrom"])
-        print(f"  {dom:14} n={len(rs):4d}  AUROC={a_d:.3f}  FA@red={fa_d:.3f}  erkannt@red={det_d:.3f}")
+        fa_shown = rate([r for r in rs if r["label"] == 0])
+        det_shown = rate([r for r in rs if r["label"] == 1])
+        print(
+            f"  {dom:14} n={len(rs):4d}  AUROC={a_d:.3f}  FA@red={fa_d:.3f}  erkannt@red={det_d:.3f}  "
+            f"wie angezeigt: FA={fa_shown:.3f} erkannt={det_shown:.3f}"
+        )
 
     print("\nErkennung je Generator (Anteil >= redFrom, nur KI-Zeilen):")
     by_gen = defaultdict(list)

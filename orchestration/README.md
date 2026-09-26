@@ -40,6 +40,9 @@ merged; Worker-Agenten (Sonnet) bearbeiten je ein Arbeitspaket (WP) in einem eig
    Dann `FERTIG` ins Log und als Antwort einen Bericht: Branch, Commits, was/warum, Tests,
    offene Punkte, Vorschläge für `TODO.md`/`README.md`.
 8. Code und Kommentare im Stil der Umgebung (Deutsch, knapp). Keine Geheimnisse/Tokens committen.
+9. **Messungen wie im Produkt:** Fehlalarm-/Erkennungsraten immer auch mit der Ampel-Logik der
+   Extension angeben (`reliableWords`, `shortRedFrom`, Gruppierung), nicht nur auf Rohscores – sonst
+   entstehen Zahlen, die Nutzer so nie sehen (WP-01: 34 % statt 3 % auf News).
 
 ## Ablauf für den Orchestrator
 
