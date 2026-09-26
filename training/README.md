@@ -144,7 +144,7 @@ gesprengt.
 ## Feedback als Datenquelle – und warum generierte Daten wichtiger sind
 
 Stand 2026-09-25. Die Extension sammelt auf Wunsch lokal Feedback („Weißt du, woher der Text
-stammt?“, siehe `../README.md`). `import_feedback.py` macht aus dem JSONL-Export ein Eval-Set und
+stammt?“, siehe `../DEVELOPMENT.md`). `import_feedback.py` macht aus dem JSONL-Export ein Eval-Set und
 Zeilen im Laya-Schema (weiche Labels je nach Grundlage).
 
 **Menschen sind schlechte Richter über KI-Text – aber gute Zeugen für die Herkunft.** Studien

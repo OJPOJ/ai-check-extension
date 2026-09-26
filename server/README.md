@@ -74,7 +74,7 @@ alles, nur ohne Version.
 
 **„Modell prüfen“** in den Einstellungen (Pflicht für „Eigener Server“) schickt vor dem Speichern
 40 englische Referenztexte und prüft Antwortformat, Richtung (KI höher als Mensch), Trennschärfe
-(AUROC ≥ 0.6, Warnung unter 0.8) und Latenz. Details: `../README.md`, „Eigene Modelle prüfen“.
+(AUROC ≥ 0.6, Warnung unter 0.8) und Latenz. Details: `../DEVELOPMENT.md`, „Eigene Modelle prüfen“.
 
 `shim_server.py` pinnt die Modell-Revisionen (`TMR_REVISION`, `DESKLIB_REVISION`) und meldet sie
 als `version`.

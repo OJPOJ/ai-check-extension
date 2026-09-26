@@ -1,11 +1,11 @@
 # TODO
 
-Offene Punkte, Reihenfolge = Priorität. Erledigtes steht in der Roadmap im `README.md`.
+Offene Punkte, Reihenfolge = Priorität. Erledigtes steht in der Roadmap in `DEVELOPMENT.md`.
 Stand: 2026-09-26.
 
 ## 1. BYOM: Rest
 
-Rahmen, „Modell prüfen“ und Hugging-Face-Metadaten sind erledigt (README, „Eigene Modelle prüfen“;
+Rahmen, „Modell prüfen“ und Hugging-Face-Metadaten sind erledigt (`DEVELOPMENT.md`, „Eigene Modelle prüfen“;
 Vertrag in `server/README.md`). Offen:
 
 - **Mit echtem Token testen:** 2–3 bekannte Detektor-Modelle über „Modell prüfen“ (Hub-Metadaten,
@@ -31,7 +31,7 @@ Vertrag in `server/README.md`). Offen:
 
 Der größte Schaden ist Rot auf einem menschlichen Text.
 
-Erledigt: Sprache pro Absatz, Stufe „unsicher“, strengere TMR-Schwellen, Wortwahl, Begrüßung (README,
+Erledigt: Sprache pro Absatz, Stufe „unsicher“, strengere TMR-Schwellen, Wortwahl, Begrüßung (`DEVELOPMENT.md`,
 „Weniger Fehlalarme“; Messung in `training/EVAL_RESULTS.md`, „Fehlalarme auf Wikipedia“). Offen:
 
 - **Gruppierung auf Start- und Rubrikseiten prüfen:** Seit WP-10 werden auch Absätze mit 15–39 Wörtern

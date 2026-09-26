@@ -1,6 +1,6 @@
 // Backends aus extension/bg/providers.js mit gemocktem fetch/chrome: Vertrag, /v1/info, Antwortformen der
 // Hugging-Face-API, Hub-Metadaten, Label-Zuordnung und Fehlermeldungen. Die E2E-Tests decken nur "Lokal" gegen ein
-// Fake-Backend ab; Hugging Face mit echtem Token bleibt ungetestet (README, "Tests").
+// Fake-Backend ab; Hugging Face mit echtem Token bleibt ungetestet (DEVELOPMENT.md, "Tests").
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import { BACKENDS, backendFor, describeError, trimSlash } from "../../extension/bg/providers.js";
