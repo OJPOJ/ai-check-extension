@@ -115,6 +115,10 @@ globalThis.AIVSAI = (() => {
     sensitiveHeuristic: true,
     // nur Absätze nahe am sichtbaren Bereich bewerten, Rest erst beim Scrollen (spart Cloud-Kosten)
     lazyScan: true,
+    // Benachbarte kurze Absätze (unter reliableWords) im selben Container zusammen als ein Text bewerten
+    // (content.js, groupCandidates) - senkt Fehlalarme bei Absätzen, die einzeln zu kurz für eine sichere
+    // Aussage wären (TODO.md Punkt 2, training/EVAL_RESULTS.md "Textlänge").
+    groupShortParagraphs: true,
 
     // Schlüssel aus PROVIDERS, dazu deren Felder (browserModel, localUrl, ...) mit ihren Defaults
     provider: "browser",
