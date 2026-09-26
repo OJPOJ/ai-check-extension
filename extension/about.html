@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI Content Flag – Über</title>
+<link rel="stylesheet" href="ui.css" />
+<style>
+  body { background: var(--surface); }
+  main { max-width: 680px; margin: 0 auto; padding: 32px 16px 48px; font-size: 14px; line-height: 1.55; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .lead { margin: 0 0 20px; color: var(--muted); font-size: 14px; }
+  .card { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+  .card > h2 { margin-bottom: 10px; }
+  p { margin: 8px 0 0; }
+  ul { margin: 8px 0 0; padding-left: 20px; }
+  li + li { margin-top: 4px; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 20px; }
+  a.button { display: inline-block; text-decoration: none; padding: 7px 12px; border-radius: 8px; }
+  a.primary { background: var(--accent); color: var(--on-accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>AI Content Flag</h1>
+  <p class="lead">Version <span id="version">–</span> · Lizenzen und Herkunft der mitgelieferten Daten.</p>
+
+  <section class="card">
+    <h2>Lizenz</h2>
+    <p>Der Code der Extension steht unter der <b>MIT-Lizenz</b>. Volltext und die Lizenzen aller
+      mitgelieferten Drittkomponenten: <a href="THIRD_PARTY_NOTICES.md" target="_blank">THIRD_PARTY_NOTICES.md</a>.</p>
+  </section>
+
+  <section class="card">
+    <h2>Drittkomponenten (im Paket enthalten)</h2>
+    <ul>
+      <li><b>transformers.js</b> (<code>@huggingface/transformers</code>) – Apache License 2.0, © Hugging Face.</li>
+      <li><b>ONNX Runtime Web</b> – MIT License, © Microsoft Corporation.</li>
+    </ul>
+    <p class="small muted" style="margin-top:10px">Die eigentlichen Modellgewichte (TMR, desklib) werden nicht
+      mitgeliefert, sondern beim ersten „Herunterladen“ in den Einstellungen einmalig von Hugging Face geladen –
+      Details und deren Lizenzen ebenfalls in THIRD_PARTY_NOTICES.md.</p>
+  </section>
+
+  <section class="card">
+    <h2>Mitgelieferte Daten unter CC BY-SA 4.0</h2>
+    <p>Zwei Datensätze der Extension stehen – anders als der Code – unter
+      <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank">CC BY-SA 4.0</a>:</p>
+    <ul>
+      <li><b>Sperrliste</b> (<code>generated/blocklist.js</code>, „nie scannen“): zusammengestellt aus
+        UT1-Blacklists (Université Toulouse Capitole, CC BY-SA 4.0), FDIC und NCUA (gemeinfrei, US-Behörden) und
+        Wikidata (CC0). Wegen der UT1-Anteile steht die Liste als Ganzes unter CC BY-SA 4.0.</li>
+      <li><b>Referenzset</b> für „Modell prüfen“ (<code>bg/reference-set.js</code>): Auszüge aus
+        <a href="https://huggingface.co/datasets/Hello-SimpleAI/HC3" target="_blank">HC3</a>
+        („Human ChatGPT Comparison Corpus“), © Biyang Guo et al., CC BY-SA 4.0.</li>
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2>Datenschutz</h2>
+    <p>Was die Extension verarbeitet und wohin Texte gehen können, steht in der
+      <a href="privacy.html" target="_blank">Datenschutzerklärung</a>.</p>
+  </section>
+
+  <div class="actions">
+    <a class="button primary" href="options.html">Zu den Einstellungen</a>
+  </div>
+</main>
+
+<script src="about.js"></script>
+</body>
+</html>

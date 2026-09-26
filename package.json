@@ -5,6 +5,8 @@
   "scripts": {
     "vendor": "node scripts/vendor.mjs",
     "build:blocklist": "node scripts/build-blocklist.mjs",
+    "build:icons": "node scripts/build-icons.mjs",
+    "screenshots": "node scripts/screenshot.mjs",
     "build": "npm run vendor && npm run build:blocklist",
     "package": "npm run vendor && node scripts/package.mjs",
     "test:setup": "playwright install chromium",
