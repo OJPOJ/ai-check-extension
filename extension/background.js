@@ -82,9 +82,28 @@ chrome.runtime.onInstalled.addListener(({ reason }) => {
   schedulePrune();
   // Erstinstallation: Begrüßung (was die Farben bedeuten und was nicht, Download-Größe), von dort weiter
   // zu den Einstellungen, wo das Modell heruntergeladen wird
-  if (reason === "install") chrome.tabs.create({ url: chrome.runtime.getURL("welcome.html") });
-  if (reason === "update") migrateThresholds().catch((err) => console.warn("Schwellen nicht angepasst", err));
+  if (reason === "install") {
+    // Modell gleich festhalten: pinLegacyModel erkennt Installationen von vor v0.6 daran, dass es fehlt
+    chrome.storage.sync.set({ browserModel: AIVSAI.DEFAULTS.browserModel });
+    chrome.tabs.create({ url: chrome.runtime.getURL("welcome.html") });
+  }
+  if (reason === "update") {
+    pinLegacyModel()
+      .then(migrateThresholds)
+      .catch((err) => console.warn("Einstellungen nicht angepasst", err));
+  }
 });
+
+// Bis v0.5 war TMR das Standardmodell. Wer nie ein Modell gewählt hat, behält es samt Ampel-Werten -
+// sonst stünde nach dem Update desklib da, das erst 1,7 GB herunterladen müsste. Neuere Installationen
+// speichern browserModel schon beim Installieren und bleiben unberührt.
+async function pinLegacyModel() {
+  const stored = await chrome.storage.sync.get(["browserModel", "yellowFrom", "redFrom"]);
+  if ("browserModel" in stored) return;
+  const pin = { browserModel: "tmr" };
+  if (!("yellowFrom" in stored) && !("redFrom" in stored)) Object.assign(pin, AIVSAI.MODELS.tmr.thresholds);
+  await chrome.storage.sync.set(pin);
+}
 
 // Bis v0.5 waren 0.6/0.9 die Startwerte für TMR - damit war die Mehrheit kurzer menschlicher Sachtexte rot
 // (training/EVAL_RESULTS.md, "Fehlalarme auf Wikipedia"). Wer sie gespeichert, aber nie geändert hat,

@@ -4,6 +4,9 @@
 globalThis.AIVSAI = (() => {
   // Modellkatalog aus models.js
   const MODELS = globalThis.AIVSAI_MODELS;
+  // Standardmodell "Im Browser": desklib hat auf der breiten Eval-Suite ~1 % Fehlalarme statt ~5 % bei TMR
+  // (training/EVAL_RESULTS.md, "Breitere Eval-Suite"). Bis v0.5 war es TMR - background.js, pinLegacyModel.
+  const DEFAULT_MODEL = "desklib";
   if (!MODELS) throw new Error("models.js muss vor config.js geladen werden");
 
   const LOCAL_URL = "http://127.0.0.1:8787";
@@ -31,7 +34,7 @@ globalThis.AIVSAI = (() => {
       name: "Im Browser",
       title: "Im Browser (empfohlen)",
       description: "Das Modell läuft direkt in der Extension – kein Server nötig, Texte verlassen den Rechner nicht.",
-      fields: [{ key: "browserModel", type: "model", catalog: "browser", label: "Modell", default: "tmr" }],
+      fields: [{ key: "browserModel", type: "model", catalog: "browser", label: "Modell", default: DEFAULT_MODEL }],
       family: (cfg) => cfg.browserModel,
       model: (cfg) => `${cfg.browserModel}@${MODELS[cfg.browserModel]?.browser?.version ?? "?"}`,
       detail: (cfg) => (MODELS[cfg.browserModel] || MODELS.tmr).name,
@@ -124,8 +127,8 @@ globalThis.AIVSAI = (() => {
     provider: "browser",
     ...defaultsOf(providerFields(false)),
 
-    // Ampel: score < yellowFrom = grün, < redFrom = gelb, sonst rot (Startwerte des Default-Modells TMR)
-    ...MODELS.tmr.thresholds,
+    // Ampel: score < yellowFrom = grün, < redFrom = gelb, sonst rot (Startwerte des Default-Modells)
+    ...MODELS[DEFAULT_MODEL].thresholds,
     showGreen: true,
     showBadge: true,
 

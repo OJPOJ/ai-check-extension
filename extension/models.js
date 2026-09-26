@@ -13,7 +13,7 @@ globalThis.AIVSAI_MODELS = {
     title: "Schnell – TMR", // Auswahlkarte in den Einstellungen, darunter `summary`
     summary:
       "RoBERTa-base, 126 MB. ~0,15 s pro Absatz, ~300 MB RAM. " +
-      "Hält menschlichen Sachtext öfter für KI als desklib, deshalb strengere Schwellen.",
+      "Hält menschlichen Sachtext öfter für KI als desklib (besonders Anleitungen), deshalb strengere Schwellen.",
     // Kontext des Modells und wie viel Text der Auto-Scan dafür schickt (content.js, clipText).
     // TMR ist schnell und profitiert stark von mehr Text: volle 512 Tokens (~2000 Zeichen Englisch).
     maxTokens: 512,
@@ -56,8 +56,8 @@ globalThis.AIVSAI_MODELS = {
     name: "desklib",
     title: "Genau – desklib",
     summary:
-      "DeBERTa-v3-large. ~1,3 s pro Absatz, ~800 MB RAM. " +
-      "Deutlich weniger Fehlalarme, dafür langsamer – gut mit „Nur Absätze in der Nähe“.",
+      "Empfohlen. DeBERTa-v3-large. ~1,3 s pro Absatz, ~800 MB RAM. " +
+      "Deutlich weniger Fehlalarme (~1 % statt ~5 %), dafür langsamer – gut mit „Nur Absätze in der Nähe“.",
     // Könnte 768 Tokens, aber die Rechenzeit wächst stärker als linear (CPU: 500 Zeichen 0,6 s,
     // 1500 Zeichen 2,3 s, 650 Tokens ~4,5 s) und desklib ist schon mit kurzem Text sehr genau -
     // 1500 Zeichen (~350 Tokens) als Kompromiss. Messungen: training/EVAL_RESULTS.md, "Textlänge".

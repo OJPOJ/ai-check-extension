@@ -36,9 +36,12 @@ Erledigt: Sprache pro Absatz, Stufe „unsicher“, strengere TMR-Schwellen, Wor
   Wie viele Absätze auf typischen Nachrichtenseiten tatsächlich gruppiert werden (Regel „gleiches
   Elternelement“ ist bewusst streng), und ob gemischte Gruppen (ein KI-Absatz zwischen menschlichen)
   ein Problem sind. Nachgeladene Absätze (Infinite Scroll) werden nicht mit schon bewerteten gruppiert.
-- **Default-Modell:** desklib als Empfehlung statt TMR? Die breitere Eval spricht dafür (AUROC 0.990
-  vs. 0.929, Fehlalarme wie angezeigt 1,2 % vs. 4,7 %, kein Einbruch bei WikiHow/Gemma/Cohere), dagegen
-  1,7 GB Download und ~1,3–2,3 s pro Absatz. Offen: Rückmeldungen zur Geschwindigkeit.
+- **Weiteres Modell zwischen TMR und desklib:** desklib ist jetzt Standard (genau, aber 1,7 GB Download
+  und ~1,3–2,3 s pro Absatz), TMR schnell, aber ~5 % Fehlalarme (20 % auf Anleitungen). Gesucht: ein
+  Detektor mit ähnlicher Qualität wie desklib und deutlich weniger Download/Rechenzeit (z.B. kleinere
+  DeBERTa-/ModernBERT-/Distil-Varianten auf Hugging Face, offene Lizenz, ONNX oder umwandelbar). Auf der
+  Eval-Suite messen (`training/evaluate_suite.py`, „wie angezeigt“) und als dritten Eintrag in
+  `models.js` anbieten. Rückmeldungen zur desklib-Geschwindigkeit sammeln.
 - **Spracherkennung auf echten Seiten prüfen:** Funktionswörter (en/de/fr/es/it/nl/pt) zuerst, dann
   die Browser-Erkennung `i18n.detectLanguage` (CLD3 in Chromium, CLD2 in Firefox), dann `lang`-Attribut.
   CLD3 irrt bei ungewöhnlichem Text auch „verlässlich“ (wiederholter englischer Testtext →

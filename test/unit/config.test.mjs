@@ -132,7 +132,8 @@ describe("scanPolicy", () => {
 
 describe("modelKey", () => {
   it("enthält Provider, Modell und bei Browser-Modellen die Version", () => {
-    assert.equal(A.modelKey(cfg()), `browser:tmr@${A.MODELS.tmr.browser.version}`);
+    assert.equal(A.modelKey(cfg()), `browser:desklib@${A.MODELS.desklib.browser.version}`); // Standardmodell
+    assert.equal(A.modelKey(cfg({ browserModel: "tmr" })), `browser:tmr@${A.MODELS.tmr.browser.version}`);
     assert.equal(A.modelKey(cfg({ browserModel: "desklib" })), `browser:desklib@${A.MODELS.desklib.browser.version}`);
     assert.equal(A.modelKey(cfg({ browserModel: "gibtsnicht" })), "browser:gibtsnicht@?");
     assert.equal(A.modelKey(cfg({ provider: "local", localModel: "desklib" })), "local:desklib");
@@ -218,7 +219,8 @@ describe("modelCheck („Modell prüfen“)", () => {
 
 describe("maxChars / presetFor / maxInFlight", () => {
   it("Browser und Lokal kennen die Modellfamilie, andere Provider nicht", () => {
-    assert.equal(A.maxChars(cfg()), 2000);
+    assert.equal(A.maxChars(cfg()), 1500); // Standardmodell desklib
+    assert.equal(A.maxChars(cfg({ browserModel: "tmr" })), 2000);
     assert.equal(A.maxChars(cfg({ browserModel: "desklib" })), 1500);
     assert.equal(A.maxChars(cfg({ provider: "local", localModel: "desklib" })), 1500);
     assert.equal(A.maxChars(cfg({ provider: "custom", customModel: "desklib" })), 2000);
@@ -262,7 +264,8 @@ describe("remoteTarget", () => {
 
 describe("providerLabel", () => {
   it("beschreibt jeden Provider", () => {
-    assert.equal(A.providerLabel(cfg()), "Im Browser (TMR)");
+    assert.equal(A.providerLabel(cfg()), "Im Browser (desklib)");
+    assert.equal(A.providerLabel(cfg({ browserModel: "tmr" })), "Im Browser (TMR)");
     assert.equal(A.providerLabel(cfg({ browserModel: "desklib" })), "Im Browser (desklib)");
     assert.equal(A.providerLabel(cfg({ browserModel: "weg" })), "Im Browser (TMR)");
     assert.equal(A.providerLabel(cfg({ provider: "local", localModel: "desklib" })), "Lokal (desklib)");
@@ -287,6 +290,14 @@ describe("Provider-Registry und Modellkatalog", () => {
     }
     assert.equal(new Set(fields.map((f) => f.key)).size, fields.length, "Feld-Schlüssel doppelt");
     assert.ok(A.DEFAULTS.provider in A.PROVIDERS);
+  });
+
+  it("Standard ist desklib im Browser, mit dessen Ampel-Startwerten", () => {
+    assert.equal(A.DEFAULTS.provider, "browser");
+    assert.equal(A.DEFAULTS.browserModel, "desklib");
+    assert.equal(A.presetFor(A.DEFAULTS), A.PRESETS.desklib);
+    assert.equal(A.DEFAULTS.yellowFrom, A.PRESETS.desklib.yellowFrom);
+    assert.equal(A.DEFAULTS.redFrom, A.PRESETS.desklib.redFrom);
   });
 
   it("Modell-Felder zeigen auf vorhandene Katalog-Abschnitte mit gültigem Default", () => {

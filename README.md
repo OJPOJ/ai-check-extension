@@ -41,7 +41,7 @@ In Chrome/Edge:
 
 1. `chrome://extensions` → „Entwicklermodus“ an → „Entpackte Erweiterung laden“ → `extension/`.
 2. Die Einstellungen öffnen sich → Modell wählen, „Herunterladen“ (einmalig, von Hugging Face,
-   kein Token): TMR 126 MB, desklib 1,7 GB (wird im Browser auf ~475 MB umgewandelt).
+   kein Token): desklib (Standard) 1,7 GB, wird im Browser auf ~475 MB umgewandelt; TMR 126 MB.
 3. Extension-Icon → „Diese Seite automatisch scannen“ oder „Diese Seite jetzt scannen“.
 4. Offline-Testseite: bei der Extension „Auf Datei-URLs zulassen“, dann `test/harness.html` öffnen.
 
@@ -252,7 +252,12 @@ Veröffentlichung im Web Store: Kontakt eintragen und die Seite zusätzlich öff
 | Modell | Größe | im Browser (Ryzen 7 5800U, 8 Threads) | Genauigkeit (HC3, 100 Beispiele) | Wikipedia „Photosynthesis“ |
 |---|---|---|---|---|
 | **TMR** (RoBERTa-base) – *Schnell* | 126 MB | ~0,15 s/Absatz, Laden ~2 s | AUROC 0.908 (PyTorch 0.911) | 50/80 rot (Fehlalarme) |
-| **desklib** (DeBERTa-v3-large) – *Genau* | 1,7 GB → 475 MB | ~1 s/Absatz, Laden ~4 s, Download+Umwandlung ~57 s | AUROC 0.998 | 3/80 rot |
+| **desklib** (DeBERTa-v3-large) – *Genau*, Standard | 1,7 GB → 475 MB | ~1 s/Absatz, Laden ~4 s, Download+Umwandlung ~57 s | AUROC 0.998 | 3/80 rot |
+
+Standard ist seit v0.6 desklib: Auf der breiteren Eval-Suite (6 Domänen, 7 Generatoren) zeigt es ~1 %
+Fehlalarme statt ~5 % bei TMR (TMR: 20 % auf Anleitungen), AUROC 0.990 statt 0.929
+(`training/EVAL_RESULTS.md`, „Breitere Eval-Suite“). Installationen von vor v0.6, die nie ein Modell
+gewählt haben, behalten beim Update TMR samt Ampel-Werten (`pinLegacyModel` in `background.js`).
 
 - Beide nur auf **Englisch** trainiert (deutscher Fachtext im Harness: 78 % → Fehlalarm).
 - TMR: fertiges int8-ONNX von `onnx-community`, Revision gepinnt.
@@ -349,6 +354,7 @@ Statistik aus dem Register statt Dokument-Scans.
 - Berechtigung `tabs` durch `activeTab` ersetzt: gebraucht wird nur die URL des aktiven Tabs im Popup.
 - Kurze Absätze zusammen bewerten (benachbarte Absätze unter `reliableWords` als ein Text).
 - Breitere Eval-Suite: 1200 Texte, 6 Domänen, 7 Generatoren bis GPT-4o (`training/evaluate_suite.py`).
+- desklib als Standardmodell (bestehende Installationen ohne Modellwahl behalten TMR).
 - Store-Vorbereitung: Icons, Seite „Über / Lizenzen“ (`about.html`), Store-Texte und Begründung der
   Berechtigungen (`store/`), Screenshot-Skript.
 
