@@ -124,7 +124,8 @@ Hugging-Face-Provider mit echtem Token (nur gemockt, siehe `providers.test.mjs`)
     „unsicher“ – Badge ohne Zahl, der Rohwert steht nur im Popover. Grün bleibt grün. Ausnahme
     `shortRedFrom`: desklib markiert kurze Absätze ab 0.98 doch rot – damit so selten fälschlich wie
     lange bei 0.87 (~1 %), erkannt ~73 % der kurzen ChatGPT-Texte (`training/EVAL_RESULTS.md`,
-    „Konfidenz für kurze Absätze“). TMR hat keine solche Schwelle (liegt fast nie über 0.99).
+    „Konfidenz für kurze Absätze“). TMR hat keine solche Schwelle (liegt fast nie über 0.99). Eigene Modelle können beides über
+    `/v1/info` angeben (`server/README.md`), sonst gilt 120 Wörter und nie rot.
   - *Andere Sprachen:* Die mitgelieferten Modelle kennen nur Englisch (`languages`). Absätze in
     anderen Sprachen bewertet der Auto-Scan nicht (keine Markierung, Zahl im Popup); die Einzelprüfung
     fragt erst nach („Trotzdem prüfen“), das Ergebnis ist dann immer „unsicher“. Erkennung pro Absatz

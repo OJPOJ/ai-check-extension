@@ -160,14 +160,15 @@ def score_desklib_texts(texts: list[str]) -> list[float]:
 
 LOCAL_SCORERS = {"tmr": score_tmr_texts, "desklib": score_desklib_texts}
 
-# Antwort von /v1/info - Textlaenge und Ampel wie in extension/models.js
+# Antwort von /v1/info - Textlaenge und Ampel wie in extension/models.js (dort die Begruendung)
 MODEL_INFO = {
     "tmr": {
         "name": "TMR AI Text Detector",
         "version": TMR_REVISION[:7],
         "maxChars": 2000,
         "languages": ["en"],
-        "suggestedThresholds": {"yellowFrom": 0.6, "redFrom": 0.9},
+        "suggestedThresholds": {"yellowFrom": 0.95, "redFrom": 0.98},
+        "reliableWords": 120,
     },
     "desklib": {
         "name": "desklib AI Text Detector v1.01",
@@ -175,6 +176,8 @@ MODEL_INFO = {
         "maxChars": 1500,
         "languages": ["en"],
         "suggestedThresholds": {"yellowFrom": 0.5, "redFrom": 0.87},
+        "reliableWords": 120,
+        "shortRedFrom": 0.98,
     },
 }
 

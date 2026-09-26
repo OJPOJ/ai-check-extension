@@ -12,6 +12,13 @@ Vertrag in `server/README.md`). Offen:
   Router-Antwortformen, KI-Label aus `id2label`). Bisher nur gemockt (`providers.test.mjs`,
   `model-check.test.mjs`).
 - **Referenzset verbreitern**, sobald die Eval-Suite (Punkt 3) steht: bisher nur HC3 (ChatGPT 2023).
+- **„Ausführliche Prüfung“ für eigene Modelle** (nach Punkt 3, optional in den Einstellungen): Die
+  Ampel-Schwellen aus „Modell prüfen“ stützen sich auf 20 Mensch-Texte – „keiner rot“ heißt nur
+  Fehlalarme grob unter 5–15 %, und kurze Absätze deckt das Set gar nicht ab (70–200 Wörter). Stattdessen
+  einige hundert Absätze verschiedener Länge (Wikipedia-Mensch + KI) schicken und daraus Rot-Schwelle,
+  `reliableWords` und `shortRedFrom` ableiten, wie für desklib (`training/EVAL_RESULTS.md`, „Konfidenz
+  für kurze Absätze“). Dauert Minuten und kostet bei Cloud-Anbietern – nur auf Wunsch, mit Hinweis.
+  Bis dahin kann ein Server beides über `/v1/info` angeben; Hugging-Face-Modelle bekommen den Standard.
 - **Später – eigenes ONNX im Browser:**
   - HF-Repo mit `onnx/` + Tokenizer.
   - Architektur aus fester Liste (BERT, RoBERTa, DeBERTa-v2, XLM-R, DistilBERT).

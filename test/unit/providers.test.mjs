@@ -108,7 +108,15 @@ describe("Lokal / Eigener Server (Vertrag POST {texts, model?} -> {scores})", ()
 });
 
 describe("GET /v1/info (inspect für Lokal / Eigener Server)", () => {
-  const info = { name: "Det", version: "v2", maxChars: 1200, languages: ["en"], suggestedThresholds: { yellowFrom: 0.4, redFrom: 0.8 } };
+  const info = {
+    name: "Det",
+    version: "v2",
+    maxChars: 1200,
+    languages: ["en"],
+    suggestedThresholds: { yellowFrom: 0.4, redFrom: 0.8 },
+    reliableWords: 80,
+    shortRedFrom: 0.97
+  };
 
   it("Lokal: neben /v1/score, mit Modell als Parameter", async () => {
     mockFetch({ body: info });
@@ -139,11 +147,19 @@ describe("GET /v1/info (inspect für Lokal / Eigener Server)", () => {
 
   it("verwirft ungültige Felder mit Hinweis, Version als Text", async () => {
     mockFetch({
-      body: { name: 3, version: 7, maxChars: 5, languages: "en", suggestedThresholds: { yellowFrom: 0.9, redFrom: 0.5 } }
+      body: {
+        name: 3,
+        version: 7,
+        maxChars: 5,
+        languages: "en",
+        suggestedThresholds: { yellowFrom: 0.9, redFrom: 0.5 },
+        reliableWords: 2.5,
+        shortRedFrom: 1.2
+      }
     });
     const r = await BACKENDS.custom.inspect(custom);
     assert.deepEqual(r.info, { version: "7" });
-    assert.equal(r.notes.length, 4);
+    assert.equal(r.notes.length, 6);
 
     mockFetch({ body: {} });
     assert.match((await BACKENDS.custom.inspect(custom)).notes[0], /keine Version/);

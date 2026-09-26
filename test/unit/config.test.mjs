@@ -188,6 +188,18 @@ describe("modelCheck („Modell prüfen“)", () => {
     assert.equal(A.modelKey(withCheck(custom, passed(custom, { info: {} }))), "custom:m1");
   });
 
+  it("Ampel für kurze Absätze aus /v1/info, sonst Standard (120 Wörter, nie rot)", () => {
+    const c = withCheck(custom, passed(custom, { info: { reliableWords: 60, shortRedFrom: 0.97 } }));
+    assert.equal(A.reliableWords(c), 60);
+    assert.equal(A.shortRedFrom({ ...c, redFrom: 0.7 }), 0.97);
+    assert.equal(A.level(0.975, { ...c, yellowFrom: 0.3, redFrom: 0.7 }, 59), "red");
+    assert.equal(A.level(0.9, { ...c, yellowFrom: 0.3, redFrom: 0.7 }, 59), "uncertain");
+    assert.equal(A.level(0.9, { ...c, yellowFrom: 0.3, redFrom: 0.7 }, 60), "red");
+    const plain = withCheck(custom, passed(custom));
+    assert.equal(A.reliableWords(plain), 120);
+    assert.equal(A.shortRedFrom(plain), null);
+  });
+
   it("Lokal: Modellfamilie aus models.js geht vor, Version aus der Prüfung", () => {
     const local = cfg({ provider: "local", localModel: "desklib" });
     const c = withCheck(local, passed(local));

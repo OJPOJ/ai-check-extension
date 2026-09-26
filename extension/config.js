@@ -132,7 +132,8 @@ globalThis.AIVSAI = (() => {
     feedbackButtons: true,
 
     // Letztes Ergebnis von „Modell prüfen“ je Provider (bg/model-check.js, gespeichert von options.js):
-    // { sig, at, ok, info: {name?, version?, maxChars?, languages?, aiLabel?}, thresholds, auroc, msPerText }
+    // { sig, at, ok, info: {name?, version?, maxChars?, languages?, reliableWords?, shortRedFrom?, aiLabel?},
+    //   thresholds, auroc, msPerText }
     modelChecks: {}
   };
 
@@ -165,14 +166,15 @@ globalThis.AIVSAI = (() => {
   const RELIABLE_WORDS = 120;
 
   // Ab wie vielen Wörtern die Ampel einem hohen Score traut (models.js, reliableWords)
+  // Eigene Modelle: Angabe des Servers (/v1/info), sonst der Standard
   function reliableWords(cfg) {
-    return family(cfg)?.reliableWords ?? RELIABLE_WORDS;
+    return family(cfg)?.reliableWords ?? modelCheck(cfg)?.info?.reliableWords ?? RELIABLE_WORDS;
   }
 
   // Rot-Schwelle für Texte unter reliableWords, null = kurze Texte werden nie rot (models.js, shortRedFrom).
   // Nie lockerer als die eingestellte Rot-Schwelle.
   function shortRedFrom(cfg) {
-    const short = family(cfg)?.shortRedFrom;
+    const short = family(cfg)?.shortRedFrom ?? modelCheck(cfg)?.info?.shortRedFrom;
     return short === undefined ? null : Math.max(short, cfg.redFrom);
   }
 

@@ -63,7 +63,8 @@ async function postScoreContract(url, texts, { model, lang, apiKey, timeoutMs })
   return data.scores.map((s) => (isProbability(s) ? s : null));
 }
 
-// Optionales GET /v1/info neben dem Score-Endpunkt: {name, version, maxChars, languages, suggestedThresholds}.
+// Optionales GET /v1/info neben dem Score-Endpunkt: {name, version, maxChars, languages, suggestedThresholds,
+// reliableWords, shortRedFrom} - die letzten beiden wie in models.js (Ampel für kurze Absätze).
 // Fehlt der Endpunkt, ist das kein Fehler; unbrauchbare Felder werden mit Hinweis verworfen.
 async function fetchServerInfo(url, apiKey) {
   let raw;
@@ -87,6 +88,8 @@ async function fetchServerInfo(url, apiKey) {
   take("maxChars", (v) => Number.isInteger(v) && v >= 100 && v <= 20000);
   take("languages", (v) => Array.isArray(v) && v.every((l) => typeof l === "string"));
   take("suggestedThresholds", (v) => isProbability(v?.yellowFrom) && isProbability(v?.redFrom) && v.yellowFrom < v.redFrom);
+  take("reliableWords", (v) => Number.isInteger(v) && v >= 0 && v <= 1000);
+  take("shortRedFrom", isProbability);
   if (!info.version) notes.push("Server nennt keine Version – ein Modell-Update dort bleibt unbemerkt.");
   return { info, notes };
 }

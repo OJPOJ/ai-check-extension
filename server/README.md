@@ -59,14 +59,18 @@ der Extension einsetzen; `shim_server.py` ist die Referenz-Implementierung.
 **`GET …/v1/info?model=…`** (optional, neben dem Score-Endpunkt: `…/v1/score` → `…/v1/info`)
 
 ```json
-{"name": "TMR AI Text Detector", "version": "0ceddea", "maxChars": 2000, "languages": ["en"],
- "suggestedThresholds": {"yellowFrom": 0.6, "redFrom": 0.9}}
+{"name": "desklib AI Text Detector v1.01", "version": "5fdea97", "maxChars": 1500, "languages": ["en"],
+ "suggestedThresholds": {"yellowFrom": 0.5, "redFrom": 0.87}, "reliableWords": 120, "shortRedFrom": 0.98}
 ```
 
 Alle Felder optional. `version` geht in den Modellschlüssel der Extension ein: Ändert sie sich
 (neue Gewichte, andere Quantisierung), gelten gespeicherte Scores nicht mehr. `maxChars` begrenzt
-den Text pro Absatz, `suggestedThresholds` sind die Startwerte der Ampel. Ohne den Endpunkt
-(404/405/501) läuft alles, nur ohne Version.
+den Text pro Absatz, `suggestedThresholds` sind die Startwerte der Ampel. `reliableWords`: unter so
+vielen Wörtern wird ein hoher Score grau „unsicher“ statt gelb/rot (Standard 120); `shortRedFrom`:
+strengere Rot-Schwelle, ab der auch kurze Absätze rot werden (Standard: nie). Beides sollte gemessen
+sein – Vorlage: `training/evaluate_false_alarms.py` (Fehlalarme auf Wikipedia nach Länge) und
+`training/EVAL_RESULTS.md`, „Konfidenz für kurze Absätze“. Ohne den Endpunkt (404/405/501) läuft
+alles, nur ohne Version.
 
 **„Modell prüfen“** in den Einstellungen (Pflicht für „Eigener Server“) schickt vor dem Speichern
 40 englische Referenztexte und prüft Antwortformat, Richtung (KI höher als Mensch), Trennschärfe
