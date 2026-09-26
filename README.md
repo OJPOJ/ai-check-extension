@@ -336,6 +336,8 @@ Statistik aus dem Register statt Dokument-Scans.
 
 - Weniger Fehlalarme: andere Sprachen nicht bewerten (Erkennung pro Absatz), Stufe „unsicher“ für kurze
   Texte, TMR-Schwellen 0.95/0.98 nach Messung auf Wikipedia, „KI-Score“ statt Prozent, Begrüßungsseite.
+- Gleichzeitige Anfragen für denselben Absatz (mehrere Tabs, doppelter Absatz im Batch) gehen nur einmal
+  an Speicher und Backend.
 
 **Offen:** siehe `TODO.md`.
 

@@ -57,6 +57,11 @@ async function scoreByLang(items, cfg) {
   return result;
 }
 
+// Laufende Bewertungen: Cache-Schlüssel -> Promise<{p?: number, error?: string}>. Scannen mehrere Tabs
+// dieselbe Seite (oder steht ein Absatz zweimal in einem Batch), geht jeder Text nur einmal an Speicher
+// und Backend; die anderen Anfragen warten auf dieses Ergebnis.
+const pending = new Map();
+
 /**
  * @param {{id: string, text: string, lang?: string}[]} items  lang: erkannte Sprache, falls bekannt
  * @returns {Promise<{ok: boolean, scores: Record<string, number>, model: string, error?: string}>}
@@ -69,56 +74,93 @@ export async function scoreBatch(items) {
 
   const sig = providerSignature(cfg);
   const scores = {};
-  // 1. Arbeitsspeicher
-  let missing = [];
+  // 1. Arbeitsspeicher, sonst an eine laufende Bewertung anhängen oder selbst eine anmelden -
+  // ohne await dazwischen, damit keine zweite Anfrage denselben Text parallel anmeldet
+  const joined = [];
+  const own = [];
   for (const it of items) {
-    const hit = cache.get(`${sig}${it.text}`);
-    if (hit !== undefined) scores[it.id] = hit;
-    else missing.push(it);
+    const key = `${sig}${it.text}`;
+    const hit = cache.get(key);
+    if (hit !== undefined) {
+      scores[it.id] = hit;
+      continue;
+    }
+    const running = pending.get(key);
+    if (running) {
+      joined.push({ it, running });
+      continue;
+    }
+    let settle;
+    pending.set(key, new Promise((resolve) => (settle = resolve)));
+    own.push({ it, key, settle });
   }
-  if (!missing.length) return { ok: true, scores, model };
+
+  let error;
+  if (own.length) {
+    let result = { probs: [] };
+    try {
+      result = await lookup(own.map((o) => o.it), cfg, sig, model);
+    } finally {
+      own.forEach(({ it, key, settle }, i) => {
+        const p = result.probs[i];
+        if (typeof p === "number") scores[it.id] = p;
+        pending.delete(key);
+        settle(typeof p === "number" ? { p } : { error: result.error ?? "Keine Bewertung" });
+      });
+    }
+    error = result.error;
+  }
+  for (const { it, running } of joined) {
+    const r = await running;
+    if (r.p !== undefined) scores[it.id] = r.p;
+    else error ??= r.error;
+  }
+  return error ? { ok: false, error, scores, model } : { ok: true, scores, model };
+}
+
+// 2. dauerhafter Speicher, 3. Modell/Backend. Ergebnis in der Reihenfolge von `items`; `error` nur, wenn das
+// Backend scheitert - Treffer aus dem Speicher sind dann trotzdem in `probs`.
+async function lookup(items, cfg, sig, model) {
+  const probs = new Array(items.length);
+  let missing = items.map((it, i) => ({ it, i }));
 
   // 2. dauerhafter Speicher (falls eingeschaltet) - Fehler dort dürfen nie die Bewertung verhindern
-  const persist = cfg.scoreRetentionDays > 0;
-  let keys = [];
-  if (persist) {
+  if (cfg.scoreRetentionDays > 0) {
     try {
-      keys = await Promise.all(missing.map((it) => store.keyFor(sig, it.text)));
+      const keys = await Promise.all(missing.map(({ it }) => store.keyFor(sig, it.text)));
       const found = await store.getMany(keys, cfg.scoreRetentionDays);
       const rest = [];
-      missing.forEach((it, i) => {
-        const p = found.get(keys[i]);
-        if (p === undefined) return rest.push({ it, key: keys[i] });
-        scores[it.id] = p;
-        cachePut(`${sig}${it.text}`, p);
+      missing.forEach((m, j) => {
+        const p = found.get(keys[j]);
+        if (p === undefined) return rest.push({ ...m, key: keys[j] });
+        probs[m.i] = p;
+        cachePut(`${sig}${m.it.text}`, p);
       });
-      missing = rest.map((r) => r.it);
-      keys = rest.map((r) => r.key);
+      missing = rest;
     } catch (err) {
       console.warn("Score-Speicher nicht lesbar", err);
-      keys = [];
     }
-    if (!missing.length) return { ok: true, scores, model };
+    if (!missing.length) return { probs };
   }
 
   // 3. Modell/Backend
   const provider = AIVSAI.providerLabel(cfg);
   try {
-    const result = await scoreByLang(missing, cfg);
+    const result = await scoreByLang(missing.map(({ it }) => it), cfg);
     const fresh = [];
-    missing.forEach((it, i) => {
-      if (typeof result[i] !== "number") return;
-      scores[it.id] = result[i];
-      cachePut(`${sig}${it.text}`, result[i]);
-      if (keys[i]) fresh.push({ k: keys[i], p: result[i], m: model });
+    missing.forEach(({ it, i, key }, j) => {
+      if (typeof result[j] !== "number") return;
+      probs[i] = result[j];
+      cachePut(`${sig}${it.text}`, result[j]);
+      if (key) fresh.push({ k: key, p: result[j], m: model });
     });
     if (fresh.length) store.putMany(fresh).catch((err) => console.warn("Score-Speicher nicht beschreibbar", err));
     lastStatus = { ok: true, at: Date.now(), provider };
-    return { ok: true, scores, model };
+    return { probs };
   } catch (err) {
     const error = describeError(err, cfg);
     lastStatus = { ok: false, error, at: Date.now(), provider };
-    return { ok: false, error, scores, model };
+    return { probs, error };
   }
 }
 
