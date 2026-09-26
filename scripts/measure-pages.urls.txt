@@ -1,0 +1,54 @@
+# URL-Liste für scripts/measure-pages.mjs (WP-08). Format: URL<TAB>Sprache<TAB>Kurzbeschreibung
+# Sprache: erwartete Hauptsprache der Seite - "en", "de", "fr", "es" oder "mixed" (mehrsprachig/gemischt
+# auf derselben Seite, kein einzelnes erwartetes Ergebnis). Nur öffentliche Seiten ohne Login/Formular.
+# Zeilen mit # werden ignoriert, ebenso leere Zeilen.
+
+# --- Englisch: Nachrichten ---
+https://www.bbc.com/news	en	BBC News (Startseite)
+https://www.theguardian.com/international	en	The Guardian (Startseite international)
+https://www.npr.org/sections/news/	en	NPR News (Rubrik)
+https://www.aljazeera.com/news/	en	Al Jazeera (Rubrik)
+https://www.smithsonianmag.com/	en	Smithsonian Magazine (Startseite)
+
+# --- Englisch: Blogs ---
+https://overreacted.io/	en	Dan Abramov, Tech-Blog (Übersicht)
+https://danluu.com/	en	Dan Luu, Tech-Blog (Übersicht)
+https://css-tricks.com/	en	CSS-Tricks (Startseite)
+https://stackoverflow.blog/	en	Stack Overflow Blog (Startseite)
+
+# --- Englisch: Wikipedia ---
+https://en.wikipedia.org/wiki/Artificial_intelligence	en	Wikipedia EN, langer Artikel
+https://en.wikipedia.org/wiki/Climate_change	en	Wikipedia EN, langer Artikel
+https://en.wikipedia.org/wiki/History_of_the_United_States	en	Wikipedia EN, langer Artikel
+
+# --- Englisch: Anleitungen ---
+https://www.wikihow.com/Bake-a-Cake	en	WikiHow-Anleitung
+https://www.instructables.com/circuits/	en	Instructables (Kategorie-Seite)
+
+# --- Englisch: Dokumentation ---
+https://docs.python.org/3/tutorial/introduction.html	en	Python-Tutorial
+https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide	en	MDN JavaScript Guide
+
+# --- Englisch: Foren ---
+https://news.ycombinator.com/	en	Hacker News (Startseite)
+https://old.reddit.com/r/AskHistorians/	en	Reddit (alte Oberfläche)
+https://stackoverflow.com/questions/11227809/why-is-processing-a-sorted-array-faster-than-processing-an-unsorted-array	en	Stack Overflow, bekannte Frage
+
+# --- Deutsch ---
+https://de.wikipedia.org/wiki/Deutschland	de	Wikipedia DE, langer Artikel
+https://www.tagesschau.de/	de	Tagesschau (Startseite, öffentlich-rechtlich)
+https://www.dw.com/de/	de	Deutsche Welle, deutsche Ausgabe
+
+# --- Französisch ---
+https://fr.wikipedia.org/wiki/France	fr	Wikipedia FR, langer Artikel
+https://www.ladepeche.fr/	fr	La Dépêche (Regionalzeitung, Startseite)
+
+# --- Spanisch ---
+https://es.wikipedia.org/wiki/Espa%C3%B1a	es	Wikipedia ES, langer Artikel
+https://www.dw.com/es/	es	Deutsche Welle, spanische Ausgabe
+https://www.20minutos.es/	es	20minutos (Startseite)
+
+# --- Gemischtsprachig ---
+https://german.stackexchange.com/questions	mixed	Deutsch-Lernforum: Fragen oft EN, Beispiele/Antworten oft DE
+https://en.wikipedia.org/wiki/Denglisch	mixed	Englischer Artikel mit eingebetteten deutschen Beispielen
+https://old.reddit.com/r/de/	mixed	Deutsches Subreddit, Seite selbst mit lang="en" (UI-Chrome englisch)
