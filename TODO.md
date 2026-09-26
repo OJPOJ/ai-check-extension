@@ -32,27 +32,17 @@ Der größte Schaden ist Rot auf einem menschlichen Text.
 Erledigt: Sprache pro Absatz, Stufe „unsicher“, strengere TMR-Schwellen, Wortwahl, Begrüßung (README,
 „Weniger Fehlalarme“; Messung in `training/EVAL_RESULTS.md`, „Fehlalarme auf Wikipedia“). Offen:
 
-- **Sehr kurze Absätze erreichen die Gruppierung nicht:** Gemessen auf 29 echten Seiten
-  (`test/REAL_PAGES.md`): Die Gruppierung senkt den Anteil zu kurzer Bewertungseinheiten bei
-  Nachrichtenartikeln von 61 % auf 40 %, bei Wikipedia von 88 % auf 35 %. Eine lockerere Regel
-  (gemeinsamer Vorfahr statt Elternelement) ändert auf Nachrichtenartikeln nichts. Engpass ist
-  `MIN_WORDS` = 40 in `content.js`: Seiten mit sehr kurzen Absätzen (BBC: 7–38 Wörter) liefern keine
-  Einzelkandidaten, sondern höchstens den ganzen Artikel-Container. Idee: Absätze ab ~15 Wörtern als
-  Kandidaten zulassen, wenn sie gruppiert werden und die Gruppe `MIN_WORDS` erreicht; einzeln bleiben
-  sie aus. Danach `npm run measure:pages` erneut. Offen außerdem: gemischte Gruppen (ein KI-Absatz
-  zwischen menschlichen), nachgeladene Absätze werden nicht mit schon bewerteten gruppiert.
-- **Drittes Modell einbinden: fakespot** (`training/MODEL_SEARCH.md`): `fakespot-ai/roberta-base-ai-text-
-  detection-v1`, Apache-2.0, RoBERTa-base wie TMR (125 MB, ~45 ms/Text). Auf der Eval-Suite AUROC 0,964
-  (TMR 0,929, desklib 0,991); ≥ 120 Wörter bei ~1 % Fehlalarmen 90 % erkannt (TMR 62 %, desklib 97 %),
-  Anleitungen AUROC 0,955 statt 0,767. Vor der Einbindung:
-  - Fertiges ONNX eines Dritten (`MedAliFarhat/ai-text-detector-onnx`, int8, Revision pinnen) gegen das
-    PyTorch-Original abgleichen – gemessen wurde nur das Original.
-  - Schwellen kreuzvalidieren (`training/crossval_thresholds.py`). Die Scores ballen sich nahe 1:
-    Fehlalarme ≥ 120 Wörter 3,5 % bei 0.99, 0,9 % bei 0.999, 0,2 % bei 0.9995. Ggf. Logit statt
-    Wahrscheinlichkeit auswerten, damit die Schwelle nicht an der vierten Nachkommastelle hängt.
-  - Dann als Eintrag „Ausgewogen“ in `models.js` wie TMR (fertiges ONNX, kein Umbau wie desklib).
-  Weitere Kandidaten, falls fakespot nicht trägt: `ShantanuT01/gradient-ai-text-detector` (MIT,
-  DeBERTa-v3-large, ONNX int4 408 MB, ungeprüft).
+- **Gruppierung auf Start- und Rubrikseiten prüfen:** Seit WP-10 werden auch Absätze mit 15–39 Wörtern
+  gruppiert (`test/REAL_PAGES.md`: zu kurze Einheiten auf 32 Artikelseiten 95 % → 39 %, BBC jetzt
+  abgedeckt). Gemessen wurden nur Artikelseiten. Risiko: Teaser-Raster und Linklisten als `<ul><li>`
+  ohne Navigations-Semantik könnten zu Gruppen werden. Außerdem bleibt ein Artikel aus lauter
+  isolierten kurzen Absätzen jetzt ganz unbewertet (früher wurde der Container bewertet).
+- **fakespot im echten Browser prüfen:** Eingebunden als „Ausgewogen“ (`training/MODEL_SEARCH.md`,
+  „ONNX-Abgleich und Einbindung“). Der Abgleich lief mit onnxruntime in Python; einzelne Texte weichen
+  bis 0,52 ab, die Ampel an den Schwellen kaum (≤ 0,6 Prozentpunkte). Einmal in Chrome herunterladen und
+  auf der Eval-Suite bzw. dem Harness gegen die Python-Scores vergleichen (WASM).
+- **Weitere Kandidaten**, falls nötig: `ShantanuT01/gradient-ai-text-detector` (MIT, DeBERTa-v3-large,
+  ONNX int4 408 MB, ungeprüft).
 - **Spracherkennung in Firefox prüfen:** In Chromium auf echten Seiten sauber (`test/REAL_PAGES.md`:
   kein falsch übersprungener englischer Absatz, alle Absätze der 6 nicht-englischen Nachrichtenartikel
   übersprungen, fremdsprachige Zitate korrekt pro Absatz). Offen: Firefox (CLD2), sobald die Extension

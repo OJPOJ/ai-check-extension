@@ -12,9 +12,9 @@ Stand: 2026-09-26 (Runde 3). Status: `offen` · `läuft` · `Review` · `gemerge
 | WP-06 | Weiteres Modell zwischen TMR und desklib | Punkt 2 | `worktree-agent-afb11d9e3237c9af7` | gemerged (b7721a2) | `training/**` außer `EVAL_RESULTS.md`; eigene `training/MODEL_SEARCH.md` |
 | WP-07 | Schwellen absichern (desklib voll, Kreuzvalidierung, TMR/Anleitungen) | Punkt 3/5 | `worktree-agent-a96c0e3a2ca3f7416` | gemerged (f3e9ecb) | `training/**` außer `MODEL_SEARCH.md` |
 | WP-08 | Gruppierung/Sprache auf echten Seiten messen | Punkt 2 | `worktree-agent-aa5dcd919e80a3d89` | gemerged (08afe69) | `scripts/measure-pages.*`, `test/REAL_PAGES.md`, `package.json` |
-| WP-09 | fakespot einbinden (ONNX-Abgleich, Kreuzvalidierung) | Punkt 2 | – | läuft | `models.js`, `offscreen.js`, `THIRD_PARTY_NOTICES.md`, `training/**` (außer `build_reference_set.py`), `test/unit/{config,providers}.test.mjs` |
-| WP-10 | Sehr kurze Absätze gruppierbar | Punkt 2 | – | läuft | `content*.js/css`, `test/e2e/**` (außer model-check), `test/harness.html`, `test/REAL_PAGES.md`, `scripts/measure-pages.*` |
-| WP-11 | BYOM-Referenzset verbreitern | Punkt 1 | – | läuft | `bg/reference-set.js`, `bg/model-check.js`, `about.html`, `training/build_reference_set.py`, `test/*/model-check.test.mjs` |
+| WP-09 | fakespot einbinden (ONNX-Abgleich, Kreuzvalidierung) | Punkt 2 | `worktree-agent-ad415fba0f70a8594` | gemerged (9c2969f) | `models.js`, `offscreen.js`, `THIRD_PARTY_NOTICES.md`, `training/**` (außer `build_reference_set.py`), `test/unit/{config,providers}.test.mjs` |
+| WP-10 | Sehr kurze Absätze gruppierbar | Punkt 2 | `worktree-agent-af2c7b66db2f25df9` | gemerged (9c23ec6) | `content*.js/css`, `test/e2e/**` (außer model-check), `test/harness.html`, `test/REAL_PAGES.md`, `scripts/measure-pages.*` |
+| WP-11 | BYOM-Referenzset verbreitern | Punkt 1 | `worktree-agent-ad16f2c4ba4795d55` | Nachbesserung (M4GT-Texte ohne Lizenz) | `bg/reference-set.js`, `bg/model-check.js`, `about.html`, `training/build_reference_set.py`, `test/*/model-check.test.mjs` |
 
 ## Runde 2 (abgeschlossen)
 

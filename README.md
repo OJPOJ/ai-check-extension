@@ -136,6 +136,9 @@ Hugging-Face-Provider mit echtem Token (nur gemockt, siehe `providers.test.mjs`)
     (bis `maxChars`) und gibt allen dasselbe Ergebnis; für die Ampel zählt die Wortzahl der Gruppe
     (`groupCandidates` in `content.js`, abschaltbar in den Einstellungen). Popover und Tooltip nennen die
     Gruppe. Nachgeladene Absätze werden nur untereinander gruppiert, nicht mit schon bewerteten.
+    Absätze mit 15–39 Wörtern (unter `MIN_WORDS`) werden nur als Teil einer Gruppe bewertet, die
+    zusammen mindestens 40 Wörter hat, einzeln gar nicht (`GROUP_MIN_WORDS`; nötig z.B. für BBC-Artikel,
+    `test/REAL_PAGES.md`).
   - *Andere Sprachen:* Die mitgelieferten Modelle kennen nur Englisch (`languages`). Absätze in
     anderen Sprachen bewertet der Auto-Scan nicht (keine Markierung, Zahl im Popup); die Einzelprüfung
     fragt erst nach („Trotzdem prüfen“), das Ergebnis ist dann immer „unsicher“. Erkennung pro Absatz
@@ -174,7 +177,7 @@ Hugging-Face-Provider mit echtem Token (nur gemockt, siehe `providers.test.mjs`)
   Seite den Absatz, ist es ein neuer Eintrag. Markierter Text ist ein eigener Eintrag. Einstellungen → Feedback: Zähler, Export als JSONL, Löschen + Widerruf, Knöpfe
   abschaltbar. Auf gesperrten Seiten (Sperrliste, Passwort-/Zahlungsfeld) keine Feedback-Knöpfe. Weiterverarbeitung:
   `training/import_feedback.py`, Begründung und Grenzen: `training/README.md` („Feedback als Datenquelle“).
-- **Backends** (`extension/bg/providers.js`): Im Browser (TMR oder desklib), Lokal
+- **Backends** (`extension/bg/providers.js`): Im Browser (TMR, fakespot oder desklib), Lokal
   (`shim_server.py`), Eigener Server (Vertrag in `server/README.md`: `POST {texts, model?, lang?} ->
   {scores}` mit P(KI) in 0..1, optional `GET /v1/info`, optional Bearer-Key), Hugging Face Inference
   API. Host-Berechtigungen für Remote-Backends werden erst beim Speichern bzw. Prüfen angefragt;
@@ -258,6 +261,7 @@ Veröffentlichung im Web Store: Kontakt eintragen und die Seite zusätzlich öff
 | Modell | Größe | im Browser (Ryzen 7 5800U, 8 Threads) | Genauigkeit (HC3, 100 Beispiele) | Wikipedia „Photosynthesis“ |
 |---|---|---|---|---|
 | **TMR** (RoBERTa-base) – *Schnell* | 126 MB | ~0,15 s/Absatz, Laden ~2 s | AUROC 0.908 (PyTorch 0.911) | 50/80 rot (Fehlalarme) |
+| **fakespot** (RoBERTa-base) – *Ausgewogen* | 125 MB | wie TMR | AUROC 0.96 (Eval-Suite, 1200 Texte) | – |
 | **desklib** (DeBERTa-v3-large) – *Genau*, Standard | 1,7 GB → 475 MB | ~1 s/Absatz, Laden ~4 s, Download+Umwandlung ~57 s | AUROC 0.998 | 3/80 rot |
 
 Standard ist seit v0.6 desklib: Auf der breiteren Eval-Suite (6 Domänen, 7 Generatoren) zeigt es ~1 %
@@ -362,7 +366,9 @@ Statistik aus dem Register statt Dokument-Scans.
 - Breitere Eval-Suite: 1200 Texte, 6 Domänen, 7 Generatoren bis GPT-4o (`training/evaluate_suite.py`).
 - desklib als Standardmodell (bestehende Installationen ohne Modellwahl behalten TMR).
 - desklib rot ab 0.94 (kreuzvalidiert auf 1200 Texten); Modellsuche: fakespot als drittes Modell
-  gefunden (`training/MODEL_SEARCH.md`), Einbindung offen; `npm run measure:pages` für echte Seiten.
+  gefunden (`training/MODEL_SEARCH.md`); `npm run measure:pages` für echte Seiten.
+- fakespot als drittes Modell „Ausgewogen“ (ONNX gegen Original geprüft, Schwellen kreuzvalidiert).
+- Sehr kurze Absätze (15–39 Wörter) werden in Gruppen bewertet (BBC-Artikel jetzt abgedeckt).
 - Store-Vorbereitung: Icons, Seite „Über / Lizenzen“ (`about.html`), Store-Texte und Begründung der
   Berechtigungen (`store/`), Screenshot-Skript.
 
