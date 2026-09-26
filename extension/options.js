@@ -2,7 +2,7 @@ const $ = (id) => document.getElementById(id);
 
 // Domainlisten (Textarea, eine pro Zeile) - das Popup ändert sie auch, siehe storage.onChanged unten
 const SITE_FIELDS = ["sites", "blockedSites", "unblockedSites"];
-const CHECK_FIELDS = ["builtinBlocklist", "sensitiveHeuristic", "showGreen", "showBadge", "lazyScan", "feedbackButtons"];
+const CHECK_FIELDS = ["builtinBlocklist", "sensitiveHeuristic", "showGreen", "showBadge", "lazyScan", "groupShortParagraphs", "feedbackButtons"];
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost"]);
 
 // Felder aller Provider (auch der nicht gewählten - deren Werte bleiben beim Speichern erhalten)

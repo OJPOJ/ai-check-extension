@@ -129,6 +129,11 @@ Hugging-Face-Provider mit echtem Token (nur gemockt, siehe `providers.test.mjs`)
     lange bei 0.87 (~1 %), erkannt ~73 % der kurzen ChatGPT-Texte (`training/EVAL_RESULTS.md`,
     „Konfidenz für kurze Absätze“). TMR hat keine solche Schwelle (liegt fast nie über 0.99). Eigene Modelle können beides über
     `/v1/info` angeben (`server/README.md`), sonst gilt 120 Wörter und nie rot.
+  - *Kurze Absätze zusammen:* Direkt benachbarte Absätze unter `reliableWords` mit demselben Elternelement,
+    gleicher Sprache und ohne Überschrift/Liste/Tabelle dazwischen bewertet der Auto-Scan als einen Text
+    (bis `maxChars`) und gibt allen dasselbe Ergebnis; für die Ampel zählt die Wortzahl der Gruppe
+    (`groupCandidates` in `content.js`, abschaltbar in den Einstellungen). Popover und Tooltip nennen die
+    Gruppe. Nachgeladene Absätze werden nur untereinander gruppiert, nicht mit schon bewerteten.
   - *Andere Sprachen:* Die mitgelieferten Modelle kennen nur Englisch (`languages`). Absätze in
     anderen Sprachen bewertet der Auto-Scan nicht (keine Markierung, Zahl im Popup); die Einzelprüfung
     fragt erst nach („Trotzdem prüfen“), das Ergebnis ist dann immer „unsicher“. Erkennung pro Absatz
@@ -342,6 +347,7 @@ Statistik aus dem Register statt Dokument-Scans.
 - Gleichzeitige Anfragen für denselben Absatz (mehrere Tabs, doppelter Absatz im Batch) gehen nur einmal
   an Speicher und Backend.
 - Berechtigung `tabs` durch `activeTab` ersetzt: gebraucht wird nur die URL des aktiven Tabs im Popup.
+- Kurze Absätze zusammen bewerten (benachbarte Absätze unter `reliableWords` als ein Text).
 - Store-Vorbereitung: Icons, Seite „Über / Lizenzen“ (`about.html`), Store-Texte und Begründung der
   Berechtigungen (`store/`), Screenshot-Skript.
 

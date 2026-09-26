@@ -32,10 +32,10 @@ Der größte Schaden ist Rot auf einem menschlichen Text.
 Erledigt: Sprache pro Absatz, Stufe „unsicher“, strengere TMR-Schwellen, Wortwahl, Begrüßung (README,
 „Weniger Fehlalarme“; Messung in `training/EVAL_RESULTS.md`, „Fehlalarme auf Wikipedia“). Offen:
 
-- **Kurze Absätze zusammen bewerten:** Absätze unter 120 Wörtern werden bei TMR nie rot, bei desklib
-  erst ab 0.98 (sonst „unsicher“) – auf typischen Nachrichtenseiten der Großteil. Idee: benachbarte kurze Absätze
-  desselben Artikels als ein Text bewerten (mehr Kontext senkt die Fehler stark, siehe „Textlänge“)
-  und das Ergebnis allen zuordnen.
+- **Gruppierung kurzer Absätze auf echten Seiten prüfen** (umgesetzt, README „Kurze Absätze zusammen“):
+  Wie viele Absätze auf typischen Nachrichtenseiten tatsächlich gruppiert werden (Regel „gleiches
+  Elternelement“ ist bewusst streng), und ob gemischte Gruppen (ein KI-Absatz zwischen menschlichen)
+  ein Problem sind. Nachgeladene Absätze (Infinite Scroll) werden nicht mit schon bewerteten gruppiert.
 - **Default-Modell:** desklib als Empfehlung statt TMR? Genauer, aber 1,7 GB Download und ~1,3 s pro
   Absatz. Entscheidung nach Punkt 3 (breitere Eval) und Rückmeldungen zur Geschwindigkeit.
 - **Spracherkennung auf echten Seiten prüfen:** Funktionswörter (en/de/fr/es/it/nl/pt) zuerst, dann

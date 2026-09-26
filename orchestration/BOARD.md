@@ -5,7 +5,7 @@ Stand: 2026-09-26. Status: `offen` · `läuft` · `Review` · `gemerged` · `blo
 | WP | Thema | TODO-Bezug | Branch | Status | Dateien (exklusiv) |
 |---|---|---|---|---|---|
 | WP-01 | Eval-Suite verbreitern | Punkt 3 | – | läuft | `training/**` |
-| WP-02 | Kurze Absätze zusammen bewerten | Punkt 2 | – | läuft | `extension/content.js`, `extension/config.js`, `extension/models.js`, `test/**` |
+| WP-02 | Kurze Absätze zusammen bewerten | Punkt 2 | `worktree-agent-a94937e0b8c91a3fc` | gemerged (40c4e83) | `extension/content.js`, `extension/config.js`, `extension/models.js`, `test/**` |
 | WP-03 | Store-Vorbereitung | Punkt 4 | `worktree-agent-a64ca70f4997d0b39` | gemerged (0403d72) | `extension/manifest.json`, `extension/icons/**`, `extension/options.*`, `extension/about.*`, `store/**`, `scripts/**` |
 | WP-04 | „Modell prüfen“ mit echtem HF-Token | Punkt 1 | – | blockiert (Nutzer) | braucht Token |
 | WP-05 | Kontakt/Impressum in `privacy.html` | Punkt 4 | – | blockiert (Nutzer) | braucht Name/Adresse |
