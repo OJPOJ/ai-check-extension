@@ -1,6 +1,6 @@
 # Board
 
-Stand: 2026-09-26. Status: `offen` · `läuft` · `Review` · `gemerged` · `blockiert (Nutzer)`.
+Stand: 2026-09-26 (Runde 2). Status: `offen` · `läuft` · `Review` · `gemerged` · `blockiert (Nutzer)`.
 
 | WP | Thema | TODO-Bezug | Branch | Status | Dateien (exklusiv) |
 |---|---|---|---|---|---|
@@ -9,11 +9,11 @@ Stand: 2026-09-26. Status: `offen` · `läuft` · `Review` · `gemerged` · `blo
 | WP-03 | Store-Vorbereitung | Punkt 4 | `worktree-agent-a64ca70f4997d0b39` | gemerged (0403d72) | `extension/manifest.json`, `extension/icons/**`, `extension/options.*`, `extension/about.*`, `store/**`, `scripts/**` |
 | WP-04 | „Modell prüfen“ mit echtem HF-Token | Punkt 1 | – | blockiert (Nutzer) | braucht Token |
 | WP-05 | Kontakt/Impressum in `privacy.html` | Punkt 4 | – | blockiert (Nutzer) | braucht Name/Adresse |
+| WP-06 | Weiteres Modell zwischen TMR und desklib | Punkt 2 | – | läuft | `training/**` außer `EVAL_RESULTS.md`; eigene `training/MODEL_SEARCH.md` |
+| WP-07 | Schwellen absichern (desklib voll, Kreuzvalidierung, TMR/Anleitungen) | Punkt 3/5 | – | läuft | `training/**` außer `MODEL_SEARCH.md` |
+| WP-08 | Gruppierung/Sprache auf echten Seiten messen | Punkt 2 | – | läuft | `scripts/measure-pages.*`, `test/REAL_PAGES.md`, `package.json` |
 
-## Kandidaten für die nächste Runde
+## Runde 2 (läuft)
 
-- Default-Modell TMR vs. desklib entscheiden (Punkt 2) – Entscheidung Nutzer, Daten liegen vor
-- TMR auf Anleitungsseiten (20 % Fehlalarme WikiHow) untersuchen/abfangen (Punkt 3)
-- desklib auf der ganzen Suite + Kreuzvalidierung, dann Kalibrierung (Punkt 3/5)
-- BYOM-Referenzset aus MAGE-/HC3-Anteilen verbreitern, „Ausführliche Prüfung“ (Punkt 1)
-- Gruppierung und Spracherkennung auf echten Seiten messen (Punkt 2)
+Nach Nutzerentscheidung desklib = Standard (3bc5c6f). Offen danach: Schwellen aus WP-07 übernehmen,
+Modell aus WP-06 einbinden, Empfehlungen aus WP-08 umsetzen.

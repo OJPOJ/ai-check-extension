@@ -27,3 +27,4 @@ Format: `- JJJJ-MM-TT HH:MM · <WP|ORCH|USER> · <TYP> · Text` – nur anhänge
 - 2026-09-26 14:09 · ORCH · INFO · Runde 1 abgeschlossen: WP-01..03 gemerged, Worktrees und Branches entfernt. Nächste Kandidaten im Board.
 - 2026-09-26 18:12 · USER · ENTSCHEIDUNG · Standardmodell desklib; TODO: weiteres Modell mit desklib-Qualität und besserer Performance suchen.
 - 2026-09-26 18:12 · ORCH · INFO · desklib als Standard umgesetzt (config.js DEFAULT_MODEL, Migration pinLegacyModel für Alt-Installationen, Tests angepasst, 220/220 grün).
+- 2026-09-26 18:13 · ORCH · START · Runde 2: WP-06 (Modellsuche), WP-07 (Schwellen), WP-08 (echte Seiten) an Sonnet-Worker vergeben.
