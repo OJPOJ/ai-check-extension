@@ -41,12 +41,18 @@ Erledigt: Sprache pro Absatz, Stufe „unsicher“, strengere TMR-Schwellen, Wor
   Kandidaten zulassen, wenn sie gruppiert werden und die Gruppe `MIN_WORDS` erreicht; einzeln bleiben
   sie aus. Danach `npm run measure:pages` erneut. Offen außerdem: gemischte Gruppen (ein KI-Absatz
   zwischen menschlichen), nachgeladene Absätze werden nicht mit schon bewerteten gruppiert.
-- **Weiteres Modell zwischen TMR und desklib:** desklib ist jetzt Standard (genau, aber 1,7 GB Download
-  und ~1,3–2,3 s pro Absatz), TMR schnell, aber ~5 % Fehlalarme (20 % auf Anleitungen). Gesucht: ein
-  Detektor mit ähnlicher Qualität wie desklib und deutlich weniger Download/Rechenzeit (z.B. kleinere
-  DeBERTa-/ModernBERT-/Distil-Varianten auf Hugging Face, offene Lizenz, ONNX oder umwandelbar). Auf der
-  Eval-Suite messen (`training/evaluate_suite.py`, „wie angezeigt“) und als dritten Eintrag in
-  `models.js` anbieten. Rückmeldungen zur desklib-Geschwindigkeit sammeln.
+- **Drittes Modell einbinden: fakespot** (`training/MODEL_SEARCH.md`): `fakespot-ai/roberta-base-ai-text-
+  detection-v1`, Apache-2.0, RoBERTa-base wie TMR (125 MB, ~45 ms/Text). Auf der Eval-Suite AUROC 0,964
+  (TMR 0,929, desklib 0,991); ≥ 120 Wörter bei ~1 % Fehlalarmen 90 % erkannt (TMR 62 %, desklib 97 %),
+  Anleitungen AUROC 0,955 statt 0,767. Vor der Einbindung:
+  - Fertiges ONNX eines Dritten (`MedAliFarhat/ai-text-detector-onnx`, int8, Revision pinnen) gegen das
+    PyTorch-Original abgleichen – gemessen wurde nur das Original.
+  - Schwellen kreuzvalidieren (`training/crossval_thresholds.py`). Die Scores ballen sich nahe 1:
+    Fehlalarme ≥ 120 Wörter 3,5 % bei 0.99, 0,9 % bei 0.999, 0,2 % bei 0.9995. Ggf. Logit statt
+    Wahrscheinlichkeit auswerten, damit die Schwelle nicht an der vierten Nachkommastelle hängt.
+  - Dann als Eintrag „Ausgewogen“ in `models.js` wie TMR (fertiges ONNX, kein Umbau wie desklib).
+  Weitere Kandidaten, falls fakespot nicht trägt: `ShantanuT01/gradient-ai-text-detector` (MIT,
+  DeBERTa-v3-large, ONNX int4 408 MB, ungeprüft).
 - **Spracherkennung in Firefox prüfen:** In Chromium auf echten Seiten sauber (`test/REAL_PAGES.md`:
   kein falsch übersprungener englischer Absatz, alle Absätze der 6 nicht-englischen Nachrichtenartikel
   übersprungen, fremdsprachige Zitate korrekt pro Absatz). Offen: Firefox (CLD2), sobald die Extension

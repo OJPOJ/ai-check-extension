@@ -361,6 +361,8 @@ Statistik aus dem Register statt Dokument-Scans.
 - Kurze Absätze zusammen bewerten (benachbarte Absätze unter `reliableWords` als ein Text).
 - Breitere Eval-Suite: 1200 Texte, 6 Domänen, 7 Generatoren bis GPT-4o (`training/evaluate_suite.py`).
 - desklib als Standardmodell (bestehende Installationen ohne Modellwahl behalten TMR).
+- desklib rot ab 0.94 (kreuzvalidiert auf 1200 Texten); Modellsuche: fakespot als drittes Modell
+  gefunden (`training/MODEL_SEARCH.md`), Einbindung offen; `npm run measure:pages` für echte Seiten.
 - Store-Vorbereitung: Icons, Seite „Über / Lizenzen“ (`about.html`), Store-Texte und Begründung der
   Berechtigungen (`store/`), Screenshot-Skript.
 
