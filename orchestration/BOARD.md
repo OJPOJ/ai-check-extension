@@ -11,7 +11,7 @@ Stand: 2026-09-26 (Runde 2). Status: `offen` · `läuft` · `Review` · `gemerge
 | WP-05 | Kontakt/Impressum in `privacy.html` | Punkt 4 | – | blockiert (Nutzer) | braucht Name/Adresse |
 | WP-06 | Weiteres Modell zwischen TMR und desklib | Punkt 2 | – | läuft | `training/**` außer `EVAL_RESULTS.md`; eigene `training/MODEL_SEARCH.md` |
 | WP-07 | Schwellen absichern (desklib voll, Kreuzvalidierung, TMR/Anleitungen) | Punkt 3/5 | – | läuft | `training/**` außer `MODEL_SEARCH.md` |
-| WP-08 | Gruppierung/Sprache auf echten Seiten messen | Punkt 2 | – | läuft | `scripts/measure-pages.*`, `test/REAL_PAGES.md`, `package.json` |
+| WP-08 | Gruppierung/Sprache auf echten Seiten messen | Punkt 2 | `worktree-agent-aa5dcd919e80a3d89` | gemerged (08afe69) | `scripts/measure-pages.*`, `test/REAL_PAGES.md`, `package.json` |
 
 ## Runde 2 (läuft)
 

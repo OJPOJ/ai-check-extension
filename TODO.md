@@ -32,24 +32,26 @@ Der größte Schaden ist Rot auf einem menschlichen Text.
 Erledigt: Sprache pro Absatz, Stufe „unsicher“, strengere TMR-Schwellen, Wortwahl, Begrüßung (README,
 „Weniger Fehlalarme“; Messung in `training/EVAL_RESULTS.md`, „Fehlalarme auf Wikipedia“). Offen:
 
-- **Gruppierung kurzer Absätze auf echten Seiten prüfen** (umgesetzt, README „Kurze Absätze zusammen“):
-  Wie viele Absätze auf typischen Nachrichtenseiten tatsächlich gruppiert werden (Regel „gleiches
-  Elternelement“ ist bewusst streng), und ob gemischte Gruppen (ein KI-Absatz zwischen menschlichen)
-  ein Problem sind. Nachgeladene Absätze (Infinite Scroll) werden nicht mit schon bewerteten gruppiert.
+- **Sehr kurze Absätze erreichen die Gruppierung nicht:** Gemessen auf 29 echten Seiten
+  (`test/REAL_PAGES.md`): Die Gruppierung senkt den Anteil zu kurzer Bewertungseinheiten bei
+  Nachrichtenartikeln von 61 % auf 40 %, bei Wikipedia von 88 % auf 35 %. Eine lockerere Regel
+  (gemeinsamer Vorfahr statt Elternelement) ändert auf Nachrichtenartikeln nichts. Engpass ist
+  `MIN_WORDS` = 40 in `content.js`: Seiten mit sehr kurzen Absätzen (BBC: 7–38 Wörter) liefern keine
+  Einzelkandidaten, sondern höchstens den ganzen Artikel-Container. Idee: Absätze ab ~15 Wörtern als
+  Kandidaten zulassen, wenn sie gruppiert werden und die Gruppe `MIN_WORDS` erreicht; einzeln bleiben
+  sie aus. Danach `npm run measure:pages` erneut. Offen außerdem: gemischte Gruppen (ein KI-Absatz
+  zwischen menschlichen), nachgeladene Absätze werden nicht mit schon bewerteten gruppiert.
 - **Weiteres Modell zwischen TMR und desklib:** desklib ist jetzt Standard (genau, aber 1,7 GB Download
   und ~1,3–2,3 s pro Absatz), TMR schnell, aber ~5 % Fehlalarme (20 % auf Anleitungen). Gesucht: ein
   Detektor mit ähnlicher Qualität wie desklib und deutlich weniger Download/Rechenzeit (z.B. kleinere
   DeBERTa-/ModernBERT-/Distil-Varianten auf Hugging Face, offene Lizenz, ONNX oder umwandelbar). Auf der
   Eval-Suite messen (`training/evaluate_suite.py`, „wie angezeigt“) und als dritten Eintrag in
   `models.js` anbieten. Rückmeldungen zur desklib-Geschwindigkeit sammeln.
-- **Spracherkennung auf echten Seiten prüfen:** Funktionswörter (en/de/fr/es/it/nl/pt) zuerst, dann
-  die Browser-Erkennung `i18n.detectLanguage` (CLD3 in Chromium, CLD2 in Firefox), dann `lang`-Attribut.
-  CLD3 irrt bei ungewöhnlichem Text auch „verlässlich“ (wiederholter englischer Testtext →
-  Luxemburgisch) – deshalb nur als Lückenfüller. Offen: Quote auf echten Seiten, gemischte Absätze,
-  Firefox tatsächlich testen (Extension läuft dort noch nicht, siehe Punkt 4).
-  Alternativen, falls die Browser-API nicht reicht: `franc`/`franc-min` (Trigramme, MIT, schwach bei
-  kurzem Text), `eld` (n-Gramme, schnell, ~1 MB), fastText `lid.176.ftz` (917 KB, sehr genau, bräuchte
-  WASM-Laufzeit), Chromes `LanguageDetector` (Built-in-AI-API, nur neuere Chrome-Versionen).
+- **Spracherkennung in Firefox prüfen:** In Chromium auf echten Seiten sauber (`test/REAL_PAGES.md`:
+  kein falsch übersprungener englischer Absatz, alle Absätze der 6 nicht-englischen Nachrichtenartikel
+  übersprungen, fremdsprachige Zitate korrekt pro Absatz). Offen: Firefox (CLD2), sobald die Extension
+  dort läuft (Punkt 4). Alternativen, falls nötig: `franc`/`franc-min`, `eld`, fastText `lid.176.ftz`,
+  Chromes `LanguageDetector`.
 - **Übersprungene Absätze sichtbar machen?** Bisher nur als Zahl im Popup. Falls Nutzer denken, die
   Seite sei nicht gescannt: dezente Markierung oder Hinweis beim ersten Mal.
 

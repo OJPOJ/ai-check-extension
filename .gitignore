@@ -10,3 +10,4 @@ node_modules/
 extension/vendor/
 dist/
 .claude/worktrees/
+scripts/measure-pages.out.json

@@ -30,6 +30,8 @@ lokale, nicht committete Dateien kommen nicht hinein. Die Sperrliste wird dabei 
 Sperrliste prüfen, committen, `npm run package`.
 Icons: Quelle `extension/icons/icon.svg`, PNGs (16/32/48/128, im Git) per `npm run build:icons`.
 Store-Screenshots: `npm run screenshots` → `store/screenshots/` (Harness mit Fake-Scores, nur UI-Demo).
+Textauswahl, Gruppierung und Sprache auf echten Seiten: `npm run measure:pages` (URL-Liste in
+`scripts/measure-pages.urls.txt`, Fake-Backend, ~5–8 Min.) → `test/REAL_PAGES.md`.
 Store-Texte, Begründung der Berechtigungen und offene Punkte fürs Einreichen: `store/`.
 Das Skript (`scripts/package.mjs`) bricht ab bei nicht committeten Änderungen unter `extension/`
 (`node scripts/package.mjs --allow-dirty` baut trotzdem, Dateiname mit `-dirty`), fehlendem
