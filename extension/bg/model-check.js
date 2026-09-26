@@ -1,10 +1,11 @@
 // „Modell prüfen“ (Einstellungen, Pflicht für eigene Modelle): Ein eigenes Modell ist ein binärer
 // Klassifikator, also lässt sich vor dem Einsatz prüfen, ob es den Rahmen erfüllt. Dazu geht das
-// Referenzset (je 20 Mensch- und KI-Texte, reference-set.js) ans Backend:
+// Referenzset (reference-set.js, ~60 Mensch- und KI-Texte, kurze/lange Absätze getrennt) ans Backend:
 //   Form         pro Text eine Zahl in 0..1, Antwort vor dem Timeout
 //   Richtung     KI-Texte im Mittel höher als Mensch-Texte (sonst Label vertauscht)
 //   Trennschärfe AUROC, unter AUROC_WARN Warnung, unter AUROC_MIN abgelehnt
 //   Schwellen    Startwerte für die Ampel (Vorschlag des Servers oder aus den Scores)
+//   Kurztext     eigene Rot-Schwelle unter RELIABLE_WORDS, wenn das Referenzset das hergibt (sonst nie rot)
 //   Latenz       ms pro Text -> Empfehlung für den Scan-Modus
 // Dazu, was das Backend selbst über das Modell sagt (inspect in providers.js: /v1/info bzw. Hub-Metadaten).
 import "../config.js";
@@ -14,6 +15,8 @@ import { REFERENCE_SET } from "./reference-set.js";
 export const AUROC_MIN = 0.6; // Laya zero-shot lag bei 0.549 (training/EVAL_RESULTS.md)
 export const AUROC_WARN = 0.8;
 const BATCH_CHARS = 2500; // wie die Batches aus content.js
+const RELIABLE_WORDS = 120; // wie config.js RELIABLE_WORDS/extension/models.js - Referenzset trennt genau hier
+const MIN_BUCKET = 15; // Mindestzahl Mensch/KI-Texte je Bucket, um daraus eine Kurztext-Schwelle abzuleiten
 
 const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
 const pct = (p) => `${Math.round(p * 100)} %`;
@@ -37,6 +40,16 @@ export function suggestThresholds(human) {
   return { yellowFrom: clamp(up2(q75), 0.05, Math.round((redFrom - 0.01) * 100) / 100), redFrom };
 }
 
+// Eigene Rot-Schwelle für kurze Absätze (< RELIABLE_WORDS), nach demselben Prinzip wie suggestThresholds
+// (knapp über dem höchsten kurzen Mensch-Text), aber nie lockerer als die lange Schwelle. Nur sinnvoll, wenn
+// sie noch einen nennenswerten Teil der kurzen KI-Texte erkennt (sonst wie TMR in models.js: nie rot, `null`).
+export function suggestShortRedFrom(shortHuman, shortAi, longRedFrom) {
+  const sorted = [...shortHuman].sort((a, b) => a - b);
+  const candidate = clamp(up2(sorted.at(-1) + 0.01), longRedFrom, 0.99);
+  const caught = shortAi.filter((s) => s >= candidate).length / shortAi.length;
+  return caught >= 0.3 ? candidate : null;
+}
+
 export function scanHint(msPerText) {
   if (msPerText < 300) return "schnell genug fürs automatische Scannen";
   if (msPerText < 2000) return "empfohlen: automatisch nur auf ausgewählten Seiten, mit „Nur Absätze in der Nähe“";
@@ -47,11 +60,13 @@ export function scanHint(msPerText) {
  * Bewertet die Antworten auf das Referenzset.
  * @param {(number|null)[]} scores  pro Referenztext
  * @param {boolean[]} isAi          Label pro Referenztext
- * @param {{msPerText: number, suggestedThresholds?: {yellowFrom: number, redFrom: number}}} opts
+ * @param {{msPerText: number, suggestedThresholds?: {yellowFrom: number, redFrom: number}, words?: number[]}} opts
+ *   `words` (optional): tatsächliche Wortzahl je (ggf. gekürztem) Referenztext - wenn vorhanden, wird zusätzlich
+ *   eine Kurztext-Schwelle vorgeschlagen (reliableWords/shortRedFrom).
  * @returns {{ok: boolean, checks: {status: "ok"|"warn"|"fail"|"info", text: string}[], auroc?: number,
- *   thresholds?: {yellowFrom: number, redFrom: number}}}
+ *   thresholds?: {yellowFrom: number, redFrom: number}, reliableWords?: number, shortRedFrom?: number|null}}
  */
-export function assess(scores, isAi, { msPerText, suggestedThresholds }) {
+export function assess(scores, isAi, { msPerText, suggestedThresholds, words }) {
   const checks = [];
   const add = (status, text) => checks.push({ status, text });
   const done = (extra = {}) => ({ ok: !checks.some((c) => c.status === "fail"), checks, ...extra });
@@ -93,7 +108,34 @@ export function assess(scores, isAi, { msPerText, suggestedThresholds }) {
   );
 
   add("info", `Latenz: ~${Math.round(msPerText)} ms pro Text – ${scanHint(msPerText)}.`);
-  return done({ auroc: area, meanHuman, meanAi, thresholds });
+
+  // Kurztext-Schwelle: nur, wenn das Referenzset genug kurze Texte je Klasse hat (MIN_BUCKET) - sonst bleibt
+  // reliableWords beim Standard (RELIABLE_WORDS) und shortRedFrom unbestimmt (config.js: dann nie rot).
+  let reliableWords, shortRedFrom;
+  if (words) {
+    const short = (ai) => scores.filter((s, i) => isAi[i] === ai && words[i] < RELIABLE_WORDS);
+    const [shortHuman, shortAi] = [short(false), short(true)];
+    if (shortHuman.length >= MIN_BUCKET && shortAi.length >= MIN_BUCKET) {
+      reliableWords = RELIABLE_WORDS;
+      shortRedFrom = suggestShortRedFrom(shortHuman, shortAi, thresholds.redFrom);
+      add(
+        "info",
+        shortRedFrom === null
+          ? `Kurze Absätze (< ${RELIABLE_WORDS} Wörter, ${shortHuman.length} Mensch-/${shortAi.length} KI-Texte im Set): ` +
+              "keine eigene Rot-Schwelle vorgeschlagen – zu wenig Trennschärfe, bleibt „unsicher“ statt rot."
+          : `Kurze Absätze (< ${RELIABLE_WORDS} Wörter): eigene Rot-Schwelle ${pct(shortRedFrom)} vorgeschlagen ` +
+              `(erkennt ${shortAi.filter((s) => s >= shortRedFrom).length} von ${shortAi.length} kurzen KI-Texten).`
+      );
+    } else {
+      add(
+        "info",
+        `Zu wenige kurze Referenztexte (${shortHuman.length} Mensch-/${shortAi.length} KI-Texte) für eine eigene ` +
+          `Kurztext-Schwelle – reliableWords bleibt beim Standard (${RELIABLE_WORDS}).`
+      );
+    }
+  }
+
+  return done({ auroc: area, meanHuman, meanAi, thresholds, reliableWords, shortRedFrom });
 }
 
 // Referenztexte in Batches wie im Betrieb (content.js schickt bis BATCH_CHARS Zeichen pro Anfrage)
@@ -161,8 +203,14 @@ export async function checkModel(cfg, set = REFERENCE_SET) {
   }
 
   const msPerText = ms / texts.length;
-  const verdict = assess(scores, isAi, { msPerText, suggestedThresholds: info.suggestedThresholds });
+  // Tatsächliche Wortzahl der (ggf. auf maxChars gekürzten) Texte - kann unter dem im Set hinterlegten
+  // `words` liegen, wenn das Backend eine kleine maxChars angibt
+  const words = texts.map((t) => (t.match(/\S+/g) || []).length);
+  const verdict = assess(scores, isAi, { msPerText, suggestedThresholds: info.suggestedThresholds, words });
   delete info.suggestedThresholds; // steckt jetzt in thresholds
+  // reliableWords/shortRedFrom: nur ergänzen, wenn das Backend selbst nichts angibt (providers.js, /v1/info)
+  if (info.reliableWords === undefined && verdict.reliableWords !== undefined) info.reliableWords = verdict.reliableWords;
+  if (info.shortRedFrom === undefined && typeof verdict.shortRedFrom === "number") info.shortRedFrom = verdict.shortRedFrom;
   return result({
     ok: verdict.ok,
     info,

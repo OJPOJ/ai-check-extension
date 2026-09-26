@@ -3,7 +3,8 @@ Baut eine breitere, reproduzierbare Eval-Suite (TODO Punkt 3 / WP-01) aus dem ö
 Datensatz Jinyan1/COLING_2025_MGT_en (Hugging Face). Dieser Datensatz fasst drei Forschungs-
 Benchmarks fürs Human-vs-KI-Erkennen zusammen (Spalte "source"): MAGE (Apache-2.0), M4GT-Bench
 (EACL 2024, mbzuai-nlp/M4 - keine explizite Lizenzdatei im Repo gefunden, reine Recherche-
-Nutzung) und HC3 (Apache-2.0, wird in diesem Projekt bereits für prepare_dataset.py genutzt).
+Nutzung) und HC3 (**CC BY-SA 4.0**, nicht Apache-2.0 - per Dataset-Card verifiziert, siehe
+orchestration/LOG.md WP-11; wird in diesem Projekt bereits für prepare_dataset.py genutzt).
 Für die eigene Zusammenstellung (Jinyan1/COLING_2025_MGT_en) selbst ist im Dataset-Karten-YAML
 keine Lizenz eingetragen - siehe ENTSCHEIDUNG im Log. Nur zur lokalen Auswertung genutzt, Rohdaten
 bleiben unter training/data/ (gitignored), werden nicht weiterverteilt.
@@ -15,6 +16,18 @@ Domänen (unsere Kategorie -> sub_source-Werte des Datensatzes):
     sci_abstract arxiv, sci_gen, peerread, pubmed (wissenschaftliche Abstracts)
     reviews      yelp, imdb
     howto        wikihow
+
+Achtung Lizenz/Herkunft je sub_source (Spalte "source", per Abgleich verifiziert, WP-11):
+finance/medicine/open_qa/reddit_eli5/wiki_csai = hc3 (CC BY-SA 4.0); cmv/cnn/dialogsum/eli5/
+hswag/imdb/pubmed/roct/sci_gen/tldr/wp/xsum/yelp = mage (Apache-2.0, aber menschliche
+Ursprungstexte teils mit eigenen Nutzungsbedingungen, z.B. Yelp/IMDb); arxiv/outfox/peerread/
+reddit/wikihow/**wikipedia** = m4gt (**keine Lizenz**, M4GT-Bench/M4 ohne LICENSE-Datei/-Feld).
+Der sub_source "wikipedia" oben stammt NICHT aus MAGE, sondern aus M4GT - anders als der Name
+nahelegt. Die MAGE-eigene Wikipedia/SQuAD-Domäne heißt hier "squad" (nicht in DOMAINS oben
+enthalten) und hat nur ältere Generatoren (gpt-3.5-turbo, sonst text-davinci-00x/flan-t5/opt/
+t0/bloom/GLM130B/gpt-j/gpt-neox - die in diesem Skript bewusst ausgeschlossene Kategorie
+"älterer/kleiner Modelle"). training/build_reference_set.py nutzt deshalb weder "wikipedia"
+noch "squad" aus diesem Datensatz, sondern RAID (liamdugan/raid, MIT) für die Wikipedia-Domäne.
 
 Generatoren (Spalte "model"): human sowie, soweit für die Domäne vorhanden,
 gpt4, gpt4o, gpt-3.5-turbo, llama3-70b, mixtral-8x7b, gemma2-9b-it, cohere - die aktuellsten
