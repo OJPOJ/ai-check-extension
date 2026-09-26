@@ -58,15 +58,17 @@ Erledigt: Sprache pro Absatz, Stufe „unsicher“, strengere TMR-Schwellen, Wor
 ## 3. Eval-Suite: Rest
 
 Erledigt: 1200 Texte, 6 Domänen, 7 Generatoren bis GPT-4o (`training/EVAL_RESULTS.md`, „Breitere
-Eval-Suite“). Ergebnis wie angezeigt: TMR 4,7 % Fehlalarme (ohne WikiHow 1,6 %), desklib 1,2 %. Offen:
+Eval-Suite“), desklib auf allen 1200 Texten und kreuzvalidierte Schwellen („Schwellen absichern“).
+Wie angezeigt: TMR 4,7 % Fehlalarme (ohne WikiHow 1,6 %), desklib 1,2 % mit `redFrom` 0.94. Offen:
 
 - **TMR auf Anleitungen:** 20 % der menschlichen WikiHow-Texte werden rot (alle ≥ 120 Wörter). Auf
   echten Anleitungsseiten nachprüfen; Optionen: `redFrom` ~0.985 (kostet Erkennung überall), oder
   desklib als Default (Punkt 2).
 - **Claude/Gemini/GPT-5 fehlen:** kein öffentlicher gelabelter Datensatz gefunden. Eigene Generierung
   bräuchte API-Keys (einige hundert Absätze zu den Themen der Mensch-Texte).
-- **desklib auf der ganzen Suite** (bisher 480 von 1200, ~46 Min.) und Kreuzvalidierung, bevor
-  Schwellen geändert werden.
+- **TMR auf echten Anleitungsseiten messen:** 20 % Fehlalarme auf WikiHow-Text am Stück; ob die
+  Extension das auf gerenderten Seiten (Listen, Zwischenüberschriften, `MIN_WORDS`) genauso sieht, ist
+  offen (`training/EVAL_RESULTS.md`, „Schwellen absichern“). Mit desklib als Standard weniger dringend.
 - **Lizenz:** M4GT-Bench ohne Lizenzangabe – die Suite nur lokal nutzen, nicht als BYOM-Referenzset
   mitliefern (Punkt 1); dafür MAGE-/HC3-Anteile (Apache-2.0) auswählen.
 
@@ -91,7 +93,7 @@ Offen (Details und Reihenfolge in `store/CHECKLIST.md`):
 - **Umsetzung:** In `bg/scoring.js` pro `modelKey` auf den Rohwert anwenden. Gespeichert werden
   Rohwerte, eine neue Kalibrierung braucht also kein Neu-Bewerten.
 - **Datenbasis:** Eval-Suite aus Punkt 3 (`training/evaluate_suite.py`, Rohscores in
-  `training/data/eval_scores_*_suite.jsonl`).
+  `training/data/eval_scores_*_suite.jsonl`), kreuzvalidierte Spannen per `training/crossval_thresholds.py`.
 
 ## 6. Deutsch/mehrsprachig
 

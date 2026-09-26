@@ -128,7 +128,7 @@ Hugging-Face-Provider mit echtem Token (nur gemockt, siehe `providers.test.mjs`)
     derzeit überall 120 Wörter) wird ein hoher Score nicht gelb/rot, sondern
     „unsicher“ – Badge ohne Zahl, der Rohwert steht nur im Popover. Grün bleibt grün. Ausnahme
     `shortRedFrom`: desklib markiert kurze Absätze ab 0.98 doch rot – damit so selten fälschlich wie
-    lange bei 0.87 (~1 %), erkannt ~73 % der kurzen ChatGPT-Texte (`training/EVAL_RESULTS.md`,
+    lange (bis v0.5 bei 0.87, jetzt 0.94), erkannt ~73 % der kurzen ChatGPT-Texte (`training/EVAL_RESULTS.md`,
     „Konfidenz für kurze Absätze“). TMR hat keine solche Schwelle (liegt fast nie über 0.99). Eigene Modelle können beides über
     `/v1/info` angeben (`server/README.md`), sonst gilt 120 Wörter und nie rot.
   - *Kurze Absätze zusammen:* Direkt benachbarte Absätze unter `reliableWords` mit demselben Elternelement,
@@ -145,6 +145,10 @@ Hugging-Face-Provider mit echtem Token (nur gemockt, siehe `providers.test.mjs`)
     Ausschnitt, den das Modell sähe, für jeden Absatz einzeln – auch nachgeladene. Eigene Modelle: Sprachen aus `GET /v1/info`, ohne Angabe wird alles bewertet.
   - *TMR-Schwellen 0.95 / 0.98* statt 0.6 / 0.9 (gespeicherte alte Standardwerte werden beim Update
     übernommen, eigene bleiben).
+  - *desklib rot ab 0.94* statt 0.87: auf der Eval-Suite (1200 Texte) 1,2 % statt 1,8 % Fehlalarme bei
+    91 % statt 92,5 % erkannt, kreuzvalidiert (`training/EVAL_RESULTS.md`, „Schwellen absichern“).
+    Gespeicherte alte Standardwerte werden beim Update angepasst. TMR bleibt bei 0.98 (dort ~6 %
+    Fehlalarme bei langen Texten; 0.985 würde die Erkennung von 85 % auf 65 % drücken).
   - *Wortwahl:* „Auffällig – ähnelt KI-Text“ / „Unklar“ / „Unauffällig“ statt „wahrscheinlich KI“,
     Score 0–100 statt Prozent, im Popover „Hinweis, kein Beweis … keine Wahrscheinlichkeit“ – die
     Scores sind nicht kalibriert.

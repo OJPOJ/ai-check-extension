@@ -110,9 +110,15 @@ async function pinLegacyModel() {
 // bekommt die neuen aus models.js; eigene Werte bleiben.
 async function migrateThresholds() {
   const stored = await chrome.storage.sync.get(["yellowFrom", "redFrom"]);
+  const preset = AIVSAI.presetFor(await getConfig());
   const tmr = AIVSAI.MODELS.tmr.thresholds;
-  if (stored.yellowFrom === 0.6 && stored.redFrom === 0.9 && AIVSAI.presetFor(await getConfig()) === tmr) {
+  if (stored.yellowFrom === 0.6 && stored.redFrom === 0.9 && preset === tmr) {
     await chrome.storage.sync.set(tmr);
+  }
+  // desklib-Startwert bis v0.5: redFrom 0.87 (training/EVAL_RESULTS.md, "Schwellen absichern")
+  const desklib = AIVSAI.MODELS.desklib.thresholds;
+  if (stored.yellowFrom === 0.5 && stored.redFrom === 0.87 && preset === desklib) {
+    await chrome.storage.sync.set(desklib);
   }
 }
 chrome.runtime.onStartup.addListener(() => {

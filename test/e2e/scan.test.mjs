@@ -320,7 +320,7 @@ describe("Scan und Bedienung", () => {
     await ext.options.reload();
     await ext.options.check('input[name="browserModel"][value="desklib"]');
     assert.equal(await ext.options.inputValue("#yellowFrom"), "0.5");
-    assert.equal(await ext.options.inputValue("#redFrom"), "0.87");
+    assert.equal(await ext.options.inputValue("#redFrom"), "0.94");
     assert.match(await ext.options.textContent("#browserModelInfo"), /1,7 GB/);
   });
 

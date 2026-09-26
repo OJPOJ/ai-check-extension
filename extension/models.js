@@ -63,7 +63,9 @@ globalThis.AIVSAI_MODELS = {
     // 1500 Zeichen (~350 Tokens) als Kompromiss. Messungen: training/EVAL_RESULTS.md, "Textlänge".
     maxTokens: 768,
     maxChars: 1500,
-    thresholds: { yellowFrom: 0.5, redFrom: 0.87 },
+    // redFrom 0.94 statt 0.87 (bis v0.5): Eval-Suite n=1200 wie angezeigt 1,2 % statt 1,8 % Fehlalarme bei
+    // 91 % statt 92,5 % erkannt, kreuzvalidiert ~0.95 (training/EVAL_RESULTS.md, "Schwellen absichern").
+    thresholds: { yellowFrom: 0.5, redFrom: 0.94 },
     // Wikipedia-Absätze unter 120 Wörtern: ~6 % über 0.87, ab 120 Wörtern ~1,3 %. Kurze Absätze werden
     // deshalb erst ab shortRedFrom rot (dazwischen "unsicher"): bei 0.98 ~1 % Fehlalarme wie bei langen,
     // erkannt ~73 % der kurzen ChatGPT-Texte (training/EVAL_RESULTS.md, "Konfidenz für kurze Absätze").
