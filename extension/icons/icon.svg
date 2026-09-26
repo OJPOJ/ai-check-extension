@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- AI Content Flag: Ampel-Motiv (rot/gelb/grün) auf dem Marken-Indigo aus ui.css (--accent).
+       Erste Fassung mit Punkten samt Rand verschwamm bei 16 px zu einem Klecks; volle Balken über
+       die ganze Breite wirkten wie eine Landesflagge. Drei sich berührende, kräftige Kreise füllen
+       die Höhe fast aus (max. Fläche pro Farbe -> bei 16 px noch als drei Farben erkennbar), lassen
+       aber links/rechts Indigo stehen und sehen so nach Ampel/Badge statt nach Flagge aus. -->
+  <rect width="128" height="128" rx="26" fill="#4f46e5" />
+  <circle cx="64" cy="26" r="19" fill="#dc2626" />
+  <circle cx="64" cy="64" r="19" fill="#eab308" />
+  <circle cx="64" cy="102" r="19" fill="#16a34a" />
+</svg>
