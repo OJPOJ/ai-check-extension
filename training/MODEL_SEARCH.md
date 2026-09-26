@@ -191,3 +191,143 @@ TMR, ModernBERT-base langsamer wegen 22 statt 12 Layern - beide für die Empfehl
   desklib-Qualität will und 400+ MB akzeptabel sind, wäre das ein Kandidat für eine echte Messung.
 - Wie bei der breiteren Eval-Suite generell: kein Claude/Gemini als Generator, Quelldaten teils vor
   2023, TMR/desklib/fakespot könnten Teile der Quell-Datensätze im eigenen Training gesehen haben.
+
+## ONNX-Abgleich und Einbindung (WP-09)
+
+Anschluss an WP-06: Bevor fakespot als dritter Eintrag in `extension/models.js` landet, muss geprüft
+werden, ob das fertige Dritt-ONNX (`MedAliFarhat/ai-text-detector-onnx`, nicht vom Modell-Ersteller
+selbst gebaut) dieselben Gewichte/Labels wie das PyTorch-Original liefert und ob die Ampel (Regel 9,
+`orchestration/README.md`) sich dadurch nennenswert ändert.
+
+### Label-Zuordnung geprüft
+
+`config.json` von Original und ONNX sind identisch: `id2label = {"0": "Human", "1": "AI"}`,
+`label2id = {"AI": 1, "Human": 0}` - keine vertauschten Klassen. `offscreen.js` findet mit seiner
+Regex (`/^(ai|machine|generated)$/i`) korrekt Index 1. `tokenizer_config.json` nennt
+`tokenizer_class: "RobertaTokenizer"` - bereits in `offscreen.js` (`TOKENIZER_CLASSES`) unterstützt,
+keine Änderung an `offscreen.js` nötig (einfachster der drei Katalog-Fälle, wie erwartet).
+
+### Methodik (`training/compare_onnx.py`, neu)
+
+Lädt beide Modelle (ONNX per `onnxruntime` + `transformers`-Tokenizer, PyTorch-Original per
+`transformers`) und wertet sie auf derselben `eval_suite.jsonl` (1200 Texte) mit **identischer
+Vorverarbeitung** aus: `clip_text()` (Python-Nachbau von `content.js` `clipText`, 2000 Zeichen,
+bevorzugt am Satzende gekürzt - wie beim TMR-Eintrag) gefolgt von Tokenizer-Truncation auf 512 Tokens
+(`offscreen.js`, `maxTokens`). Wichtig: Die in WP-06 erzeugten PyTorch-Rohscores
+(`eval_scores_fakespot-ai_roberta-base-ai-text-detection-v1_suite.jsonl`) wurden **ohne** `clipText`
+erzeugt (nur Tokenizer-Truncation) - 31 % der Suite-Texte sind länger als 2000 Zeichen, ein direkter
+Vergleich gegen diese alten Scores hätte also auch den clipText-Effekt mitgemessen. Deshalb rechnet
+`compare_onnx.py` die PyTorch-Referenz mit identischer Vorverarbeitung frisch mit, für einen sauberen,
+isolierten ONNX-vs-PyTorch-Vergleich.
+
+### Ergebnis: ONNX vs. PyTorch (n=1200, gleiche Vorverarbeitung)
+
+| Metrik | Wert |
+|---|---|
+| AUROC ONNX | 0,9554 |
+| AUROC PyTorch (mit clipText) | 0,9598 |
+| Pearson-Korrelation der Scores | 0,9819 |
+| Mittlere Abweichung \|ONNX − PyTorch\| | 0,0369 |
+| Median Abweichung | 0,0017 |
+| Max. Abweichung | 0,5198 (Einzelfall) |
+| Abweichung > 0,01 | 458/1200 Texte (38,2 %) |
+| Abweichung > 0,05 | 245/1200 Texte (20,4 %) |
+| Nur clipText-Effekt (PyTorch mit vs. ohne, gleiches Modell) | mittlere Abweichung 0,0247, max 0,9395 |
+
+Die int8-Quantisierung des Dritt-ONNX bewegt einen spürbaren Teil der Scores messbar (AUROC 0,4
+Punkte niedriger, ~38 % der Texte weichen um mehr als 0,01 ab, einzelne Ausreißer bis 0,52) - **aber**
+die Scores dieses Modells ballen sich ohnehin nahe 1 (siehe WP-06), und genau dort, wo die
+Produktions-Schwelle liegt (~0,999), bleiben ONNX und PyTorch praktisch deckungsgleich:
+
+| Kandidaten-Schwelle (redFrom, ≥120 Wörter) | ONNX: FA / erkannt | PyTorch: FA / erkannt | Delta FA / erkannt |
+|---|---|---|---|
+| 0,9990 | 1,1 % / 89,5 % | 1,1 % / 89,5 % | 0,0 / 0,0 Punkte |
+| 0,9994 | 0,6 % / 88,2 % | 0,6 % / 87,6 % | 0,0 / 0,6 Punkte |
+| 0,9988 | 1,5 % / 90,3 % | 1,3 % / 89,9 % | 0,2 / 0,4 Punkte |
+| 0,9966 | 3,2 % / 93,5 % | 3,0 % / 93,3 % | 0,2 / 0,2 Punkte |
+
+**Einordnung:** An jeder realistischen Kandidaten-Schwelle liegt die Abweichung bei Fehlalarmen und
+Erkennung wie angezeigt bei höchstens 0,2 bzw. 0,6 Prozentpunkten - deutlich innerhalb der
+Stichproben-Unsicherheit dieser Suite (vgl. Kreuzvalidierungs-Spannen unten, die für sich genommen
+schon mehrere Prozentpunkte betragen). Die Ampel ändert sich durch die ONNX-Umwandlung **nicht
+nennenswert** - **Einbindung freigegeben** (Abnahmekriterium erfüllt).
+
+### Kreuzvalidierte Schwellen (ONNX-Scores, Methode wie `crossval_thresholds.py`, WP-07)
+
+`crossval_thresholds.py` um `--backend fakespot` erweitert, liest jetzt `data/eval_scores_fakespot_suite.jsonl`
+(die ONNX-Scores aus `compare_onnx.py` - **genau die Zahlen, die die Extension tatsächlich sähe**, wie
+vom Brief gefordert, nicht die PyTorch-Referenz). 200 stratifizierte Hälfte/Hälfte-Splits, Ziel 1 % FA:
+
+| Bucket | Kreuzvalidierte Schwelle (Median, 5.–95. Perzentil) | FA auf Testhälfte (Median, 5.–95. Perzentil) | KI erkannt (Median, 5.–95. Perzentil) |
+|---|---|---|---|
+| ≥120 Wörter (redFrom) | 0,9989 (0,9982–0,9995) | 1,29 % (0–3,45 %) | 89,5 % (86,6–92,9 %) |
+| <120 Wörter (shortRedFrom) | 0,9994 (0,9987–0,9995) | 1,45 % (0–7,25 %) | 34,4 % (28,1–43,8 %) |
+
+Kein "aktueller Wert" zum Vergleich (Modell ist neu) - anders als bei TMR/desklib in WP-07 gibt es hier
+keine Spalte "aktuelle Schwelle auf Testhälften".
+
+**Gewählte Werte für `extension/models.js`:** `redFrom = 0,999` (innerhalb der kreuzvalidierten Spanne,
+deckt sich mit der einmaligen WP-06-Schätzung 0,9988), `shortRedFrom = 0,9994` (Median der
+Kreuzvalidierung). `yellowFrom = 0,95` nicht kreuzvalidiert (kein Fehlalarm-Ziel für Gelb definiert,
+wie bei TMR/desklib rein informativ) - bei 0,95 sind noch 12,8 % der menschlichen Scores "gelb oder
+höher", bei 0,999 nur noch 1,5 %.
+
+### Vergleichstabelle TMR / fakespot / desklib, wie angezeigt (identische Methode + Suite)
+
+Aus den crossval-Medianen dieses WP und aus `EVAL_RESULTS.md`, "Schwellen absichern" (WP-07,
+gleiche Methode, gleiche Suite):
+
+| Backend | Bucket | Kreuzvalidierte Schwelle (Median) | FA auf Testhälfte (Median, 5.–95. Perz.) | KI erkannt (Median, 5.–95. Perz.) |
+|---|---|---|---|---|
+| TMR | ≥120 W. (redFrom) | 0,9850 | 1,29 % (0,43–3,45 %) | 65,3 % (55,2–75,3 %) |
+| **fakespot** | **≥120 W. (redFrom)** | **0,9989** | **1,29 % (0–3,45 %)** | **89,5 % (86,6–92,9 %)** |
+| desklib | ≥120 W. (redFrom) | 0,9466 | 1,29 % (0–3,45 %) | 97,1 % (95,4–98,7 %) |
+| TMR | <120 W. (shortRedFrom) | 0,9867 | 2,90 % (0–5,87 %) | 13,3 % (4,7–23,4 %) |
+| **fakespot** | **<120 W. (shortRedFrom)** | **0,9994** | **1,45 % (0–7,25 %)** | **34,4 % (28,1–43,8 %)** |
+| desklib | <120 W. (shortRedFrom) | 0,9758 | 1,45 % (0–5,87 %) | 78,1 % (64,1–87,5 %) |
+
+Bestätigt WP-06: fakespot liegt bei identischer Fehlalarmrate klar zwischen TMR und desklib, bei
+langen Absätzen deutlich näher an desklib (89,5 % vs. 97,1 %) als an TMR (65,3 %); bei kurzen
+Absätzen etwa in der Mitte (34,4 % gegen TMRs 13,3 % und desklibs 78,1 %). Mit den fest gewählten
+Werten (0,999 / 0,9994 statt der Crossval-Mediane) liegt fakespot "wie angezeigt" gesamt bei ~1,2 %
+Fehlalarmen und 77,8 % erkannten KI-Texten (alle Längen zusammen); je Domäne: forum 1,0 %/93,0 %,
+howto 3,0 %/73,0 %, news 2,0 %/85,0 %, reviews 0 %/31,0 %, sci_abstract 0 %/91,0 %,
+wikipedia 1,0 %/94,0 % (ONNX-Scores, gewählte Schwellen). `reviews` bleibt wie bei allen drei
+Backends die schwächste Domäne.
+
+### Einbindung
+
+fakespot als dritter Eintrag in `extension/models.js` (Schlüssel `fakespot`, Titel „Ausgewogen –
+fakespot"): `repo: "MedAliFarhat/ai-text-detector-onnx"`, `revision` gepinnt auf
+`0c809a8de6e600ec2fd0fcdeb595a5461d93e8dc` (laut Modellkarte "für transformers.js gebaut"),
+`maxTokens: 512`/`maxChars: 2000` (wie TMR, gleiche Architektur/Größenklasse), Schwellen wie oben.
+**Kein Code in `offscreen.js` geändert** - die vorhandene generische Katalog-/Tokenizer-/Label-Logik
+deckt fakespot bereits vollständig ab (siehe Label-Prüfung oben). `desklib` bleibt Default-Modell,
+`fakespot` ist eine dritte, zusätzliche Wahl.
+
+**Server-Abschnitt:** `server/shim_server.py` um `fakespot`-Backend ergänzt (fast identischer Code zu
+`tmr`: `AutoModelForSequenceClassification` + Softmax + `ai_index`-Heuristik, keine Sonderbehandlung
+wie bei desklibs eigener Pooling-Klasse nötig) - geringer Aufwand, deshalb mitgenommen. Revision dort:
+`f9cdb14d1f8b105f597d80fa7b56f20c6ea0e9db` (PyTorch-Original, letzter Commit).
+
+**Lizenz:** `extension/THIRD_PARTY_NOTICES.md` um den fakespot-Eintrag ergänzt (Apache-2.0 für
+Original und Dritt-ONNX, Basismodell RoBERTa-base MIT).
+
+### Einschränkungen (zusätzlich zu WP-06)
+
+- Die Abweichung zwischen ONNX und PyTorch ist bei mittleren Scores (weder klar Mensch noch klar KI)
+  teils erheblich (Median 0,002, aber einzelne Texte bis 0,52) - für die Ampel unerheblich, weil dort
+  ohnehin "unsicher"/"gelb" gilt statt einer harten Entscheidung, aber relevant für jeden, der die
+  rohen Prozentzahlen im Popover unreflektiert vergleicht.
+- Kreuzvalidierte Schwellen für den "kurz"-Bucket stützen sich auf nur ~130 Mensch-Scores pro
+  Trainhälfte (wie bei TMR/desklib in WP-07) - die Spanne (0–7,25 % FA) ist entsprechend breit, ernst
+  zu nehmen.
+- ONNX-Abgleich lief auf CPU mit `onnxruntime` (Python), nicht mit `onnxruntime-web`/WASM wie im
+  Browser - eine WASM-spezifische Abweichung (andere Kernel-Implementierung) ist theoretisch möglich,
+  aber laut den TMR/desklib-Erfahrungen in diesem Repo bisher nie beobachtet worden.
+- Manueller Lade-Test (`@huggingface/transformers` in Node, gleiche Optionen wie `offscreen.js`:
+  `dtype: "q8"`, gepinnte Revision) bestätigt: Tokenizer und Modell laden aus dem realen ONNX-Pfad,
+  `id2label`/`aiIndex` werden korrekt erkannt, Inferenz liefert plausible Wahrscheinlichkeiten in
+  [0,1]. Die beiden Testsätze dafür waren allerdings selbst von einem Sprachmodell formuliert (dieser
+  Bericht) und daher ungeeignet als "menschliche" Gegenprobe - beide kamen entsprechend hoch heraus
+  (0,997 und 0,9999). Aussagekräftig ist die 1200-Text-Suite oben, nicht dieser Rauchtest.

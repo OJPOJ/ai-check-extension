@@ -21,6 +21,11 @@ Nutzung (aus training/):
     .venv/Scripts/python.exe crossval_thresholds.py --backend tmr
     .venv/Scripts/python.exe crossval_thresholds.py --backend desklib
     .venv/Scripts/python.exe crossval_thresholds.py --backend both --reps 200
+
+WP-09: --backend fakespot liest data/eval_scores_fakespot_suite.jsonl (ONNX-Scores, MedAliFarhat/
+ai-text-detector-onnx - genau die Zahlen, die die Extension tatsaechlich saehe, siehe compare_onnx.py).
+Kein "aktueller" Wert (Modell ist neu, noch nicht in models.js) - current_on_testhalves() wird dafuer
+uebersprungen (CURRENT-Eintrag auf None).
 """
 import argparse
 import json
@@ -36,6 +41,7 @@ TARGET_FA = 0.01
 CURRENT = {
     "tmr": {"redFrom": 0.98, "shortRedFrom": None},
     "desklib": {"redFrom": 0.87, "shortRedFrom": 0.98},
+    "fakespot": {"redFrom": None, "shortRedFrom": None},  # neues Modell, keine Produktions-Schwelle
 }
 
 
@@ -188,7 +194,7 @@ def run_backend(backend, scores_path, reps, seed):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--backend", choices=["tmr", "desklib", "both"], default="both")
+    ap.add_argument("--backend", choices=["tmr", "desklib", "both", "fakespot"], default="both")
     ap.add_argument("--reps", type=int, default=200)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--data-dir", default="data")

@@ -97,5 +97,49 @@ globalThis.AIVSAI_MODELS = {
         "DeBERTa-v3-large (430M). ~4,9 s/Text, ~4,65 GB RAM, 25er-Batch ~2 Minuten. " +
         "AUROC 0.998 im Test. Deutlich genauer, aber langsam – eher für „Nur auf Knopfdruck“."
     }
+  },
+
+  fakespot: {
+    name: "fakespot",
+    title: "Ausgewogen – fakespot",
+    summary:
+      "RoBERTa-base, 125 MB. ~0,15 s pro Absatz, ~300 MB RAM (wie TMR) – aber deutlich trennschärfer " +
+      "(AUROC 0,96 statt 0,93), besonders bei Anleitungen. Bleibt hinter desklib zurück (v. a. Rezensionen).",
+    // Gleiche Architektur/Größenklasse wie TMR (RoBERTa-base) - gleicher Kontext.
+    maxTokens: 512,
+    maxChars: 2000,
+    // Schwellen kreuzvalidiert (training/MODEL_SEARCH.md, "ONNX-Abgleich und Einbindung"; Methode wie
+    // training/crossval_thresholds.py, WP-07): redFrom 0,999 (Median der Kreuzvalidierung 0,9989, 5.-95.
+    // Perzentil 0,9982-0,9995) -> ~1,1 % Fehlalarme, ~90 % erkannt bei >=120 Wörtern. yellowFrom nicht
+    // kreuzvalidiert (kein Fehlalarm-Ziel für Gelb, wie bei TMR/desklib rein informativ) - 0,95 lässt
+    // ca. 13 % der menschlichen Texte "unklar" statt "unauffällig" erscheinen.
+    thresholds: { yellowFrom: 0.95, redFrom: 0.999 },
+    // Scores ballen sich nahe 1 (steiler als TMR) - shortRedFrom lohnt sich trotzdem: kreuzvalidiert
+    // 0,9994 (Median, 5.-95. Perzentil 0,9987-0,9995) -> ~1,5 % Fehlalarme, ~34 % erkannt bei <120
+    // Wörtern (schwächer als desklib, aber besser als TMRs "nie rot").
+    reliableWords: 120,
+    shortRedFrom: 0.9994,
+    languages: ["en"],
+    browser: {
+      // Fertiges ONNX von einem Dritten (MedAliFarhat), ausdrücklich für transformers.js gebaut - kein
+      // desklib_build.js-artiger Umwandlungsschritt nötig, einfachster der drei Fälle im Katalog.
+      // ONNX-Abgleich gegen das PyTorch-Original: training/compare_onnx.py, Zahlen in MODEL_SEARCH.md.
+      repo: "MedAliFarhat/ai-text-detector-onnx",
+      revision: "0c809a8de6e600ec2fd0fcdeb595a5461d93e8dc",
+      version: "0c809a8-q8",
+      marker: "onnx/model_quantized.onnx",
+      download: "125 MB",
+      info:
+        "Einmaliger Download von Hugging Face (125 MB, öffentlich, kein Konto/Token nötig), danach offline " +
+        "nutzbar – bewertet werden die Texte nur lokal. ONNX-Umwandlung von einem Dritten (nicht vom " +
+        "Modell-Ersteller), gegen das Original geprüft (training/MODEL_SEARCH.md). Englisch trainiert – " +
+        "deutsche Texte können falsch eingestuft werden. Apache-2.0-Lizenz, Details in THIRD_PARTY_NOTICES.md."
+    },
+    server: {
+      // Werte aus training/MODEL_SEARCH.md (Eval-Suite n=1200, PyTorch auf CPU)
+      summary:
+        "RoBERTa-base (125M). ~76 ms/Text, ~900 MB RAM, 25er-Batch ~45 ms/Text. " +
+        "AUROC 0.96 im Test. Trennschärfer als TMR bei gleicher Latenz."
+    }
   }
 };
