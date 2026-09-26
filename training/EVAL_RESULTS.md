@@ -427,3 +427,186 @@ Cohere) schwächer ist.
   sind alle vor 2025 veröffentlicht) im eigenen Training gesehen haben - absolute Erkennungsraten
   eher zu optimistisch, der Domänen-/Generator-*Vergleich* (gleiche Texte, gleiches Modell) bleibt
   aussagekräftig.
+
+## Schwellen absichern: desklib auf n=1200, Kreuzvalidierung, TMR auf Anleitungen (2026-09-26, WP-07)
+
+Anschluss an "Breitere Eval-Suite": desklib war dort nur auf einer Stichprobe von 480/1200 Texten
+gemessen, die Schwellen-Empfehlung (redFrom 0,92–0,95 desklib, 0,985–0,987 TMR) beruhte auf einem
+einzigen Split ohne Fehlerspanne. Hier: desklib auf allen 1200 Texten (die fehlenden 720 nachgerechnet,
+vorhandene 480 Scores wiederverwendet - `training/desklib_fill_suite.py`, CPU, 2866 s = 47,8 Min für
+die 720 neuen), dazu eine Kreuzvalidierung der Schwellen (`training/crossval_thresholds.py`) und eine
+Einordnung des WikiHow-Befunds gegen die tatsächliche Kandidaten-/Gruppierungslogik der Extension
+(`content.js`).
+
+### desklib auf allen 1200 Texten
+
+Rohscores: `data/eval_scores_desklib_suite.jsonl` (1200 Zeilen, gitignored). Ersetzt die 480er-Zahlen
+im Abschnitt "Breitere Eval-Suite" oben (dort unverändert stehengelassen, siehe dort für Methode).
+
+| Lauf | n | AUROC gesamt | FA wie angezeigt | KI rot wie angezeigt |
+|---|---|---|---|---|
+| desklib (n=480, WP-01) | 480 | 0,990 | 1,2 % | 91 % |
+| **desklib (n=1200, WP-07)** | **1200** | **0,991** | **1,8 %** | **92,5 %** |
+
+Je Domäne (wie angezeigt - kurze Absätze nach `shortRedFrom`):
+
+| Domäne | AUROC | FA rot | KI rot |
+|---|---|---|---|
+| forum | 0,999 | 3,0 % | 98,0 % |
+| howto | 0,975 | 2,0 % | 96,0 % |
+| news | 0,992 | 3,0 % | 93,0 % |
+| reviews | 0,993 | 0 % | 74,0 % |
+| sci_abstract | 0,998 | 2,0 % | 97,0 % |
+| wikipedia | 0,996 | 1,0 % | 97,0 % |
+| **gesamt** | **0,991** | **1,8 %** | **92,5 %** |
+
+Je Generator (Anteil KI-Texte ≥ redFrom erkannt):
+
+| Generator | n | erkannt@red |
+|---|---|---|
+| cohere | 56 | 94,6 % |
+| gemma2-9b-it | 56 | 98,2 % |
+| gpt-3.5-turbo | 256 | 95,7 % |
+| gpt4 | 60 | 98,3 % |
+| gpt4o | 60 | 100 % |
+| llama3-70b | 56 | 98,2 % |
+| mixtral-8x7b | 56 | 94,6 % |
+
+Je Längen-Bucket (rohe FA@red bei 0,87, **ohne** `shortRedFrom`-Logik - zeigt, warum sie nötig bleibt):
+
+| Wörter | n Mensch | FA@red (roh) | n KI | erkannt@red |
+|---|---|---|---|---|
+| 40–79 | 60 | 13,3 % | 58 | 81,0 % |
+| 80–119 | 77 | 9,1 % | 67 | 98,5 % |
+| 120–149 | 39 | 5,1 % | 23 | 95,7 % |
+| 150+ | 424 | 1,9 % | 452 | 98,5 % |
+
+- Mit der vollen Stichprobe steigt die "wie angezeigt"-Fehlalarmrate von 1,2 % (n=480) auf 1,8 %
+  (n=1200) - die kleinere Stichprobe war optimistisch (u.a. `forum` hatte dort 0 % Fehlalarme, jetzt
+  3,0 % bei n=200 statt n=80). AUROC bleibt praktisch gleich (0,990 → 0,991).
+- Die rohe FA@red-Spalte je Längen-Bucket bestätigt auf der vollen Stichprobe erneut deutlich mehr
+  Fehlalarme unter 120 Wörtern (13,3 % / 9,1 %) als darüber (1,9 %) - `reliableWords=120` und
+  `shortRedFrom` bleiben richtig.
+
+### Kreuzvalidierte Schwellen
+
+Methode (orchestration/LOG.md, ENTSCHEIDUNG): 200 Wiederholungen, pro Wiederholung ein zufälliger
+Hälfte/Hälfte-Split (stratifiziert nach Domäne × Label). Auf Hälfte A: Schwelle als 99. Perzentil der
+Mensch-Scores (Ziel ~1 % Fehlalarme). Auf Hälfte B (ungesehen): tatsächliche Fehlalarm-/Erkennungsrate.
+Getrennt für die Gruppe ≥120 Wörter (regelt `redFrom`) und <120 Wörter (regelt `shortRedFrom`, wo
+vorhanden) - das ist genau die Aufteilung, die `config.js` `level()` tatsächlich verwendet (Regel 9 im
+orchestration/README.md). Reproduzierbar mit `training/crossval_thresholds.py --backend both`.
+
+| Backend | Bucket | Kreuzvalidierte Schwelle (Median, 5.–95. Perz.) | FA auf Testhälfte (Median, 5.–95. Perz.) | KI erkannt (Median, 5.–95. Perz.) |
+|---|---|---|---|---|
+| TMR | ≥120 W. (redFrom) | 0,9850 (0,9835–0,9858) | 1,29 % (0,43–3,45 %) | 65,3 % (55,2–75,3 %) |
+| TMR | <120 W. (shortRedFrom) | 0,9867 (0,9865–0,9868) | 2,90 % (0–5,87 %) | 13,3 % (4,7–23,4 %) |
+| desklib | ≥120 W. (redFrom) | 0,9466 (0,8522–0,9578) | 1,29 % (0–3,45 %) | 97,1 % (95,4–98,7 %) |
+| desklib | <120 W. (shortRedFrom) | 0,9758 (0,9583–0,9843) | 1,45 % (0–5,87 %) | 78,1 % (64,1–87,5 %) |
+
+Zum Vergleich die **aktuellen** Werte, auf denselben Testhälften gemessen (Konfidenzintervall der
+heutigen Zahlen auf dieser Suite):
+
+| Backend | Bucket | Aktueller Wert | FA auf Testhälften (Median, 5.–95. Perz.) | KI erkannt (Median, 5.–95. Perz.) |
+|---|---|---|---|---|
+| TMR | ≥120 W. (redFrom) | 0,98 | 6,03 % (4,72–7,76 %) | 84,5 % (81,6–87,0 %) |
+| TMR | <120 W. | (immer "unsicher") | – | – |
+| desklib | ≥120 W. (redFrom) | 0,87 | 2,16 % (0,86–3,02 %) | 98,3 % (97,5–99,6 %) |
+| desklib | <120 W. (shortRedFrom) | 0,98 | 1,45 % (0–1,45 %) | 70,3 % (65,6–76,6 %) |
+
+- **TMR `redFrom` 0,98 liegt klar über dem 1-%-Ziel** (Median 6,0 % Fehlalarme auf unabhängigen
+  Testhälften, nie unter 4,7 %) - bestätigt die einmalige Schätzung oben (0,985–0,987) mit einer engen,
+  stabilen kreuzvalidierten Schwelle (0,9835–0,9858). Preis: Erkennung fällt von 84,5 % auf 65,3 %.
+- **desklib `redFrom` 0,87 liegt näher am Ziel, aber im Mittel bei gut 2 %**, mit spürbarer Spanne (bis
+  3,0 % je nach Split). Die kreuzvalidierte Schwelle (Median 0,9466) bestätigt die frühere Empfehlung
+  (0,92–0,95) der Größenordnung nach, hat aber eine breite Spanne (0,85–0,96) - bei ~230 Mensch-Scores
+  pro Trainhälfte ist die 1-%-Perzentil-Schätzung (≈2.–3. kleinster Wert von "oben") inhärent unruhig.
+  Der Tausch bleibt trotzdem günstig: FA sinkt auf ~1,3 %, Erkennung bleibt bei 97,1 % (kaum niedriger
+  als heute).
+- **desklib `shortRedFrom` 0,98 ist auf der breiteren Suite eher etwas zu streng**: kreuzvalidiert liegt
+  die Schwelle bei 0,9758 (0,9583–0,9843, überlappt mit 0,98), bei ähnlicher Fehlalarmrate aber deutlich
+  mehr erkannten kurzen KI-Texten (78 % statt 70 %).
+- **Für TMR unter 120 Wörtern bestätigt sich: kein `shortRedFrom` einführen.** Selbst bei der auf 1 %
+  Fehlalarme optimierten Schwelle (0,9867) werden nur 13 % der kurzen KI-Texte erkannt (Spanne 5–23 %) -
+  nicht nützlich genug, um "unsicher" zu ersetzen.
+
+### TMR auf Anleitungen: was der Eval-Ausschnitt zeigt - und ob die Extension das auf echten Seiten auch so sähe
+
+Befund (unverändert seit "Breitere Eval-Suite"): TMR-AUROC auf `howto` nur 0,767, 20 % der 200
+menschlichen WikiHow-Ausschnitte landen "wie angezeigt" auf Rot - und zwar **alle** bei ≥120 Wörtern
+(176–420 Wörter, Median 397, nachgeprüft), die Kurz-Absatz-Ausnahme (kein `shortRedFrom` für TMR) greift
+hier also nie.
+
+Was misst der Eval-Ausschnitt strukturell? `build_eval_suite.py` nimmt bis zu 400 Wörter vom
+Dokumentanfang, **am Stück**: Zeilenumbrüche/Absatzgrenzen werden vor dem Kürzen zu einem einzigen
+Fließtext zusammengefasst (`" ".join(text.split())`) - im Quelldatensatz sind WikiHow-Schritt-,
+Überschriften- und Listengrenzen bereits verloren. Der Ausschnitt ist also ein einziger langer,
+zusammenhängender Absatz.
+
+Wie sähe die Extension denselben Text? Relevante Stellen in `content.js`:
+- `CANDIDATE_SELECTOR = "article, p, li"` - einzelne Listenpunkte (`<li>`, wie bei WikiHow-Schritten
+  üblich) sind eigene Kandidaten.
+- Der 40-Wörter-Mindestfilter (`MIN_WORDS`) wirkt **vor** der Gruppierung, pro Kandidat einzeln
+  (`collectCandidates`): ein einzelner Schritt unter 40 Wörtern wird nie zum Kandidaten und nie
+  bewertet - auch nicht gruppiert.
+- `groupCandidates` fasst nur benachbarte Kandidaten **unter `reliableWords` (120 Wörter)** zusammen,
+  und nur, wenn sie denselben Elternknoten haben und **keine** Überschrift/Liste/Tabelle
+  (`GROUP_BREAK_SELECTOR = "h1..h6, ul, ol, table, hr"`) dazwischenliegt.
+
+Daraus zwei gegenläufige Effekte, die der reine Rohtext-Eval nicht abbildet:
+1. **Entlastend:** Kurze, einzeln unter 40 Wörter liegende Schritte (knapper WikiHow-Stil: "Tu X. Grund:
+   Y.") werden nie einzeln gescannt oder gruppiert - sie tauchen in der Extension gar nicht als Kandidat
+   auf. Der Eval-Ausschnitt (bis 400 Wörter am Stück) enthält aber genau solche Schritte mit, weil er
+   alles zusammenfasst - er testet damit auch Text, den die Extension real nie sieht.
+2. **Nicht entlastend:** Sind einzelne Schritte selbst schon 40–119 Wörter lang (ebenfalls verbreitet,
+   v.a. bei erklärenden Anleitungen) und stehen als `<li>` in derselben `<ol>` ohne Zwischenüberschrift,
+   gruppiert `groupCandidates` sie zu einem zusammenhängenden Text bis `maxChars` (2000 Zeichen bei
+   TMR) - strukturell nahe an dem, was der Eval-Ausschnitt misst. Trennen WikiHow-Guides ihre Schritte
+   dagegen mit "Method"/"Part"-Zwischenüberschriften (verbreitet bei Anleitungen mit mehreren
+   Vorgehensweisen), bricht die Gruppierung an jeder Überschrift - die Schritt-Gruppen bleiben kleiner,
+   eher unter 120 Wörtern und damit "unsicher" statt Rot.
+
+Ein Abruf einer echten WikiHow-Seite zur Gegenprobe war in dieser Umgebung nicht möglich (wikihow.com
+wird vom verfügbaren Fetch-Werkzeug blockiert); die Einschätzung stützt sich auf den nachvollzogenen
+`content.js`-Code plus bekanntes WikiHow-Aufbaumuster (Schritte meist als Listenelemente, häufig mit
+"Method"/"Part"-Überschriften bei mehreren Vorgehensweisen), nicht auf eine gerenderte Seite.
+
+**Empfehlung: nichts an einer pauschalen Schwelle ändern, keine Domänen-Heuristik einführen.**
+Begründung:
+- Ein generelles Anheben von `redFrom` auf ~0,985 (siehe Kreuzvalidierung) würde die TMR-Erkennung
+  überall von ~85 % auf ~65 % drücken, nur um ein Problem zu lösen, das auf echten Seiten durch
+  Gruppierung/40-Wörter-Filter bereits teilweise abgefedert wird.
+- Eine WikiHow-spezifische Schwelle bräuchte eine zuverlässige Domänenerkennung, die es in `content.js`
+  nicht gibt (und die leicht falsch zu erkennen wäre).
+- Die tatsächliche Exposition auf echten Anleitungsseiten lässt sich mit reinem Rohtext-Eval nicht
+  seriös beziffern - das bräuchte einen Test von `content.js`/`groupCandidates` gegen gerenderte
+  WikiHow-Seiten (Vorschlag für TODO.md, siehe unten).
+- Die bestehende Einordnung ("TMR fürs Hintergrund-Scannen, aber mit Vorsicht bei Anleitungen/
+  Nachrichten; desklib als genaueres Default-Modell") bleibt damit richtig - desklib zeigt auf `howto`
+  mit 2,0 % FA "wie angezeigt" ohnehin ein deutlich kleineres Problem (AUROC 0,975 statt 0,767).
+
+### Empfehlung für `extension/models.js`
+
+| Wert | Aktuell | Kreuzvalidierter Vorschlag | Ändern? |
+|---|---|---|---|
+| desklib `redFrom` | 0,87 | ~0,93–0,95 (Median 0,9466, Spanne 0,85–0,96) | **Ja** - senkt FA von ~2,2 % auf ~1,3 %, Erkennung bleibt bei ~97 % |
+| desklib `shortRedFrom` | 0,98 | ~0,97–0,98 (Median 0,9758, überlappt mit 0,98) | Optional, kleiner Effekt - Erkennung 78 % statt 70 % bei ähnlicher FA |
+| TMR `redFrom` | 0,98 | 0,985 (0,9835–0,9858, sehr eng) | **Nur mit Vorbehalt** - senkt FA von ~6 % auf ~1,3 %, kostet aber ~19 Punkte Erkennung (84,5 % → 65,3 %); Alternative: Wert lassen, Schwäche (howto/News) bewusst in Kauf nehmen, weil desklib ohnehin das genauere Default-Modell ist |
+| TMR `shortRedFrom` | keins | keins einführen | **Nein** - selbst optimal nur ~13 % Erkennung |
+
+Eine finale Entscheidung trifft der Orchestrator nach Review (Umfang dieses WP: keine Extension-Dateien
+geändert).
+
+### Einschränkungen
+
+- Kreuzvalidierte Schwellen für die "lang"-Buckets stützen sich auf ~230–470 Mensch-Scores pro
+  Trainhälfte, für "kurz" auf ~65–70 - die 1-%-Perzentil-Schätzung ist bei so wenigen Fällen naturgemäß
+  unruhig (sichtbar an der Spanne, v.a. desklib lang: 0,85–0,96). Die Spannen sind ernst zu nehmen,
+  keine Formsache.
+- Die WikiHow-Strukturanalyse ist Code-Lektüre + Domänenwissen, keine Messung an echten Seiten (Fetch
+  von wikihow.com in dieser Umgebung blockiert). Sie zeigt eine plausible Bandbreite, keinen Wert.
+- Wie in "Breitere Eval-Suite": kein Claude/Gemini als Generator, M4GT-Lizenz ungeklärt (Daten bleiben
+  lokal), menschliche Texte teils schon redaktionell/algorithmisch vorverarbeitet (XSum/CNN), Modelle
+  könnten Teile der Quell-Datensätze im Training gesehen haben.
+- desklib jetzt vollständig auf 1200 Texten (720 neu + 480 aus WP-01, Text selbst als Schlüssel beim
+  Zusammenführen - in dieser Suite keine Duplikate erwartet, aber nicht separat geprüft).
