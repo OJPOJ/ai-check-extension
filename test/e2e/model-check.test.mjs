@@ -58,7 +58,7 @@ describe("Modell prüfen", () => {
     const before = backend.requests;
     await ext.options.click("#check-custom");
     await waitStatus("geprüft – bestanden");
-    assert.equal(backend.texts.filter((t) => aiOf(t) !== undefined).length, 41); // Aufwärmen + 40
+    assert.equal(backend.texts.filter((t) => aiOf(t) !== undefined).length, REFERENCE_SET.length + 1); // Aufwärmen + Referenzset
     assert.ok(backend.requests - before > 2, "Referenzset in mehreren Batches");
     assert.match(await ext.options.textContent("#check-custom-status"), /Bestanden am .*AUROC 1\.00.*Version v7/);
     const items = await ext.options.$$eval("#check-custom-list li", (els) => els.map((e) => [e.className, e.textContent]));

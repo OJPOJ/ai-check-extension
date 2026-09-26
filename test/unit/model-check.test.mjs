@@ -6,7 +6,7 @@ import { afterEach, describe, it } from "node:test";
 globalThis.AIVSAI_BLOCKLIST = { domains: "" };
 await import("../../extension/models.js");
 await import("../../extension/config.js");
-const { AUROC_MIN, AUROC_WARN, assess, auroc, checkModel, scanHint, suggestThresholds } = await import(
+const { AUROC_MIN, AUROC_WARN, assess, auroc, checkModel, scanHint, suggestShortRedFrom, suggestThresholds } = await import(
   "../../extension/bg/model-check.js"
 );
 const { REFERENCE_SET } = await import("../../extension/bg/reference-set.js");
@@ -14,21 +14,33 @@ const { REFERENCE_SET } = await import("../../extension/bg/reference-set.js");
 const realFetch = globalThis.fetch;
 afterEach(() => (globalThis.fetch = realFetch));
 
-const isAi = REFERENCE_SET.map((r) => r.ai);
 // Label eines (ggf. auf maxChars gekürzten) Referenztexts
 const aiOf = (t) => REFERENCE_SET.find((r) => r.text.startsWith(t)).ai;
-// Scores für das Referenzset: KI-Texte `ai`, Mensch-Texte `human` (je als Funktion des Index in der Klasse)
+
+// Synthetisches Set fürs Testen von assess() (unabhängig von der tatsächlichen Größe/Zusammensetzung
+// des echten Referenzsets, die sich mit training/build_reference_set.py ändern kann): 20 Mensch + 20 KI
+const SAMPLE_AI = [...Array(20).fill(false), ...Array(20).fill(true)];
+// Scores fürs Sample-Set: KI-Texte `ai`, Mensch-Texte `human` (je als Funktion des Index in der Klasse)
 const scoresFor = (human, ai) => {
   const n = { true: 0, false: 0 };
-  return isAi.map((a) => (a ? ai : human)(n[a]++));
+  return SAMPLE_AI.map((a) => (a ? ai : human)(n[a]++));
 };
 
 describe("Referenzset", () => {
-  it("je 20 Mensch- und KI-Texte, 400..1200 Zeichen, fünf Domänen", () => {
-    assert.equal(REFERENCE_SET.filter((r) => r.ai).length, 20);
-    assert.equal(REFERENCE_SET.filter((r) => !r.ai).length, 20);
-    assert.equal(new Set(REFERENCE_SET.map((r) => r.domain)).size, 5);
-    for (const r of REFERENCE_SET) assert.ok(r.text.length >= 400 && r.text.length <= 1200, r.text.slice(0, 40));
+  it("Mensch/KI balanciert, mehrere Domänen/Generatoren, kurze und lange Absätze getrennt (words < 120 / >= 120)", () => {
+    const human = REFERENCE_SET.filter((r) => !r.ai);
+    const ai = REFERENCE_SET.filter((r) => r.ai);
+    assert.equal(human.length, ai.length, "Mensch/KI unbalanciert");
+    assert.ok(REFERENCE_SET.length >= 100 && REFERENCE_SET.length <= 150, REFERENCE_SET.length);
+    assert.ok(new Set(REFERENCE_SET.map((r) => r.domain)).size >= 6, "mind. sechs Domänen erwartet");
+    assert.ok(new Set(ai.map((r) => r.generator)).size >= 2, "mind. zwei KI-Generatoren erwartet");
+    for (const r of REFERENCE_SET) {
+      assert.equal(typeof r.words, "number", r.text.slice(0, 40));
+      assert.ok(r.words >= 40, r.words);
+    }
+    const short = REFERENCE_SET.filter((r) => r.words < 120);
+    const long = REFERENCE_SET.filter((r) => r.words >= 120);
+    assert.ok(short.length >= 20 && long.length >= 20, `kurz=${short.length} lang=${long.length}`);
     // HC3-Artefakt entfernt (Leerzeichen vor Satzzeichen), sonst wäre das Set per Abkürzung lösbar
     assert.ok(!REFERENCE_SET.some((r) => / [.,!?]/.test(r.text)));
   });
@@ -63,7 +75,7 @@ describe("assess", () => {
   const status = (r) => r.checks.map((c) => c.status);
 
   it("gut getrenntes Modell besteht, mit Ampel und Latenz", () => {
-    const r = assess(scoresFor((i) => i / 40, (i) => 0.6 + i / 100), isAi, opts);
+    const r = assess(scoresFor((i) => i / 40, (i) => 0.6 + i / 100), SAMPLE_AI, opts);
     assert.equal(r.ok, true);
     assert.equal(r.auroc, 1);
     assert.deepEqual(status(r), ["ok", "ok", "ok", "info", "info"]);
@@ -74,19 +86,19 @@ describe("assess", () => {
 
   it("Vorschlag des Servers geht vor", () => {
     const suggested = { yellowFrom: 0.4, redFrom: 0.8 };
-    const r = assess(scoresFor((i) => i / 40, (i) => 0.6 + i / 100), isAi, { ...opts, suggestedThresholds: suggested });
+    const r = assess(scoresFor((i) => i / 40, (i) => 0.6 + i / 100), SAMPLE_AI, { ...opts, suggestedThresholds: suggested });
     assert.equal(r.thresholds, suggested);
     assert.match(r.checks[3].text, /Vorschlag des Servers/);
   });
 
   it("Form: fehlende oder ungültige Werte -> abgelehnt", () => {
-    const r = assess(scoresFor(() => 0.1, (i) => (i < 3 ? null : 0.9)), isAi, opts);
+    const r = assess(scoresFor(() => 0.1, (i) => (i < 3 ? null : 0.9)), SAMPLE_AI, opts);
     assert.equal(r.ok, false);
     assert.match(r.checks[0].text, /^3 von 40 Antworten/);
   });
 
   it("Richtung: vertauschte Labels -> abgelehnt mit Hinweis", () => {
-    const r = assess(scoresFor(() => 0.9, () => 0.1), isAi, opts);
+    const r = assess(scoresFor(() => 0.9, () => 0.1), SAMPLE_AI, opts);
     assert.equal(r.ok, false);
     assert.deepEqual(status(r), ["ok", "fail"]);
     assert.match(r.checks[1].text, /P\(Mensch\) statt P\(KI\)/);
@@ -94,15 +106,44 @@ describe("assess", () => {
 
   it(`Trennschärfe: unter ${AUROC_WARN} Warnung, unter ${AUROC_MIN} abgelehnt`, () => {
     // Mensch 0..0.95, KI gleich verteilt, aber leicht höher -> AUROC zwischen den Grenzen
-    const weak = assess(scoresFor((i) => i / 20, (i) => (i + 5) / 20), isAi, opts);
+    const weak = assess(scoresFor((i) => i / 20, (i) => (i + 5) / 20), SAMPLE_AI, opts);
     assert.ok(weak.auroc >= AUROC_MIN && weak.auroc < AUROC_WARN, String(weak.auroc));
     assert.equal(weak.ok, true);
     assert.equal(weak.checks[2].status, "warn");
 
-    const coin = assess(scoresFor((i) => i / 20, (i) => (i + 1) / 20), isAi, opts);
+    const coin = assess(scoresFor((i) => i / 20, (i) => (i + 1) / 20), SAMPLE_AI, opts);
     assert.ok(coin.auroc < AUROC_MIN, String(coin.auroc));
     assert.equal(coin.ok, false);
     assert.equal(coin.checks[2].status, "fail");
+  });
+
+  it("mit `words`: genug kurze Texte je Klasse -> reliableWords gesetzt, eigene Kurztext-Meldung", () => {
+    const words = SAMPLE_AI.map(() => 50); // alle Texte gelten als kurz (< 120 Wörter)
+    const r = assess(scoresFor((i) => i / 40, (i) => 0.6 + i / 100), SAMPLE_AI, { ...opts, words });
+    assert.equal(r.reliableWords, 120);
+    assert.match(r.checks.at(-1).text, /Kurze Absätze \(< 120 Wörter/);
+  });
+
+  it("mit `words`: zu wenige kurze KI-Texte -> reliableWords/shortRedFrom bleiben unbestimmt", () => {
+    const words = SAMPLE_AI.map((_, i) => (i < 5 ? 50 : 200)); // nur 5 kurze Mensch-Texte, keine kurzen KI-Texte
+    const r = assess(scoresFor((i) => i / 40, (i) => 0.6 + i / 100), SAMPLE_AI, { ...opts, words });
+    assert.equal(r.reliableWords, undefined);
+    assert.equal(r.shortRedFrom, undefined);
+    assert.match(r.checks.at(-1).text, /Zu wenige kurze Referenztexte/);
+  });
+});
+
+describe("suggestShortRedFrom", () => {
+  it("Schwelle knapp über dem höchsten kurzen Mensch-Text, wenn sie noch genug KI-Texte erkennt", () => {
+    assert.equal(suggestShortRedFrom([0.1, 0.2, 0.3], [0.5, 0.6, 0.9], 0.2), 0.31);
+  });
+
+  it("null, wenn die Schwelle kaum noch kurze KI-Texte erkennt (< 30 %)", () => {
+    assert.equal(suggestShortRedFrom([0.1, 0.2, 0.8], [0.3, 0.4, 0.5], 0.2), null);
+  });
+
+  it("nie lockerer als die lange Rot-Schwelle", () => {
+    assert.equal(suggestShortRedFrom([0.01, 0.02], [0.9, 0.95], 0.8), 0.8);
   });
 });
 
@@ -129,7 +170,8 @@ describe("checkModel", () => {
     const r = await checkModel(custom);
     assert.equal(r.ok, true, JSON.stringify(r.checks));
     assert.equal(r.sig, AIVSAI.checkSignature(custom));
-    assert.deepEqual(r.info, { version: "v9", maxChars: 1000 });
+    // reliableWords/shortRedFrom: lokal aus dem Referenzset ergänzt, weil der Server selbst nichts angibt
+    assert.deepEqual(r.info, { version: "v9", maxChars: 1000, reliableWords: 120, shortRedFrom: 0.7 });
     assert.deepEqual(r.thresholds, { yellowFrom: 0.3, redFrom: 0.7 });
     assert.equal(r.auroc, 1);
     assert.equal(typeof r.msPerText, "number");
@@ -137,7 +179,7 @@ describe("checkModel", () => {
 
     const [warmup, ...batches] = log.batches;
     assert.equal(warmup.texts.length, 1);
-    assert.equal(batches.flatMap((b) => b.texts).length, 40);
+    assert.equal(batches.flatMap((b) => b.texts).length, REFERENCE_SET.length);
     for (const b of log.batches) {
       assert.equal(b.lang, "en");
       assert.ok(b.texts.join("").length <= 2500);
@@ -151,7 +193,7 @@ describe("checkModel", () => {
     fakeServer({ info: null });
     const r = await checkModel(custom);
     assert.equal(r.ok, true);
-    assert.deepEqual(r.info, {});
+    assert.deepEqual(r.info, { reliableWords: 120, shortRedFrom: 0.11 });
     assert.match(r.checks[0].text, /Kein \/v1\/info/);
     assert.deepEqual(r.thresholds, { yellowFrom: 0.1, redFrom: 0.11 });
   });
@@ -173,7 +215,7 @@ describe("checkModel", () => {
     fakeServer({ score: (ai) => (ai ? 3.2 : -2.1) });
     const r = await checkModel(custom);
     assert.equal(r.ok, false);
-    assert.match(r.checks.at(-1).text, /40 von 40 Antworten fehlen oder liegen nicht in 0\.\.1/);
+    assert.match(r.checks.at(-1).text, new RegExp(`^${REFERENCE_SET.length} von ${REFERENCE_SET.length} Antworten fehlen`));
   });
 
   it("Backend-Fehler: abgelehnt mit verständlicher Meldung", async () => {
@@ -205,7 +247,7 @@ describe("checkModel", () => {
     };
     const r = await checkModel(hf);
     assert.equal(r.ok, true, JSON.stringify(r.checks));
-    assert.deepEqual(r.info, { name: "org/m", version: "abcdef0", aiLabel: "LABEL_0" });
+    assert.deepEqual(r.info, { name: "org/m", version: "abcdef0", aiLabel: "LABEL_0", reliableWords: 120, shortRedFrom: 0.21 });
     assert.ok(r.checks.some((c) => /„LABEL_0“ anhand des Referenzsets/.test(c.text)));
     assert.deepEqual(r.thresholds, { yellowFrom: 0.2, redFrom: 0.21 });
   });
