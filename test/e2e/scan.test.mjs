@@ -128,9 +128,11 @@ describe("Scan und Bedienung", () => {
     const min = AIVSAI_MODELS.tmr.reliableWords;
     const wrong = await page.$$eval(
       "[data-aivsai-level]",
+      // words: die Wortzahl, die tatsächlich über die Ampel entschieden hat (bei gruppierten Absätzen die
+      // der ganzen Gruppe, siehe content.js style()) - nicht die des einzelnen Absatzes (el.innerText)
       (els, min) =>
         els
-          .map((el) => ({ level: el.dataset.aivsaiLevel, p: Number(el.dataset.aivsaiScore), words: el.innerText.split(/\s+/).filter(Boolean).length }))
+          .map((el) => ({ level: el.dataset.aivsaiLevel, p: Number(el.dataset.aivsaiScore), words: Number(el.dataset.aivsaiWords) }))
           .filter(({ level, p, words }) => (words < min && p >= 0.6 ? level !== "uncertain" : level === "uncertain")),
       min
     );

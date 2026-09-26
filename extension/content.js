@@ -126,7 +126,7 @@
     if (!isActive()) {
       // beim Ausschalten auch manuell geprüfte Stellen entfernen, die es ohne Auto-Scan geben kann
       if (wasActive || ("enabled" in changes && !config.enabled)) clearAll();
-    } else if (!wasActive || AIVSAI.PROVIDER_KEYS.some((k) => k in changes)) {
+    } else if (!wasActive || AIVSAI.PROVIDER_KEYS.some((k) => k in changes) || "groupShortParagraphs" in changes) {
       rescanAll();
     } else {
       restyleAll();
@@ -248,6 +248,66 @@
     return text.split(/\s+/).filter(Boolean).length;
   }
 
+  // ---------------------------------------------------------------------------
+  // Gruppierung kurzer Absätze (TODO.md Punkt 2): benachbarte Absätze unter reliableWords im selben
+  // Block-Container werden als ein Text bewertet und teilen sich das Ergebnis - mehr Kontext senkt die
+  // Fehlerquote stark (training/EVAL_RESULTS.md, "Textlänge"). Ein für sich schon zuverlässiger (langer)
+  // Absatz bleibt einzeln, eine Gruppe wächst nur bis maxChars (Modell-Kontext).
+  // ---------------------------------------------------------------------------
+
+  const GROUP_SEPARATOR = "\n\n";
+  // Überschrift oder Liste zwischen zwei Absätzen -> nicht mehr "direkt benachbart"
+  const GROUP_BREAK_SELECTOR = "h1, h2, h3, h4, h5, h6, ul, ol, table, hr";
+
+  // true, wenn zwischen `a` und `b` (in Dokumentreihenfolge) eine Überschrift oder Liste liegt - über
+  // Range statt Geschwister-Verkettung, damit es unabhängig von der Verschachtelungstiefe funktioniert.
+  function hasBreakBetween(a, b) {
+    try {
+      const range = document.createRange();
+      range.setStartAfter(a);
+      range.setEndBefore(b);
+      const walker = document.createTreeWalker(range.commonAncestorContainer, NodeFilter.SHOW_ELEMENT);
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+        if (range.intersectsNode(n) && n.matches(GROUP_BREAK_SELECTOR)) return true;
+      }
+      return false;
+    } catch {
+      return true; // z.B. Knoten inzwischen entfernt - im Zweifel nicht zusammenfassen
+    }
+  }
+
+  // found (Phase 1 aus collectCandidates, in Dokumentreihenfolge) zu Gruppen zusammenfassen. Jede Gruppe
+  // ist ein Array von found-Einträgen; einzelne (lange, fremdsprachige oder nicht anschließbare) Absätze
+  // bilden eine Gruppe mit nur einem Eintrag - Phase 2 behandelt sie dann wie bisher.
+  function groupCandidates(found, cfg) {
+    if (!cfg.groupShortParagraphs) return found.map((f) => [f]);
+    const reliable = AIVSAI.reliableWords(cfg);
+    const limit = AIVSAI.maxChars(cfg);
+    const groups = [];
+    let open = null; // { items, chars, lang, lastEl } der zuletzt begonnenen, noch erweiterbaren Gruppe
+    for (const f of found) {
+      const foreign = foreignOf(f.lang);
+      const short = !foreign && f.words < reliable;
+      if (
+        open &&
+        short &&
+        f.lang === open.lang &&
+        open.lastEl.parentElement === f.el.parentElement && // gemeinsamer Elternknoten (Block-Container)
+        !hasBreakBetween(open.lastEl, f.el) &&
+        open.chars + GROUP_SEPARATOR.length + f.text.length <= limit
+      ) {
+        open.items.push(f);
+        open.chars += GROUP_SEPARATOR.length + f.text.length;
+        open.lastEl = f.el;
+        continue;
+      }
+      const items = [f];
+      groups.push(items);
+      open = short ? { items, chars: f.text.length, lang: f.lang, lastEl: f.el } : null;
+    }
+    return groups;
+  }
+
   // Container (z.B. <article>) nur bewerten, wenn keiner seiner Kind-Kandidaten selbst
   // lang genug ist - sonst entstehen verschachtelte Doppel-Markierungen.
   function hasLongCandidateChild(el) {
@@ -323,36 +383,52 @@
     // Absätze laufen über den MutationObserver erneut hier durch.
     const langs = await Promise.all(found.map((f) => detectLang(clipText(f.text), f.attr)));
     if (gen !== generation) return;
+    found.forEach((f, i) => (f.lang = langs[i]));
 
-    // Phase 2 nur schreiben
-    for (const [i, { el, text, hash, words }] of found.entries()) {
-      if (detecting.get(el) !== hash) continue;
-      detecting.delete(el);
-      el.dataset.aivsaiHash = hash;
-      unstyle(el); // Text hat sich geändert - alte Bewertung gilt nicht mehr
-      const foreign = foreignOf(langs[i]);
+    // Phase 2 nur schreiben. Statt Einzelabsätzen laufen jetzt Gruppen durch (Gruppengröße 1 = wie bisher).
+    for (const items of groupCandidates(found, config)) {
+      // frisch: nur Absätze, deren Text sich seit Phase 1 nicht schon wieder geändert hat (paralleler Scan)
+      const fresh = items.filter((it) => detecting.get(it.el) === it.hash);
+      if (!fresh.length) continue;
+      for (const it of fresh) {
+        detecting.delete(it.el);
+        it.el.dataset.aivsaiHash = it.hash; // eigener Hash je Element - erkennt spätere Änderungen an ihm
+        unstyle(it.el); // Text hat sich geändert - alte Bewertung gilt nicht mehr
+      }
+
+      const foreign = foreignOf(fresh[0].lang);
       if (foreign) {
         // Nicht bewerten: In fremder Sprache sind Scores Rauschen und oft zu hoch (deutscher Fachtext: 78).
         // Keine Markierung am Absatz, das Popup nennt die Zahl; per Rechtsklick lässt er sich trotzdem prüfen.
-        skipped.set(el, foreign);
-        el.dataset.aivsaiSkipped = foreign;
+        for (const it of fresh) {
+          skipped.set(it.el, foreign);
+          it.el.dataset.aivsaiSkipped = foreign;
+        }
         continue;
       }
 
-      const clipped = clipText(text);
-      const truncated = clipped.length < text.length;
+      // Gruppentext = gemeinsamer Cache-/Anfrage-Schlüssel (bei einem Absatz: dessen eigener Hash/Text,
+      // unverändert zum bisherigen Verhalten); Wortzahl der Gruppe entscheidet über die Ampel.
+      const grouped = fresh.length > 1 ? fresh.length : undefined;
+      const words = fresh.reduce((n, it) => n + it.words, 0);
+      const fullText = fresh.map((it) => it.text).join(GROUP_SEPARATOR);
+      const hash = grouped ? hashText(fullText) : fresh[0].hash;
+      const clipped = clipText(fullText);
+      const truncated = clipped.length < fullText.length;
+      const els = fresh.map((it) => it.el);
+
       const known = seen.get(hash);
       if (known) {
-        applyScore(el, { hash, text: clipped, truncated, words, ...known, source: "auto" });
+        for (const el of els) applyScore(el, { hash, text: clipped, truncated, words, grouped, ...known, source: "auto" });
         continue;
       }
       const entry = inFlight.get(hash) || pending.get(hash);
       if (entry) {
-        entry.els.push(el);
+        entry.els.push(...els);
       } else {
-        pending.set(hash, { id: hash, text: clipped, lang: langs[i], truncated, words, els: [el], near: true });
+        pending.set(hash, { id: hash, text: clipped, lang: fresh[0].lang, truncated, words, grouped, els, near: true });
       }
-      el.classList.add("aivsai-pending");
+      els.forEach((el) => el.classList.add("aivsai-pending"));
     }
   }
 
@@ -480,7 +556,15 @@
       if (typeof p === "number") {
         const known = { p, model: resp.model };
         seen.set(b.id, known);
-        const record = { hash: b.id, text: b.text, truncated: b.truncated, words: b.words, ...known, source: "auto" };
+        const record = {
+          hash: b.id,
+          text: b.text,
+          truncated: b.truncated,
+          words: b.words,
+          grouped: b.grouped,
+          ...known,
+          source: "auto"
+        };
         b.els.forEach((el) => applyScore(el, record));
       } else {
         b.els.forEach((el) => el.classList.remove("aivsai-pending"));
@@ -521,6 +605,9 @@
     // nur als Hook für Tests/Debugging - der Code selbst liest aus `results`
     el.dataset.aivsaiScore = String(p);
     el.dataset.aivsaiLevel = level;
+    el.dataset.aivsaiWords = String(rec.words); // Wortzahl, die die Ampel entschieden hat (ggf. der Gruppe)
+    if (rec.grouped) el.dataset.aivsaiGrouped = String(rec.grouped);
+    else delete el.dataset.aivsaiGrouped;
 
     const visible = level !== "green" || config.showGreen;
     if (visible) {
@@ -538,6 +625,7 @@
       el.title =
         `${levelTitle(rec, level)} – ${scoreText(p)} von 100 ` +
         `(${AIVSAI.providerLabel(config)}; Hinweis, kein Beweis)` +
+        (rec.grouped ? ` · Bewertung von ${rec.grouped} benachbarten Absätzen zusammen` : "") +
         (config.showBadge ? " · Klick aufs Badge: Details und Feedback" : "");
       el.dataset.aivsaiTitle = "1";
     } else if (!visible && el.dataset.aivsaiTitle) {
@@ -552,7 +640,9 @@
     nearObserver.unobserve(el);
     el.classList.remove(...LEVEL_CLASSES, "aivsai-pending", "aivsai-deferred", "aivsai-pos");
     if (el.dataset.aivsaiTitle) el.removeAttribute("title");
-    for (const key of ["aivsaiScore", "aivsaiLevel", "aivsaiLabel", "aivsaiTitle", "aivsaiSkipped"]) delete el.dataset[key];
+    for (const key of ["aivsaiScore", "aivsaiLevel", "aivsaiLabel", "aivsaiTitle", "aivsaiSkipped", "aivsaiWords", "aivsaiGrouped"]) {
+      delete el.dataset[key];
+    }
   }
 
   function restyleAll() {
@@ -772,6 +862,12 @@
     const level = levelOf(rec);
     const raw = `Rohwert ${Math.round(p * 100)} von 100`;
     const notes = [];
+    if (rec.grouped) {
+      notes.push(
+        `Bewertung gilt für ${rec.grouped} benachbarte, kurze Absätze zusammen (${words} Wörter gesamt) – ` +
+          "mehr Kontext senkt Fehlalarme bei kurzen Absätzen."
+      );
+    }
     if (rec.foreign) {
       notes.push(
         `Das Modell kennt nur ${langList(AIVSAI.languages(config))} – ${raw}, in dieser Sprache nicht aussagekräftig.`
