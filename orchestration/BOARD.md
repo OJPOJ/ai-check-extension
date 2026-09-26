@@ -14,15 +14,20 @@ Stand: 2026-09-26 (Runde 3). Status: `offen` · `läuft` · `Review` · `gemerge
 | WP-08 | Gruppierung/Sprache auf echten Seiten messen | Punkt 2 | `worktree-agent-aa5dcd919e80a3d89` | gemerged (08afe69) | `scripts/measure-pages.*`, `test/REAL_PAGES.md`, `package.json` |
 | WP-09 | fakespot einbinden (ONNX-Abgleich, Kreuzvalidierung) | Punkt 2 | `worktree-agent-ad415fba0f70a8594` | gemerged (9c2969f) | `models.js`, `offscreen.js`, `THIRD_PARTY_NOTICES.md`, `training/**` (außer `build_reference_set.py`), `test/unit/{config,providers}.test.mjs` |
 | WP-10 | Sehr kurze Absätze gruppierbar | Punkt 2 | `worktree-agent-af2c7b66db2f25df9` | gemerged (9c23ec6) | `content*.js/css`, `test/e2e/**` (außer model-check), `test/harness.html`, `test/REAL_PAGES.md`, `scripts/measure-pages.*` |
-| WP-11 | BYOM-Referenzset verbreitern | Punkt 1 | `worktree-agent-ad16f2c4ba4795d55` | Nachbesserung (M4GT-Texte ohne Lizenz) | `bg/reference-set.js`, `bg/model-check.js`, `about.html`, `training/build_reference_set.py`, `test/*/model-check.test.mjs` |
+| WP-11 | BYOM-Referenzset verbreitern | Punkt 1 | `worktree-agent-ad16f2c4ba4795d55` | gemerged (abd36fd) | `bg/reference-set.js`, `bg/model-check.js`, `about.html`, `training/build_reference_set.py`, `test/*/model-check.test.mjs` |
 
 ## Runde 2 (abgeschlossen)
 
 desklib = Standard (3bc5c6f), desklib rot ab 0.94 (3306b60). WP-06, WP-07, WP-08 gemerged.
 
-## Runde 3 (läuft)
+## Runde 3 (abgeschlossen)
 
-WP-09 bis WP-11. Danach offen:
+fakespot als drittes Modell, sehr kurze Absätze gruppierbar, Referenzset HC3 + RAID-Wiki.
 
-- „Ausführliche Prüfung“ für eigene Modelle (TODO Punkt 1)
+## Kandidaten für Runde 4
+
+- fakespot im echten Browser (WASM) gegen Python-Scores abgleichen (TODO Punkt 2)
+- Gruppierung auf Start-/Rubrikseiten messen, Teaser-Listen abfangen (TODO Punkt 2)
+- Referenzset um GPT-4/ChatGPT/Cohere aus RAID ergänzen (TODO Punkt 1)
+- „Ausführliche Prüfung“ und Regler für `reliableWords`/`shortRedFrom` (TODO Punkt 1)
 - Score-Kalibrierung pro Modell (TODO Punkt 5)

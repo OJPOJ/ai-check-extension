@@ -26,11 +26,23 @@ Die mitgelieferte Sperrliste ist aus folgenden Quellen zusammengestellt und steh
 
 ## Mitgelieferte Daten (`bg/reference-set.js`, per `training/build_reference_set.py`)
 
-Das Referenzset für „Modell prüfen“ (je 20 menschliche und ChatGPT-Texte) stammt aus **HC3**
-(„Human ChatGPT Comparison Corpus“, `Hello-SimpleAI/HC3`) – © Biyang Guo et al., **CC BY-SA 4.0**
-(https://creativecommons.org/licenses/by-sa/4.0/). https://huggingface.co/datasets/Hello-SimpleAI/HC3 –
-übernommen mit vereinheitlichten Leerzeichen (vor Satzzeichen entfernt) und an einer Satzgrenze auf
-höchstens 1200 Zeichen gekürzt. Das Referenzset steht als Ganzes unter CC BY-SA 4.0.
+Das Referenzset für „Modell prüfen“ (114 Texte, 57 menschliche und 57 KI-Texte, kurze und lange
+Absätze) stammt aus zwei Quellen:
+
+- **HC3** („Human ChatGPT Comparison Corpus“, `Hello-SimpleAI/HC3`) – © Biyang Guo et al.,
+  **CC BY-SA 4.0** (https://creativecommons.org/licenses/by-sa/4.0/).
+  https://huggingface.co/datasets/Hello-SimpleAI/HC3 – fünf Domänen (reddit_eli5, finance, medicine,
+  open_qa, wiki_csai), Generator ChatGPT (2023). Übernommen mit vereinheitlichten Leerzeichen (vor
+  Satzzeichen entfernt) und an einer Satzgrenze gekürzt.
+- **RAID** (`liamdugan/raid`, https://github.com/liamdugan/raid) – © Liam Dugan et al., **MIT License**.
+  Domäne „wiki“ (menschliche Texte: Wikipedia-Artikel, CC BY-SA), Generatoren llama-chat, mistral,
+  mistral-chat, mpt, mpt-chat, gpt2; nur unveränderter Text (`attack == "none"`, `decoding == "greedy"`).
+
+Geprüft und verworfen (eigene oder ungeklärte Nutzungsbedingungen): Yelp-/IMDb-Rezensionen,
+Presseartikel (XSum, CNN/DailyMail), arXiv-/PubMed-Abstracts, WikiHow (CC BY-NC-SA), Reddit außerhalb
+HC3, die „wikipedia“-Domäne von `Jinyan1/COLING_2025_MGT_en` (stammt aus M4GT-Bench, ohne Lizenz).
+Lizenzabwägung je Teilquelle: Kopf von `training/build_reference_set.py`.
+Das Referenzset steht als Ganzes unter CC BY-SA 4.0.
 
 ## Zur Laufzeit geladene Modelle (nicht im Paket enthalten)
 

@@ -184,18 +184,22 @@ Hugging-Face-Provider mit echtem Token (nur gemockt, siehe `providers.test.mjs`)
   Tokens nur in `storage.local`.
 - **Eigene Modelle prüfen** (`extension/bg/model-check.js`): Ein eigenes Modell ist ein binärer
   Klassifikator, „Modell prüfen“ in den Einstellungen testet es vor dem Einsatz – Pflicht für
-  „Eigener Server“ und Hugging Face, freiwillig für „Lokal“. Das Referenzset (je 20 menschliche und
-  ChatGPT-Texte aus HC3, fünf Domänen, `extension/bg/reference-set.js`, erzeugt von
+  „Eigener Server“ und Hugging Face, freiwillig für „Lokal“. Das Referenzset (114 Texte, je zur Hälfte
+  menschlich und KI: HC3 mit ChatGPT in fünf Domänen, dazu Wikipedia aus RAID mit Llama-Chat, Mistral,
+  MPT, GPT-2; 40 kurze und 74 lange Absätze; `extension/bg/reference-set.js`, erzeugt von
   `training/build_reference_set.py`) geht in Batches wie im Betrieb ans Modell. Geprüft: Form (Anzahl,
   0..1, vor dem Timeout), Richtung (KI im Mittel höher, sonst Label vertauscht), Trennschärfe (AUROC:
   unter 0.8 Warnung, unter 0.6 abgelehnt), dazu Ampel-Vorschlag (vom Server per `/v1/info`, sonst aus
-  den Scores: rot knapp über dem höchsten Mensch-Text) und Latenz mit Empfehlung für den Scan-Modus.
+  den Scores: rot knapp über dem höchsten Mensch-Text; mit genug kurzen Texten auch `reliableWords`/
+  `shortRedFrom`) und Latenz mit Empfehlung für den Scan-Modus. Achtung: Modelle, die auf RAID oder HC3
+  trainiert sind (z.B. TMR auf RAID), schneiden auf dem Set zu gut ab.
   Hugging Face: vorher Modellinfo und `config.json` vom Hub – `pipeline_tag` muss
   `text-classification` sein, genau 2 Klassen; das KI-Label kommt aus `id2label`, bei
   `LABEL_0`/`LABEL_1` aus dem Referenzset. Die Version (`/v1/info` bzw. Commit auf dem Hub) geht in
   `modelKey` ein, Textlänge und Ampel-Startwerte gelten für das geprüfte Modell. Das Ergebnis gilt,
   bis sich Modell oder URL ändern (Token/API-Key zählen nicht). Messwerte auf dem Referenzset über den
-  Shim: TMR AUROC 0.99, ~0,5 s/Text; desklib AUROC 0.99, ~2,4 s/Text.
+  Shim: TMR AUROC 0.99, ~0,5 s/Text; desklib AUROC 0.99, ~2,4 s/Text (altes Set). Neues Set per
+  `build_reference_set.py --check`: TMR 0.98 (kurz 0.93), desklib 0.997 (kurz 0.98).
 
 ### Was bewertet wird
 
@@ -295,7 +299,7 @@ extension/
   background.js         Service Worker (ES-Modul): verdrahtet Events und Nachrichten mit bg/
   bg/providers.js       Backends (Anfrage, Health-Check, Modellinfo je Provider)
   bg/model-check.js     „Modell prüfen“: eigenes Modell gegen das Referenzset testen
-  bg/reference-set.js   Referenzset (HC3, CC BY-SA 4.0), erzeugt von training/build_reference_set.py
+  bg/reference-set.js   Referenzset (HC3 + RAID-Wiki, CC BY-SA 4.0), erzeugt von training/build_reference_set.py
   bg/scoring.js         Konfig-Cache, Score-Cache (Arbeitsspeicher → IndexedDB → Modell), Test, Status
   bg/score-store.js     dauerhafter Score-Speicher mit Aufbewahrungsdauer
   bg/feedback-store.js  Feedback-Sammlung (mit Text, nur nach Einwilligung, nur lokal)
@@ -369,6 +373,8 @@ Statistik aus dem Register statt Dokument-Scans.
   gefunden (`training/MODEL_SEARCH.md`); `npm run measure:pages` für echte Seiten.
 - fakespot als drittes Modell „Ausgewogen“ (ONNX gegen Original geprüft, Schwellen kreuzvalidiert).
 - Sehr kurze Absätze (15–39 Wörter) werden in Gruppen bewertet (BBC-Artikel jetzt abgedeckt).
+- Referenzset für „Modell prüfen“ verbreitert (114 Texte, HC3 + RAID-Wiki, kurze Absätze), Lizenz je
+  Teilquelle geprüft.
 - Store-Vorbereitung: Icons, Seite „Über / Lizenzen“ (`about.html`), Store-Texte und Begründung der
   Berechtigungen (`store/`), Screenshot-Skript.
 
@@ -377,6 +383,6 @@ Statistik aus dem Register statt Dokument-Scans.
 ## Lizenz
 
 Der Code steht unter der MIT-Lizenz (`LICENSE`). Ausgenommen sind die mitgelieferte Sperrliste
-`extension/generated/blocklist.js` und das Referenzset `extension/bg/reference-set.js` (Texte aus HC3),
+`extension/generated/blocklist.js` und das Referenzset `extension/bg/reference-set.js` (Texte aus HC3 und RAID),
 die unter CC BY-SA 4.0 stehen. Quellen und Lizenzen aller
 Drittkomponenten: `extension/THIRD_PARTY_NOTICES.md`.
