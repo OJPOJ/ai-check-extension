@@ -9,10 +9,20 @@ schreibt Rohscores nach data/eval_scores_<backend>_suite.jsonl.
 desklib ist langsam (CPU, ~2-3 s/Text) - standardmäßig nur eine Stichprobe (--desklib-n, Default
 400, stratifiziert über Domäne x Mensch/KI). TMR läuft immer auf der vollen Suite.
 
+WP-06: `--backend hf:<repo>` wertet ein beliebiges HF-Sequenzklassifikations-Repo (Kandidat
+zwischen TMR und desklib) genauso aus - AUROC, wie angezeigt (reliableWords/shortRedFrom), Perzentil-
+Schwellen. Da es dafür keine "aktuelle" Produktions-Schwelle gibt, wird die 99%-Perzentil-Schwelle
+(getrennt nach < 120 / >= 120 Wörtern) automatisch als redFrom/shortRedFrom fuer die "wie angezeigt"-
+Sektion verwendet - macht die Sektionen unten vergleichbar, ist aber aus denselben Daten abgeleitet
+(kein Train/Test-Split, siehe EVAL_RESULTS.md "Korrektur"-Hinweis zur Stichproben-Unsicherheit).
+--candidate-n begrenzt die Stichprobe fuer hf:-Kandidaten (Default: volle Suite, stratifiziert wenn
+kleiner).
+
 Nutzung (aus diesem Ordner):
     python evaluate_suite.py --backend tmr
     python evaluate_suite.py --backend desklib --desklib-n 400
     python evaluate_suite.py --backend both --desklib-n 400
+    python evaluate_suite.py --backend hf:fakespot-ai/roberta-base-ai-text-detection-v1
 """
 import argparse
 import json
@@ -66,12 +76,22 @@ def stratified_subsample(rows, n, seed):
 
 def score_rows(rows, backend):
     texts = [r["text"] for r in rows]
-    scores = eb.score_tmr(texts) if backend == "tmr" else eb.score_desklib(texts)
+    if backend == "tmr":
+        scores = eb.score_tmr(texts)
+    elif backend == "desklib":
+        scores = eb.score_desklib(texts)
+    elif backend.startswith("hf:"):
+        scores = eb.score_hf(texts, backend[len("hf:") :])
+    else:
+        raise ValueError(f"unbekanntes Backend: {backend}")
     return [{**r, "score": s} for r, s in zip(rows, scores)]
 
 
 def share(scores, thresh):
-    return sum(s >= thresh for s in scores) / len(scores) if scores else float("nan")
+    # thresh=None (z.B. yellowFrom bei WP-06-Kandidaten ohne Produktions-Schwelle) -> nicht auswertbar
+    if not scores or thresh is None:
+        return float("nan")
+    return sum(s >= thresh for s in scores) / len(scores)
 
 
 def percentile(values, p):
@@ -87,7 +107,6 @@ def percentile(values, p):
 
 
 def report(backend, scored, out_dir: Path):
-    cur = CURRENT[backend]
     labels = [r["label"] for r in scored]
     scores = [r["score"] for r in scored]
     a = eb.auroc(labels, scores)
@@ -98,6 +117,29 @@ def report(backend, scored, out_dir: Path):
 
     human_scores = [r["score"] for r in scored if r["label"] == 0]
     ai_scores = [r["score"] for r in scored if r["label"] == 1]
+
+    if backend in CURRENT:
+        cur = CURRENT[backend]
+    else:
+        # WP-06-Kandidat ohne Produktions-Schwelle: 99%-Perzentil der Mensch-Scores (getrennt nach
+        # reliableWords=120) als redFrom/shortRedFrom benutzen, damit die Sektionen unten (wie
+        # angezeigt, je Domäne/Generator/Bucket) trotzdem gegen eine realistische ~1%-FA-Schwelle
+        # rechnen statt gegen einen willkuerlichen Default. Aus denselben Daten abgeleitet wie die
+        # Perzentil-Empfehlung weiter unten - keine unabhaengige Bestaetigung, siehe Docstring.
+        reliable_words = 120
+        long_h = [r["score"] for r in scored if r["label"] == 0 and r["words"] >= reliable_words]
+        short_h = [r["score"] for r in scored if r["label"] == 0 and r["words"] < reliable_words]
+        cur = {
+            "yellowFrom": None,
+            "redFrom": percentile(long_h, 0.99) if long_h else percentile(human_scores, 0.99),
+            "reliableWords": reliable_words,
+            "shortRedFrom": percentile(short_h, 0.99) if short_h else None,
+        }
+        print(
+            f"(Kein Produktions-Wert fuer {backend} - genutzte Schwellen aus 99%-Perzentil dieser "
+            f"Messung: redFrom={cur['redFrom']:.4f} shortRedFrom={cur['shortRedFrom']})"
+        )
+
     fa_yellow = share(human_scores, cur["yellowFrom"])
     fa_red = share(human_scores, cur["redFrom"])
     det_red = share(ai_scores, cur["redFrom"])
@@ -177,7 +219,8 @@ def report(backend, scored, out_dir: Path):
         t_long = percentile(long_human, 0.99)
         print(f"  >= {cur['reliableWords']} Wörter: Schwelle {t_long:.4f} -> FA {share(long_human, t_long):.3f}, KI erkannt {share(long_ai, t_long):.3f}")
 
-    out_path = out_dir / f"eval_scores_{backend}_suite.jsonl"
+    backend_safe = backend.replace("hf:", "").replace("/", "_")
+    out_path = out_dir / f"eval_scores_{backend_safe}_suite.jsonl"
     with out_path.open("w", encoding="utf-8") as f:
         for r in scored:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
@@ -186,11 +229,14 @@ def report(backend, scored, out_dir: Path):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--backend", choices=["tmr", "desklib", "both"], default="both")
+    ap.add_argument("--backend", default="both", help="tmr | desklib | both | hf:<repo> (WP-06-Kandidat)")
     ap.add_argument("--desklib-n", type=int, default=400, help="Stichprobengröße für desklib (langsam)")
+    ap.add_argument("--candidate-n", type=int, default=None, help="Stichprobengröße für hf:-Kandidaten (Default: volle Suite)")
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--suite", default=str(SUITE_PATH), help="Pfad zu eval_suite.jsonl")
     args = ap.parse_args()
+    if args.backend not in ("tmr", "desklib", "both") and not args.backend.startswith("hf:"):
+        ap.error("--backend muss tmr, desklib, both oder hf:<repo> sein")
 
     suite_path = Path(args.suite)
     out_dir = suite_path.parent
@@ -207,6 +253,15 @@ def main():
         print(f"\ndesklib: Stichprobe {len(sub)}/{len(rows)} (stratifiziert nach Domäne x Mensch/KI)")
         scored = score_rows(sub, "desklib")
         report("desklib", scored, out_dir)
+
+    if args.backend.startswith("hf:"):
+        if args.candidate_n and args.candidate_n < len(rows):
+            sub = stratified_subsample(rows, args.candidate_n, args.seed)
+            print(f"\n{args.backend}: Stichprobe {len(sub)}/{len(rows)} (stratifiziert nach Domäne x Mensch/KI)")
+        else:
+            sub = rows
+        scored = score_rows(sub, args.backend)
+        report(args.backend, scored, out_dir)
 
 
 if __name__ == "__main__":

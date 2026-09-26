@@ -141,17 +141,43 @@ def bench_laya():
         print(f"Batch={bs:>3}: {dt*1000:6.0f}ms total, {dt/bs*1000:6.0f}ms/Text")
 
 
+def bench_hf(model_id, max_length=512, label=None):
+    """WP-06: generische Latenzmessung fuer einen Kandidaten (AutoModelForSequenceClassification)."""
+    import torch
+    from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
+    state = {}
+
+    def load():
+        state["tok"] = AutoTokenizer.from_pretrained(model_id)
+        state["model"] = AutoModelForSequenceClassification.from_pretrained(model_id)
+        state["model"].eval()
+
+    def score(texts):
+        with torch.no_grad():
+            enc = state["tok"](texts, return_tensors="pt", truncation=True, padding=True, max_length=max_length)
+            state["model"](**enc)
+
+    bench_local(label or model_id, load, score)
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--backend", choices=["laya", "tmr", "desklib"], required=True)
+    parser.add_argument("--backend", default="tmr", help="laya | tmr | desklib | hf:<repo> (WP-06-Kandidat)")
+    parser.add_argument("--max-length", type=int, default=512, help="nur fuer hf:<repo>")
     args = parser.parse_args()
 
     if args.backend == "laya":
         bench_laya()
     elif args.backend == "tmr":
         bench_tmr()
-    else:
+    elif args.backend == "desklib":
         bench_desklib()
+    elif args.backend.startswith("hf:"):
+        repo = args.backend[len("hf:") :]
+        bench_hf(repo, max_length=args.max_length, label=f"{repo} (WP-06-Kandidat)")
+    else:
+        parser.error("--backend muss laya, tmr, desklib oder hf:<repo> sein")
 
 
 if __name__ == "__main__":
