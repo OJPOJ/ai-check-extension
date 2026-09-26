@@ -1,6 +1,6 @@
 # Board
 
-Stand: 2026-09-26 (Runde 2). Status: `offen` · `läuft` · `Review` · `gemerged` · `blockiert (Nutzer)`.
+Stand: 2026-09-26 (Runde 3). Status: `offen` · `läuft` · `Review` · `gemerged` · `blockiert (Nutzer)`.
 
 | WP | Thema | TODO-Bezug | Branch | Status | Dateien (exklusiv) |
 |---|---|---|---|---|---|
@@ -12,14 +12,17 @@ Stand: 2026-09-26 (Runde 2). Status: `offen` · `läuft` · `Review` · `gemerge
 | WP-06 | Weiteres Modell zwischen TMR und desklib | Punkt 2 | `worktree-agent-afb11d9e3237c9af7` | gemerged (b7721a2) | `training/**` außer `EVAL_RESULTS.md`; eigene `training/MODEL_SEARCH.md` |
 | WP-07 | Schwellen absichern (desklib voll, Kreuzvalidierung, TMR/Anleitungen) | Punkt 3/5 | `worktree-agent-a96c0e3a2ca3f7416` | gemerged (f3e9ecb) | `training/**` außer `MODEL_SEARCH.md` |
 | WP-08 | Gruppierung/Sprache auf echten Seiten messen | Punkt 2 | `worktree-agent-aa5dcd919e80a3d89` | gemerged (08afe69) | `scripts/measure-pages.*`, `test/REAL_PAGES.md`, `package.json` |
+| WP-09 | fakespot einbinden (ONNX-Abgleich, Kreuzvalidierung) | Punkt 2 | – | läuft | `models.js`, `offscreen.js`, `THIRD_PARTY_NOTICES.md`, `training/**` (außer `build_reference_set.py`), `test/unit/{config,providers}.test.mjs` |
+| WP-10 | Sehr kurze Absätze gruppierbar | Punkt 2 | – | läuft | `content*.js/css`, `test/e2e/**` (außer model-check), `test/harness.html`, `test/REAL_PAGES.md`, `scripts/measure-pages.*` |
+| WP-11 | BYOM-Referenzset verbreitern | Punkt 1 | – | läuft | `bg/reference-set.js`, `bg/model-check.js`, `about.html`, `training/build_reference_set.py`, `test/*/model-check.test.mjs` |
 
 ## Runde 2 (abgeschlossen)
 
 desklib = Standard (3bc5c6f), desklib rot ab 0.94 (3306b60). WP-06, WP-07, WP-08 gemerged.
 
-## Kandidaten für Runde 3
+## Runde 3 (läuft)
 
-- fakespot einbinden: ONNX-Abgleich, Kreuzvalidierung, Eintrag in `models.js` (TODO Punkt 2)
-- Kurze Absätze unter `MIN_WORDS` gruppierbar machen, danach `npm run measure:pages` (TODO Punkt 2)
-- BYOM-Referenzset aus MAGE-/HC3-Anteilen verbreitern, „Ausführliche Prüfung“ (TODO Punkt 1)
+WP-09 bis WP-11. Danach offen:
+
+- „Ausführliche Prüfung“ für eigene Modelle (TODO Punkt 1)
 - Score-Kalibrierung pro Modell (TODO Punkt 5)
