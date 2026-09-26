@@ -1,3 +1,25 @@
+# Eval-Suite (breiter, TODO Punkt 3)
+
+Breiteres, reproduzierbares Eval-Set über mehrere Domänen und aktuelle KI-Generatoren (nicht nur
+die ursprünglichen 100 HC3-Beispiele) - Grundlage für Schwellen, Default-Modell-Entscheidung,
+spätere Kalibrierung (Punkt 5) und das BYOM-Referenzset (Punkt 1). Ergebnisse und Empfehlungen:
+`EVAL_RESULTS.md`, Abschnitt "Breitere Eval-Suite".
+
+```
+# 1. Suite bauen (lädt einmalig ~820 MB von Hugging Face, danach HF-Cache; Ausgabe gitignored)
+.venv/Scripts/python.exe build_eval_suite.py --out data/eval_suite.jsonl --seed 42
+
+# 2. Bewerten: TMR immer auf der vollen Suite, desklib nur auf einer Stichprobe (langsam, ~2,3 s/Text CPU)
+.venv/Scripts/python.exe evaluate_suite.py --backend both --desklib-n 480 --suite data/eval_suite.jsonl
+```
+
+`build_eval_suite.py` zieht Mensch- und KI-Texte aus `Jinyan1/COLING_2025_MGT_en` (aggregiert MAGE,
+M4GT-Bench und HC3) über sechs Domänen (news, wikipedia, forum, sci_abstract, reviews, howto) und,
+soweit je Domäne vorhanden, sieben aktuelle Generatoren (gpt4, gpt4o, gpt-3.5-turbo, llama3-70b,
+mixtral-8x7b, gemma2-9b-it, cohere) plus human. `evaluate_suite.py` druckt AUROC/Fehlalarmrate
+gesamt, je Domäne, je Generator und je Längen-Bucket und schlägt Schwellen für ~1 % Fehlalarme vor;
+Rohscores landen in `data/eval_scores_<backend>_suite.jsonl` (gitignored).
+
 # Fine-Tuning (Phase D — pausiert, Datensatz liegt bereit)
 
 **Status 2026-09-23: zurückgestellt.** Die Extension nutzt aktuell zwei bereits fertig
