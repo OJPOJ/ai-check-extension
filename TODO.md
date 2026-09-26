@@ -1,7 +1,7 @@
 # TODO
 
 Offene Punkte, Reihenfolge = Priorität. Erledigtes steht in der Roadmap im `README.md`.
-Stand: 2026-09-25.
+Stand: 2026-09-26.
 
 ## 1. BYOM: Rest
 
@@ -32,8 +32,8 @@ Der größte Schaden ist Rot auf einem menschlichen Text.
 Erledigt: Sprache pro Absatz, Stufe „unsicher“, strengere TMR-Schwellen, Wortwahl, Begrüßung (README,
 „Weniger Fehlalarme“; Messung in `training/EVAL_RESULTS.md`, „Fehlalarme auf Wikipedia“). Offen:
 
-- **Kurze Absätze zusammen bewerten:** Absätze unter 120 Wörtern sind jetzt grün oder „unsicher“ –
-  auf typischen Nachrichtenseiten der Großteil. Idee: benachbarte kurze Absätze
+- **Kurze Absätze zusammen bewerten:** Absätze unter 120 Wörtern werden bei TMR nie rot, bei desklib
+  erst ab 0.98 (sonst „unsicher“) – auf typischen Nachrichtenseiten der Großteil. Idee: benachbarte kurze Absätze
   desselben Artikels als ein Text bewerten (mehr Kontext senkt die Fehler stark, siehe „Textlänge“)
   und das Ergebnis allen zuordnen.
 - **Default-Modell:** desklib als Empfehlung statt TMR? Genauer, aber 1,7 GB Download und ~1,3 s pro
@@ -98,7 +98,8 @@ darauf.
 ## 6. Deutsch/mehrsprachig
 
 - **Modell:** Fine-Tuning eines mehrsprachigen Encoders (mDeBERTa-v3/XLM-R), ähnlich desklib.
-- **Extension:** Content-Script schickt `lang` pro Absatz mit, der Provider wählt das Modell.
+- **Extension:** `lang` pro Absatz wird schon erkannt und an Server-Backends mitgeschickt; offen ist,
+  dass der Provider danach das Modell wählt (statt andere Sprachen zu überspringen).
 - **Vorarbeit:** Laya-Datensatz liegt fertig (`training/data/`, 142k Beispiele), Training offen
   (`training/README.md`).
 
