@@ -85,6 +85,15 @@ export async function launchExtension({ pages = {}, viewport = { width: 900, hei
     page.on("console", (m) => m.type() === "error" && errors.push(`${label}: ${m.text()}`));
   watch(options, "options");
 
+  // Ohne "tabs"-Recht liefert chrome.tabs.query keine URLs (activeTab gilt erst nach Klick aufs
+  // Icon) - deshalb den Tab nach vorn holen und als aktiven Tab finden
+  async function tabId(host) {
+    const page = ctx.pages().find((p) => p.url().startsWith(`http://${host}/`));
+    if (!page) throw new Error(`kein Tab für ${host}`);
+    await page.bringToFront();
+    return options.evaluate(async () => (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0].id);
+  }
+
   return {
     ctx,
     options,
@@ -99,15 +108,10 @@ export async function launchExtension({ pages = {}, viewport = { width: 900, hei
     },
     configure: (cfg) => options.evaluate((c) => chrome.storage.sync.set(c), cfg),
     send: (msg) => options.evaluate((m) => chrome.runtime.sendMessage(m), msg),
+    tabId,
     /** Nachricht an das Content-Script des Tabs mit diesem Host */
-    sendToTab: (host, msg) =>
-      options.evaluate(
-        async ([h, m]) => {
-          const [tab] = await chrome.tabs.query({ url: `http://${h}/*` });
-          return chrome.tabs.sendMessage(tab.id, m);
-        },
-        [host, msg]
-      ),
+    sendToTab: async (host, msg) =>
+      options.evaluate(([id, m]) => chrome.tabs.sendMessage(id, m), [await tabId(host), msg]),
     close: () => ctx.close()
   };
 }

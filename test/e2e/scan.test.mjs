@@ -60,10 +60,8 @@ describe("Scan und Bedienung", () => {
 
   it("schickt STATS an Extension-Seiten und setzt das Icon-Badge", async () => {
     assert.ok((await ext.options.evaluate(() => window.__stats.length)) > 0);
-    const badge = await ext.options.evaluate(async () => {
-      const [t] = await chrome.tabs.query({ url: "http://harness.test/*" });
-      return chrome.action.getBadgeText({ tabId: t.id });
-    });
+    const tabId = await ext.tabId("harness.test");
+    const badge = await ext.options.evaluate((id) => chrome.action.getBadgeText({ tabId: id }), tabId);
     assert.notEqual(badge, "");
   });
 

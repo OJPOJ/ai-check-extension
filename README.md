@@ -338,6 +338,7 @@ Statistik aus dem Register statt Dokument-Scans.
   Texte, TMR-Schwellen 0.95/0.98 nach Messung auf Wikipedia, „KI-Score“ statt Prozent, Begrüßungsseite.
 - Gleichzeitige Anfragen für denselben Absatz (mehrere Tabs, doppelter Absatz im Batch) gehen nur einmal
   an Speicher und Backend.
+- Berechtigung `tabs` durch `activeTab` ersetzt: gebraucht wird nur die URL des aktiven Tabs im Popup.
 
 **Offen:** siehe `TODO.md`.
 

@@ -70,7 +70,7 @@ darauf.
   - `<all_urls>` im Content-Script.
   - Optionale Host-Rechte `https://*/*`.
   - `wasm-unsafe-eval`.
-  - Prüfen, ob `tabs` nötig ist oder `activeTab` reicht.
+  - `activeTab`: das Popup zeigt den Host der aktuellen Seite (Sperrliste, Seiten-Schalter).
 - **Store-Angaben:**
   - Datenverarbeitung: Website-Inhalte, lokal verarbeitet.
   - Remote Code: transformers.js ist mitgeliefert, nachgeladen werden nur Modellgewichte
