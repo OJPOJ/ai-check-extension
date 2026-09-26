@@ -11,7 +11,8 @@
     "package": "npm run vendor && node scripts/package.mjs",
     "test:setup": "playwright install chromium",
     "pretest": "npm run vendor",
-    "test": "node --test --test-concurrency=1 --test-timeout=120000 --test-reporter=spec \"test/unit/*.test.mjs\" \"test/e2e/*.test.mjs\""
+    "test": "node --test --test-concurrency=1 --test-timeout=120000 --test-reporter=spec \"test/unit/*.test.mjs\" \"test/e2e/*.test.mjs\"",
+    "measure:pages": "node scripts/measure-pages.mjs"
   },
   "devDependencies": {
     "@huggingface/transformers": "4.3.0",
