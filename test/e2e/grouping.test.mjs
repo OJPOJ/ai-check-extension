@@ -11,6 +11,9 @@ const WORD = "the small garden needs water and sunlight every single day to grow
 const short = (tag, reps = 3) => `${tag}: ${WORD.repeat(reps)}`;
 // 9 Wiederholungen = 118 Wörter, 650 Zeichen - noch "kurz" (< 120), aber schon groß in Zeichen
 const chunky = (tag) => short(tag, 9);
+// 2 Wiederholungen = 27 Wörter - unter MIN_WORDS (40), aber >= GROUP_MIN_WORDS (15, WP-10): wird nur
+// Kandidat, wenn die Gruppe mit Nachbarn zusammen auf MIN_WORDS kommt (siehe unten, "sehr kurze Absätze")
+const tiny = (tag) => short(tag, 2);
 // >= 40 Wörter (MIN_WORDS) - sonst wäre der Absatz gar kein Kandidat und würde die Kette beim
 // Gruppieren nicht sichtbar unterbrechen (found enthielte ihn dann gar nicht erst)
 const GERMAN =
@@ -35,6 +38,22 @@ const page =
   // Fall 5: vier kurze, aber zeichenreiche Absätze - die Gruppe darf maxChars (2000) nicht überschreiten
   `<article id="grp-maxchars"><p id="m1">${chunky("M1")}</p><p id="m2">${chunky("M2")}</p>` +
   `<p id="m3">${chunky("M3")}</p><p id="m4">${chunky("M4")}</p></article>` +
+  // Fall 6 (WP-10): drei sehr kurze Absätze (je 27 < MIN_WORDS) im selben Artikel, zusammen 81 Wörter
+  // (>= MIN_WORDS) -> werden als Gruppe zum Kandidaten; der Container selbst darf NICHT zusätzlich
+  // bewertet werden (hasLongCandidateChild).
+  `<article id="grp-short-basic"><p id="sa1">${tiny("SA1")}</p><p id="sa2">${tiny("SA2")}</p>` +
+  `<p id="sa3">${tiny("SA3")}</p></article>` +
+  // Fall 7 (WP-10): ein einzelner sehr kurzer Absatz ohne Nachbarn erreicht mit sich allein (27 Wörter)
+  // MIN_WORDS nicht -> bleibt unbewertet, kein Kandidat (auch der Container nicht).
+  `<article id="grp-short-lonely"><p id="sl1">${tiny("SL1")}</p></article>` +
+  // Fall 8 (WP-10): Überschrift bricht die Gruppierung weiterhin auch unter MIN_WORDS - SH1 bleibt
+  // dadurch isoliert und unbewertet, SH2+SH3 danach erreichen zusammen (54 Wörter) MIN_WORDS.
+  `<article id="grp-short-heading"><p id="sh1">${tiny("SH1")}</p><h3>Zwischenüberschrift</h3>` +
+  `<p id="sh2">${tiny("SH2")}</p><p id="sh3">${tiny("SH3")}</p></article>` +
+  // Fall 9 (WP-10): Liste bricht die Gruppierung weiterhin auch unter MIN_WORDS - SI1 bleibt isoliert
+  // und unbewertet, SI2+SI3 danach erreichen zusammen MIN_WORDS.
+  `<article id="grp-short-list"><p id="si1">${tiny("SI1")}</p><ul><li>Menu</li></ul>` +
+  `<p id="si2">${tiny("SI2")}</p><p id="si3">${tiny("SI3")}</p></article>` +
   "</body></html>";
 
 /** Mitte des Prozent-Badges (::after, oben rechts am Absatz, siehe content.css) */
@@ -54,7 +73,7 @@ describe("Gruppierung kurzer Absätze", () => {
     await ext.configure({ provider: "local", localUrl: backend.url, sites: ["grouping.test"], lazyScan: false });
     tab = await ext.open("http://grouping.test/");
     await tab.waitForFunction(
-      () => !document.querySelector(".aivsai-pending") && document.querySelectorAll("[data-aivsai-level], [data-aivsai-skipped]").length >= 17,
+      () => !document.querySelector(".aivsai-pending") && document.querySelectorAll("[data-aivsai-level], [data-aivsai-skipped]").length >= 24,
       null,
       { timeout: 20_000 }
     );
@@ -154,6 +173,64 @@ describe("Gruppierung kurzer Absätze", () => {
       !backend.texts.some((t) => t.includes("M3:") && t.includes("M4:")),
       "M4 hätte nicht mit M1-M3 zusammengefasst werden dürfen"
     );
+  });
+
+  it("gruppiert sehr kurze Absätze (je unter MIN_WORDS) zu einer Gruppe ab MIN_WORDS (WP-10)", async () => {
+    const recs = await tab.$$eval(["#sa1", "#sa2", "#sa3"].join(","), (els) =>
+      els.map((e) => ({ grouped: e.dataset.aivsaiGrouped, words: e.dataset.aivsaiWords, score: e.dataset.aivsaiScore }))
+    );
+    assert.deepEqual(
+      recs.map((r) => r.grouped),
+      ["3", "3", "3"]
+    );
+    assert.deepEqual(
+      recs.map((r) => r.words),
+      ["81", "81", "81"]
+    );
+    assert.equal(new Set(recs.map((r) => r.score)).size, 1, "alle drei sollten denselben Score teilen");
+    assert.ok(
+      backend.texts.some((t) => ["SA1:", "SA2:", "SA3:"].every((tag) => t.includes(tag))),
+      "kein Backend-Text enthält alle drei Absätze zusammen"
+    );
+    // Container selbst darf NICHT zusätzlich als Ganzes bewertet werden (kein Doppel, hasLongCandidateChild)
+    assert.equal(await tab.$eval("#grp-short-basic", (el) => el.dataset.aivsaiLevel ?? null), null);
+  });
+
+  it("lässt einen einzelnen sehr kurzen Absatz ohne Nachbarn unbewertet (WP-10)", async () => {
+    const sl1 = await tab.$eval("#sl1", (el) => ({
+      level: el.dataset.aivsaiLevel ?? null,
+      pending: el.classList.contains("aivsai-pending"),
+      badge: el.classList.contains("aivsai-badge")
+    }));
+    assert.deepEqual(sl1, { level: null, pending: false, badge: false });
+    assert.ok(!backend.texts.some((t) => t.includes("SL1:")), "SL1 hätte nie ans Backend gehen dürfen");
+    // auch der Container bleibt unbewertet (kein Ersatz-Kandidat für den vereinzelten Kurzabsatz)
+    assert.equal(await tab.$eval("#grp-short-lonely", (el) => el.dataset.aivsaiLevel ?? null), null);
+  });
+
+  it("bricht die Gruppierung sehr kurzer Absätze weiterhin an einer Überschrift (WP-10)", async () => {
+    const [sh1, sh2, sh3] = await tab.$$eval(["#sh1", "#sh2", "#sh3"].join(","), (els) =>
+      els.map((e) => ({ level: e.dataset.aivsaiLevel ?? null, grouped: e.dataset.aivsaiGrouped ?? null, score: e.dataset.aivsaiScore }))
+    );
+    assert.equal(sh1.level, null, "SH1 sollte isoliert unbewertet bleiben (27 Wörter allein < MIN_WORDS)");
+    assert.equal(sh2.grouped, "2");
+    assert.equal(sh3.grouped, "2");
+    assert.equal(sh2.score, sh3.score);
+    assert.ok(backend.texts.some((t) => t.includes("SH2:") && t.includes("SH3:")), "SH2 und SH3 hätten zusammen gesendet werden sollen");
+    assert.ok(!backend.texts.some((t) => t.includes("SH1:")), "SH1 hätte nie ans Backend gehen dürfen");
+  });
+
+  it("bricht die Gruppierung sehr kurzer Absätze weiterhin an einer Liste (WP-10)", async () => {
+    const [si1, si2, si3] = await tab.$$eval(["#si1", "#si2", "#si3"].join(","), (els) =>
+      els.map((e) => ({ level: e.dataset.aivsaiLevel ?? null, grouped: e.dataset.aivsaiGrouped ?? null, score: e.dataset.aivsaiScore }))
+    );
+    assert.equal(si1.level, null, "SI1 sollte isoliert unbewertet bleiben (27 Wörter allein < MIN_WORDS)");
+    assert.equal(si2.grouped, "2");
+    assert.equal(si3.grouped, "2");
+    assert.equal(si2.score, si3.score);
+    assert.ok(backend.texts.some((t) => t.includes("SI2:") && t.includes("SI3:")), "SI2 und SI3 hätten zusammen gesendet werden sollen");
+    assert.ok(!backend.texts.some((t) => t.includes("SI1:")), "SI1 hätte nie ans Backend gehen dürfen");
+    assert.ok(!backend.texts.some((t) => t.includes("Menu")), "der Listeneintrag hätte nie ans Backend gehen dürfen");
   });
 
   it("hat keine Konsolenfehler", () => {

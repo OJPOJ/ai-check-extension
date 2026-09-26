@@ -16,9 +16,10 @@
   <h1>Test-Harness: bekannte Mensch-/KI-Textbeispiele</h1>
   <p class="meta">
     Diese Seite ist nur zum manuellen Testen der Extension gedacht. Jeder &lt;p&gt;-Block hat
-    &gt;= 40 Wörter, damit er von content.js als Kandidat erkannt wird. Extension als "unpacked"
-    laden (chrome://extensions), dann diese Seite laden und beobachten, welche Absätze
-    einen Glow-Rahmen bekommen.
+    &gt;= 40 Wörter, damit er von content.js als Kandidat erkannt wird - außer den Absätzen von
+    Beispiel F (ab 15 Wörtern, nur als Gruppe). Extension als "unpacked" laden
+    (chrome://extensions), dann diese Seite laden und beobachten, welche Absätze einen
+    Glow-Rahmen bekommen.
   </p>
 
   <article>
@@ -73,10 +74,7 @@
   </article>
 
   <article>
-    <p class="meta">
-      Beispiel E – drei kurze, direkt benachbarte Absätze (je unter 120 Wörter, einzeln „unsicher“,
-      zusammen eine Gruppe)
-    </p>
+    <p class="meta">Beispiel E – drei kurze Absätze (je unter 120 Wörter), zusammen eine Gruppe</p>
     <p>
       Eventually I did walk to the shop, mostly because the rain finally stopped for a whole afternoon
       and I ran out of excuses. The kid behind the counter did not even blink when I described the
@@ -90,6 +88,29 @@
       It took longer than the video promised, my hands ended up covered in grease, and I dropped one
       of the little bolts under the shelf, but the bike rolled smoother afterwards than it had in
       months, and I finally stopped dreading the ride to work.
+    </p>
+  </article>
+
+  <article>
+    <p class="meta">Beispiel F – kurze BBC-Absätze (WP-10), zusammen eine Gruppe</p>
+    <p>
+      Rain swept across the harbour before dawn, and by sunrise the fishing boats were already back at
+      the quay.
+    </p>
+    <p>
+      Officials said the delay was caused by a technical fault in the signalling system near the coast.
+    </p>
+    <p>
+      Passengers were advised to expect further disruption throughout the morning and to check for
+      updates online.
+    </p>
+  </article>
+
+  <article>
+    <p class="meta">Beispiel G – ein kurzer Absatz ohne Nachbarn, bleibt unbewertet (WP-10)</p>
+    <p>
+      A council spokesperson declined to give further details before the public inquiry concludes some
+      time next year, citing ongoing legal proceedings.
     </p>
   </article>
 

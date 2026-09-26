@@ -1,5 +1,14 @@
 (() => {
   const MIN_WORDS = 40;
+  // Untergrenze für Absätze, die NUR als Teil einer Gruppe Kandidat werden dürfen (siehe groupCandidates,
+  // TODO.md Punkt 2 / WP-10). Manche Seiten (BBC: 7-38 Wörter je <p>, test/REAL_PAGES.md) schreiben so
+  // kurze Absätze, dass fast keiner MIN_WORDS erreicht - vorher fiel jeder Einzelabsatz schon vor der
+  // Gruppierung raus, und der ganze Artikel-Container wurde stattdessen zum einzigen Kandidaten
+  // (hasLongCandidateChild). 15 liegt klar über typischen Navigations-/Bildunterschriften-Längen (oft
+  // < 10 Wörter: Bildcredits, Breadcrumbs, Kurz-Labels) und klar unter MIN_WORDS, damit realistisch
+  // mehrere Nachbarn zusammen auf MIN_WORDS kommen. Ein einzelner Absatz in diesem Bereich, der mit
+  // keinem Nachbarn zusammen MIN_WORDS erreicht, bleibt wie bisher unbewertet (kein Kandidat).
+  const GROUP_MIN_WORDS = 15;
   // Wie viel Text pro Absatz ans Modell geht, bestimmt das Modell (AIVSAI.maxChars: TMR 2000, desklib
   // 1500 Zeichen): mehr Kontext bringt viel (TMR: 500 statt 1500 Zeichen = ~9 % statt <1 % Fehler), Chunks
   // sind schlechter als ein Stück (training/EVAL_RESULTS.md, "Textlänge"). Gilt für Auto-Scan und manuelle
@@ -308,11 +317,15 @@
     return groups;
   }
 
-  // Container (z.B. <article>) nur bewerten, wenn keiner seiner Kind-Kandidaten selbst
-  // lang genug ist - sonst entstehen verschachtelte Doppel-Markierungen.
+  // Container (z.B. <article>) nur bewerten, wenn keiner seiner Kind-Kandidaten selbst schon Kandidat
+  // werden kann - sonst entstehen verschachtelte Doppel-Markierungen. Schwelle GROUP_MIN_WORDS statt
+  // MIN_WORDS: seit WP-10 können auch Kinder unterhalb MIN_WORDS eigene (gruppierte) Kandidaten werden,
+  // der Container darf dann nicht zusätzlich seinen ganzen Text einreichen (Abnahmekriterium "kein Doppel
+  // mit dem Container"). Nachteil: ein isolierter Kurz-Absatz ohne gruppierbaren Nachbarn lässt auch den
+  // Container leer ausgehen, statt ersatzweise den ganzen Container zu bewerten - siehe Bericht.
   function hasLongCandidateChild(el) {
     for (const child of el.querySelectorAll(CANDIDATE_SELECTOR)) {
-      if (wordCount(child.textContent || "") >= MIN_WORDS) return true;
+      if (wordCount(child.textContent || "") >= GROUP_MIN_WORDS) return true;
     }
     return false;
   }
@@ -364,16 +377,18 @@
     // Klassen geändert, müsste der Browser für jeden Absatz neu rechnen (Layout-Thrashing).
     const found = [];
     for (const el of candidatesIn(root)) {
-      // billiger Vorfilter ohne Layout: 40 Wörter brauchen mindestens 40 Zeichen
-      if ((el.textContent || "").length < MIN_WORDS) continue;
+      // billiger Vorfilter ohne Layout: GROUP_MIN_WORDS Wörter brauchen mindestens so viele Zeichen
+      if ((el.textContent || "").length < GROUP_MIN_WORDS) continue;
       if (el.closest(EXCLUDE_SELECTOR) || hasLongCandidateChild(el)) continue;
       const text = readText(el);
       const words = text ? wordCount(text) : 0;
-      if (words < MIN_WORDS) continue;
+      // ab GROUP_MIN_WORDS überhaupt Kandidat; unter MIN_WORDS nur, wenn groupCandidates ihn mit
+      // Nachbarn auf MIN_WORDS bringt (groupOnly) - sonst bleibt er wie bisher unbewertet
+      if (words < GROUP_MIN_WORDS) continue;
       const hash = hashText(text);
       if ((el.dataset.aivsaiHash === hash && isQueuedOrScored(el)) || detecting.get(el) === hash) continue;
       detecting.set(el, hash);
-      found.push({ el, text, hash, words, attr: attrLang(el) });
+      found.push({ el, text, hash, words, attr: attrLang(el), groupOnly: words < MIN_WORDS });
     }
     if (!found.length) return;
 
@@ -407,10 +422,15 @@
         continue;
       }
 
+      // Gruppe aus lauter Absätzen unter MIN_WORDS (groupOnly), die zusammen MIN_WORDS nicht erreicht -
+      // z.B. ein einzelner sehr kurzer Absatz ohne passenden Nachbarn. Bleibt unbewertet, kein Kandidat,
+      // wie ein einzelner zu kurzer Absatz auch vor WP-10 schon (Abnahmekriterium).
+      const words = fresh.reduce((n, it) => n + it.words, 0);
+      if (words < MIN_WORDS && fresh.every((it) => it.groupOnly)) continue;
+
       // Gruppentext = gemeinsamer Cache-/Anfrage-Schlüssel (bei einem Absatz: dessen eigener Hash/Text,
       // unverändert zum bisherigen Verhalten); Wortzahl der Gruppe entscheidet über die Ampel.
       const grouped = fresh.length > 1 ? fresh.length : undefined;
-      const words = fresh.reduce((n, it) => n + it.words, 0);
       const fullText = fresh.map((it) => it.text).join(GROUP_SEPARATOR);
       const hash = grouped ? hashText(fullText) : fresh[0].hash;
       const clipped = clipText(fullText);
