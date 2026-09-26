@@ -39,7 +39,7 @@ Store-Texte, Begründung der Berechtigungen und offene Punkte fürs Einreichen: 
 Das Skript (`scripts/package.mjs`) bricht ab bei nicht committeten Änderungen unter `extension/`
 (`node scripts/package.mjs --allow-dirty` baut trotzdem, Dateiname mit `-dirty`), fehlendem
 `vendor/` oder wenn eine Datei fehlt, auf die Manifest, HTML-Seiten, Imports oder `models.js`
-verweisen. Es warnt bei offenen Store-Punkten (Icon, Kontakt in `privacy.html`). Das Zip ist
+verweisen. Es warnt bei offenen Store-Punkten (Icon, Platzhalter im Kontakt von `privacy.html`). Das Zip ist
 reproduzierbar: Zeitstempel = Commit-Zeit, gleicher Commit ergibt dieselbe SHA-256.
 
 In Chrome/Edge:
@@ -237,7 +237,7 @@ Ausschnitt – also gleicher Score-Speicher-Eintrag und gleicher Feedback-Eintra
 ## Datenschutz und Speicher
 
 Datenschutzerklärung: `extension/privacy.html` (verlinkt in den Einstellungen). Vor einer
-Veröffentlichung im Web Store: Kontakt eintragen und die Seite zusätzlich öffentlich hosten
+Veröffentlichung im Web Store: die Seite zusätzlich öffentlich hosten
 (der Store verlangt eine URL).
 
 - Provider „Im Browser“ und „Lokal“: Texte verlassen den Rechner nicht. Einziger Netzwerkzugriff ist

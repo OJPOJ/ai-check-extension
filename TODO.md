@@ -70,15 +70,22 @@ Wie angezeigt: TMR 4,7 % Fehlalarme (ohne WikiHow 1,6 %), desklib 1,2 % mit `red
 - **Lizenz:** M4GT-Bench ohne Lizenzangabe – die Suite nur lokal nutzen, nicht als BYOM-Referenzset
   mitliefern (Punkt 1); dafür MAGE-/HC3-Anteile (Apache-2.0) auswählen.
 
-## 4. Veröffentlichung (Chrome Web Store / Edge Add-ons)
+## 4. Veröffentlichung
 
-Erledigt: Icons, „Über / Lizenzen“, Store-Texte und Begründung der Berechtigungen (`store/`).
-Offen (Details und Reihenfolge in `store/CHECKLIST.md`):
+Verteilt wird vorerst nur über GitHub-Releases (Zip aus `npm run package`, Anleitung im `README.md`),
+nicht über Chrome Web Store / Edge Add-ons.
 
-- **Rechtliches (braucht Nutzerangaben):**
-  - Kontakt in `extension/privacy.html` eintragen (Zeile 88, Platzhalter; `npm run package` warnt).
-  - Datenschutzerklärung öffentlich hosten (z.B. GitHub Pages); der Store verlangt eine URL.
-  - Impressum.
+Erledigt: Icons, „Über / Lizenzen“, Store-Texte und Begründung der Berechtigungen (`store/`), README
+für Nutzer, Ko-fi-Link (`.github/FUNDING.yml`), Kontakt in `privacy.html` (Verweis auf GitHub-Issues –
+die Entwickler erhalten keine Daten, sind also nicht Verantwortliche im Sinne der DSGVO).
+Offen (für einen späteren Store-Eintrag Details in `store/CHECKLIST.md`):
+
+- **Erstes GitHub-Release** mit dem Zip anlegen (die README verlinkt auf `releases/latest`).
+- **Impressum:** bewusst keins (Hobbyprojekt, § 5 DDG wegen Ko-fi-Link Grauzone). Falls eine
+  Abmahnung kommt oder nennenswert Spenden eingehen: Ko-fi-Link entfernen oder Impressum mit
+  c/o-Adresse anlegen.
+- **Nur für den Store:** Datenschutzerklärung öffentlich hosten (z.B. GitHub Pages); der Store
+  verlangt eine URL.
 - **Screenshots mit echtem Modell** auf einer echten Seite neu machen; die aktuellen stammen aus dem
   Harness mit Fake-Scores. Werbekachel ist nur ein Platzhalter.
 - **Entwicklerkonten:** Chrome 5 $ einmalig, Edge kostenlos.

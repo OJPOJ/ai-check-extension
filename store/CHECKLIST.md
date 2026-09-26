@@ -5,9 +5,8 @@ fehlt und nur der Nutzer/Betreiber liefern kann:
 
 ## Rechtliches (blockiert die Veröffentlichung)
 
-- [ ] **Kontakt in `extension/privacy.html`** eintragen (Zeile 88, aktuell Platzhalter
-      `[Name und Kontaktadresse des Anbieters vor der Veröffentlichung eintragen]`). `npm run package`
-      warnt, solange das offen ist.
+- [x] **Kontakt in `extension/privacy.html`**: Verweis auf die GitHub-Issues (die Entwickler erhalten
+      keine Daten). Für den Store ggf. eine E-Mail-Adresse ergänzen.
 - [ ] **Datenschutzerklärung öffentlich hosten** (z.B. GitHub Pages, aus `extension/privacy.html`
       generiert oder 1:1 kopiert) – beide Stores verlangen dafür eine öffentlich erreichbare URL im
       Formular, ein Link auf eine Datei im ungepackten Paket reicht nicht.
