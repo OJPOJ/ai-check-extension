@@ -28,6 +28,9 @@ erfassten Dateien unter `extension/` plus `extension/vendor/` (führt vorher `np
 lokale, nicht committete Dateien kommen nicht hinein. Die Sperrliste wird dabei *nicht* neu erzeugt
 (Warnung, wenn sie älter als 30 Tage ist). Ablauf für ein Release: `npm run build`, Diff der
 Sperrliste prüfen, committen, `npm run package`.
+Icons: Quelle `extension/icons/icon.svg`, PNGs (16/32/48/128, im Git) per `npm run build:icons`.
+Store-Screenshots: `npm run screenshots` → `store/screenshots/` (Harness mit Fake-Scores, nur UI-Demo).
+Store-Texte, Begründung der Berechtigungen und offene Punkte fürs Einreichen: `store/`.
 Das Skript (`scripts/package.mjs`) bricht ab bei nicht committeten Änderungen unter `extension/`
 (`node scripts/package.mjs --allow-dirty` baut trotzdem, Dateiname mit `-dirty`), fehlendem
 `vendor/` oder wenn eine Datei fehlt, auf die Manifest, HTML-Seiten, Imports oder `models.js`
@@ -339,6 +342,8 @@ Statistik aus dem Register statt Dokument-Scans.
 - Gleichzeitige Anfragen für denselben Absatz (mehrere Tabs, doppelter Absatz im Batch) gehen nur einmal
   an Speicher und Backend.
 - Berechtigung `tabs` durch `activeTab` ersetzt: gebraucht wird nur die URL des aktiven Tabs im Popup.
+- Store-Vorbereitung: Icons, Seite „Über / Lizenzen“ (`about.html`), Store-Texte und Begründung der
+  Berechtigungen (`store/`), Screenshot-Skript.
 
 **Offen:** siehe `TODO.md`.
 

@@ -62,29 +62,16 @@ darauf.
 
 ## 4. Veröffentlichung (Chrome Web Store / Edge Add-ons)
 
-- **Rechtliches:**
-  - Kontakt in `extension/privacy.html` eintragen (Zeile 88, Platzhalter).
+Erledigt: Icons, „Über / Lizenzen“, Store-Texte und Begründung der Berechtigungen (`store/`).
+Offen (Details und Reihenfolge in `store/CHECKLIST.md`):
+
+- **Rechtliches (braucht Nutzerangaben):**
+  - Kontakt in `extension/privacy.html` eintragen (Zeile 88, Platzhalter; `npm run package` warnt).
   - Datenschutzerklärung öffentlich hosten (z.B. GitHub Pages); der Store verlangt eine URL.
   - Impressum.
-- **Berechtigungen begründen:**
-  - `<all_urls>` im Content-Script.
-  - Optionale Host-Rechte `https://*/*`.
-  - `wasm-unsafe-eval`.
-  - `activeTab`: das Popup zeigt den Host der aktuellen Seite (Sperrliste, Seiten-Schalter).
-- **Store-Angaben:**
-  - Datenverarbeitung: Website-Inhalte, lokal verarbeitet.
-  - Remote Code: transformers.js ist mitgeliefert, nachgeladen werden nur Modellgewichte
-    (Daten). Das ausdrücklich hinschreiben.
-- **Icons:** Das Manifest hat keine `icons`. Der Store verlangt 128 px (dazu 16/32/48 für die
-  Toolbar). `npm run package` warnt, solange sie fehlen.
-- **Store-Screenshots und Werbegrafik:** 1280×800 bzw. 440×280.
-- **Lizenzen:**
-  - CC-BY-SA-Angabe der Sperrliste und Drittkomponenten auch in der Store-Beschreibung.
-  - In der Extension über „Über“ erreichbar.
-- **Store-Auftritt:**
-  - Screenshots.
-  - Beschreibung mit ehrlichen Grenzen (nur Englisch, Fehlalarme möglich).
-  - Entwicklerkonto: Chrome 5 $ einmalig, Edge kostenlos.
+- **Screenshots mit echtem Modell** auf einer echten Seite neu machen; die aktuellen stammen aus dem
+  Harness mit Fake-Scores. Werbekachel ist nur ein Platzhalter.
+- **Entwicklerkonten:** Chrome 5 $ einmalig, Edge kostenlos.
 - **Firefox:** erstmal nicht. Die Offscreen-API fehlt dort; „Im Browser“ bräuchte eine andere
   Lösung.
 

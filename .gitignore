@@ -9,3 +9,4 @@ __pycache__/
 node_modules/
 extension/vendor/
 dist/
+.claude/worktrees/
