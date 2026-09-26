@@ -31,6 +31,25 @@ describe("level", () => {
     assert.equal(A.level(0.95, c), "red"); // ohne Wortzahl wie bisher
   });
 
+  it("desklib: kurzer Text ab shortRedFrom rot, darunter „unsicher“; TMR und unbekannte Modelle nie rot", () => {
+    const desklib = cfg({ provider: "browser", browserModel: "desklib", yellowFrom: 0.5, redFrom: 0.87 });
+    const short = A.reliableWords(desklib) - 1;
+    assert.equal(A.shortRedFrom(desklib), 0.98);
+    assert.equal(A.level(0.98, desklib, short), "red");
+    assert.equal(A.level(0.979, desklib, short), "uncertain");
+    assert.equal(A.level(0.6, desklib, short), "uncertain");
+    assert.equal(A.level(0.4, desklib, short), "green");
+    assert.equal(A.level(0.9, desklib, short + 1), "red"); // ab reliableWords die normale Schwelle
+    // nie lockerer als die eingestellte Rot-Schwelle
+    assert.equal(A.shortRedFrom({ ...desklib, redFrom: 0.99 }), 0.99);
+    assert.equal(A.level(0.985, { ...desklib, redFrom: 0.99 }, short), "uncertain");
+
+    const tmr = cfg({ provider: "browser", browserModel: "tmr", yellowFrom: 0.95, redFrom: 0.98 });
+    assert.equal(A.shortRedFrom(tmr), null);
+    assert.equal(A.level(0.999, tmr, 50), "uncertain");
+    assert.equal(A.shortRedFrom(cfg({ provider: "custom", customUrl: "https://x.example/v1/score" })), null);
+  });
+
   it("Mindestlänge und Sprachen kommen vom Modell, bei unbekannten Modellen Standard bzw. keine Angabe", () => {
     for (const key of ["tmr", "desklib"]) {
       const c = cfg({ provider: "browser", browserModel: key });

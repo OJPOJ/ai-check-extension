@@ -158,7 +158,74 @@ Anteil mit Score ≥ Schwelle – bei Mensch = Fehlalarm, bei KI = erkannt.
 
 - desklib trennt deutlich besser (bei Rot ab 0.87 werden fast alle KI-Texte erkannt), ist auf
   Wikipedia unter 120 Wörtern aber auch nicht sauber: 80–119 Wörter ~15 % über der Rot-Schwelle.
+  (Mit n = 150 nachgemessen: ~6 % über 0.87, gleichmäßig für 40–119 Wörter – siehe „Konfidenz für
+  kurze Absätze“.)
 - **Konsequenz:** „unsicher“ unter 120 Wörtern für beide Modelle und als Standard für unbekannte;
   desklib-Schwellen bleiben 0.5 / 0.87.
 - Einschränkungen: nur Englisch, KI nur ChatGPT 2023 (HC3, womöglich im Training der Modelle – die
   Erkennungsraten sind eher zu optimistisch; die Fehlalarm-Raten auf Wikipedia betrifft das nicht).
+
+## Konfidenz für kurze Absätze – desklib (2026-09-26)
+
+Frage: Muss desklib unter 120 Wörtern immer „unsicher“ sagen, oder lässt sich ein kurzer Absatz mit
+genug Konfidenz doch rot markieren? Die Messung oben (n = 60) war dafür zu dünn und widersprüchlich
+(40–79 Wörter sauberer als 80–119). Neu: n = 150 pro 20-Wort-Stufe, gleiche Quellen, reproduzierbar mit
+`evaluate_false_alarms.py desklib 150 --fine --dump fa_desklib.jsonl`.
+
+**Fehlalarme (Score ≥ 0.87 = heutige Rot-Schwelle) und Erkennung nach Länge:**
+
+| Wörter | Wikipedia (Mensch) | HC3 (Mensch) | ChatGPT (KI) |
+|---|---|---|---|
+| 40–59 | 6.0 % | 3.3 % | 76.7 % |
+| 60–79 | 6.7 % | 2.0 % | 92.0 % |
+| 80–99 | 5.3 % | 0 % | 94.0 % |
+| 100–119 | 6.7 % | 1.3 % | 98.7 % |
+| 120–149 | 0.7 % | 1.3 % | 98.7 % |
+| 150+ | 2.0 % | 2.0 % | 100 % |
+
+- Unter 120 Wörtern gleichmäßig ~6 % Fehlalarme auf Wikipedia, ab 120 ~1,3 %. Die Grenze 120 ist
+  also richtig, aber innerhalb der kurzen Absätze gibt es keinen Längen-Verlauf (der frühere
+  Unterschied 40–79 vs. 80–119 war Zufall).
+- Die Fehlalarme sind gewöhnliche enzyklopädische Prosa (Geschichte, Militär, Wetter, Biografien) –
+  keine Listen, Tabellen oder Formeln. Es liegt am sachlichen Stil, nicht an Artefakten.
+
+**Weg 1 – eigene Rot-Schwelle für kurze Absätze.** Alle 600 kurzen Texte je Quelle:
+
+| Rot ab (unter 120 Wörtern) | Wikipedia-Fehlalarme | HC3-Fehlalarme | KI erkannt |
+|---|---|---|---|
+| 0.87 | 6.2 % | 1.7 % | 90.3 % |
+| 0.95 | 2.5 % | 0.5 % | 81.7 % |
+| 0.97 | 1.7 % | 0.5 % | 77.0 % |
+| **0.98** | **1.0 %** | **0 %** | **73.0 %** |
+| 0.99 | 0.7 % | 0 % | 65.5 % |
+| 0.995 | 0 % | 0 % | 56.8 % |
+
+Zum Vergleich lange Absätze bei 0.87: 1.3 % Wikipedia-Fehlalarme, 99.3 % erkannt. Kreuzvalidiert (200×
+halbe Wikipedia-Daten zum Festlegen, andere Hälfte zum Prüfen, Ziel 1.3 % wie lange Absätze): Schwelle im
+Median 0.980 (5–95 %: 0.961–0.991), Fehlalarme auf der Prüfhälfte im Mittel 1.3 % (höchstens 4.3 %).
+Erkennung nach Länge bei 0.98: 45 % (40–59 Wörter), 72 % (60–79), 83 % (80–99), 92 % (100–119).
+
+**Weg 2 – Stabilität im Absatz.** Kurze Absätze mit Score ≥ 0.87 (589 Stück) an der Satzgrenze nahe
+der Mitte geteilt, beide Hälften einzeln bewertet (`evaluate_split_half.py`). Bei Fehlalarmen liegen die
+Hälften tatsächlich weiter auseinander (Median |a−b| 0.10 gegen 0.03 bei KI-Text), aber als Regel ist
+das schlechter als Weg 1 bei gleicher Fehlalarmrate:
+
+| Regel | Wikipedia-Fehlalarme | KI erkannt |
+|---|---|---|
+| Score ≥ 0.995 (Weg 1) | 0 % | 56.8 % |
+| beide Hälften ≥ 0.95 | 0.2 % | 39.7 % |
+| Score ≥ 0.99 (Weg 1) | 0.7 % | 65.5 % |
+| beide Hälften ≥ 0.9 | 0.5 % | 55.7 % |
+| Score ≥ 0.98 (Weg 1) | 1.0 % | 73.0 % |
+| Score ≥ 0.97 und beide Hälften ≥ 0.8 | 1.2 % | 70.0 % |
+
+Die Hälften sind nur 20–60 Wörter lang und damit selbst unzuverlässig; dazu kosten sie zwei zusätzliche
+Modellaufrufe pro Absatz. Weg 2 lohnt sich nicht.
+
+- **Vorschlag (noch nicht umgesetzt):** desklib unter 120 Wörtern rot ab 0.98 statt nie; 0.87–0.98
+  bleibt „unsicher“. Ein kurzer Absatz wird dann nur so oft fälschlich rot wie ein langer (~1 %), und
+  knapp drei Viertel der kurzen KI-Absätze werden wieder als KI markiert statt grau.
+- **Nicht für TMR:** TMR liegt fast nie über 0.99, bei 0.98 sind unter 120 Wörtern noch 15–20 % der
+  Wikipedia-Absätze rot (Tabelle oben). Dort bleibt „unsicher“ die richtige Antwort.
+- Einschränkungen wie oben: nur Englisch, KI nur ChatGPT 2023 aus HC3 (Erkennungsraten eher zu
+  optimistisch); 600 kurze Wikipedia-Absätze, 1 % = 6 Texte.

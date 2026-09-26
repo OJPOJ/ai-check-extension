@@ -23,7 +23,8 @@ globalThis.AIVSAI_MODELS = {
     // Bei 0.98 ab 120 Wörtern ~1 % Fehlalarme, erkannt werden noch ~90 % der ChatGPT-Texte.
     thresholds: { yellowFrom: 0.95, redFrom: 0.98 },
     // Darunter wird ein hoher Score "unsicher" statt gelb/rot (config.js, level). Wikipedia-Absätze mit
-    // 80-119 Wörtern: 15 % über 0.98, mit 120-149 Wörtern 1,5 %.
+    // 80-119 Wörtern: 15 % über 0.98, mit 120-149 Wörtern 1,5 %. Kein shortRedFrom: TMR liegt fast nie
+    // über 0.99, eine strengere Schwelle für kurze Absätze gibt es nicht.
     reliableWords: 120,
     // Absätze in anderen Sprachen bewertet der Auto-Scan nicht (lang-detect.js)
     languages: ["en"],
@@ -63,8 +64,11 @@ globalThis.AIVSAI_MODELS = {
     maxTokens: 768,
     maxChars: 1500,
     thresholds: { yellowFrom: 0.5, redFrom: 0.87 },
-    // Wikipedia-Absätze mit 80-119 Wörtern: ~15 % über 0.87, ab 120 Wörtern 0-2 % (n = 60, grob)
+    // Wikipedia-Absätze unter 120 Wörtern: ~6 % über 0.87, ab 120 Wörtern ~1,3 %. Kurze Absätze werden
+    // deshalb erst ab shortRedFrom rot (dazwischen "unsicher"): bei 0.98 ~1 % Fehlalarme wie bei langen,
+    // erkannt ~73 % der kurzen ChatGPT-Texte (training/EVAL_RESULTS.md, "Konfidenz für kurze Absätze").
     reliableWords: 120,
+    shortRedFrom: 0.98,
     languages: ["en"],
     browser: {
       // Gibt es nicht als brauchbares ONNX: Original herunterladen und im Browser umwandeln

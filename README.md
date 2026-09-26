@@ -121,7 +121,10 @@ Hugging-Face-Provider mit echtem Token (nur gemockt, siehe `providers.test.mjs`)
   `training/EVAL_RESULTS.md`, „Fehlalarme auf Wikipedia“):
   - *Stufe „unsicher“ (grau):* Unter einer Mindestlänge pro Modell (`reliableWords` in `models.js`,
     derzeit überall 120 Wörter) wird ein hoher Score nicht gelb/rot, sondern
-    „unsicher“ – Badge ohne Zahl, der Rohwert steht nur im Popover. Grün bleibt grün.
+    „unsicher“ – Badge ohne Zahl, der Rohwert steht nur im Popover. Grün bleibt grün. Ausnahme
+    `shortRedFrom`: desklib markiert kurze Absätze ab 0.98 doch rot – damit so selten fälschlich wie
+    lange bei 0.87 (~1 %), erkannt ~73 % der kurzen ChatGPT-Texte (`training/EVAL_RESULTS.md`,
+    „Konfidenz für kurze Absätze“). TMR hat keine solche Schwelle (liegt fast nie über 0.99).
   - *Andere Sprachen:* Die mitgelieferten Modelle kennen nur Englisch (`languages`). Absätze in
     anderen Sprachen bewertet der Auto-Scan nicht (keine Markierung, Zahl im Popup); die Einzelprüfung
     fragt erst nach („Trotzdem prüfen“), das Ergebnis ist dann immer „unsicher“. Erkennung pro Absatz

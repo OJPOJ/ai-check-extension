@@ -777,9 +777,18 @@
         `Das Modell kennt nur ${langList(AIVSAI.languages(config))} – ${raw}, in dieser Sprache nicht aussagekräftig.`
       );
     } else if (level === "uncertain") {
+      const short = AIVSAI.shortRedFrom(config);
       notes.push(
-        `Nur ${words} Wörter – unter ${AIVSAI.reliableWords(config)} Wörtern liegt das Modell zu oft daneben, ` +
-          `um einen Text als auffällig zu markieren. ${raw}.`
+        short === null
+          ? `Nur ${words} Wörter – unter ${AIVSAI.reliableWords(config)} Wörtern liegt das Modell zu oft daneben, ` +
+              `um einen Text als auffällig zu markieren. ${raw}.`
+          : `Nur ${words} Wörter – unter ${AIVSAI.reliableWords(config)} Wörtern liegt das Modell öfter daneben, ` +
+              `deshalb gilt ein kurzer Text erst ab ${Math.round(short * 100)} als auffällig. ${raw}.`
+      );
+    } else if (level === "red" && words < AIVSAI.reliableWords(config)) {
+      notes.push(
+        `Kurzer Text (${words} Wörter) – dafür gilt die strengere Schwelle ${Math.round(AIVSAI.shortRedFrom(config) * 100)}, ` +
+          "damit er nicht öfter fälschlich auffällt als ein langer."
       );
     } else if (words < MIN_WORDS) {
       notes.push(`Kurzer Text (${words} Wörter) – Ergebnis wenig verlässlich.`);

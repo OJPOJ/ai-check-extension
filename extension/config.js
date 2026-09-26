@@ -169,12 +169,23 @@ globalThis.AIVSAI = (() => {
     return family(cfg)?.reliableWords ?? RELIABLE_WORDS;
   }
 
+  // Rot-Schwelle für Texte unter reliableWords, null = kurze Texte werden nie rot (models.js, shortRedFrom).
+  // Nie lockerer als die eingestellte Rot-Schwelle.
+  function shortRedFrom(cfg) {
+    const short = family(cfg)?.shortRedFrom;
+    return short === undefined ? null : Math.max(short, cfg.redFrom);
+  }
+
   // words (optional): Länge des bewerteten Texts. Kurze Texte mit hohem Score werden "uncertain" statt
   // gelb/rot - der größte Schaden ist Rot auf einem menschlichen Text, und kurze Texte trennt das Modell
-  // deutlich schlechter (training/EVAL_RESULTS.md, "Fehlalarme auf Wikipedia"). Grün bleibt grün.
+  // deutlich schlechter (training/EVAL_RESULTS.md, "Fehlalarme auf Wikipedia"). Ausnahme: Modelle, die
+  // bei kurzen Texten mit strengerer Schwelle so selten danebenliegen wie bei langen (shortRedFrom).
+  // Grün bleibt grün.
   function level(p, cfg, words) {
     const base = p >= cfg.redFrom ? "red" : p >= cfg.yellowFrom ? "yellow" : "green";
-    return base !== "green" && words !== undefined && words < reliableWords(cfg) ? "uncertain" : base;
+    if (base === "green" || words === undefined || words >= reliableWords(cfg)) return base;
+    const short = shortRedFrom(cfg);
+    return short !== null && p >= short ? "red" : "uncertain";
   }
 
   function siteMatches(host, sites) {
@@ -299,6 +310,7 @@ globalThis.AIVSAI = (() => {
     catalog,
     level,
     reliableWords,
+    shortRedFrom,
     languages,
     siteMatches,
     builtinMatch,

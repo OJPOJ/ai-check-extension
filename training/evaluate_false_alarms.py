@@ -13,8 +13,10 @@ Ergebnisse: EVAL_RESULTS.md, "Fehlalarme auf Wikipedia".
 Nutzung (aus diesem Ordner):
     python evaluate_false_alarms.py tmr 300
     python evaluate_false_alarms.py desklib 60
+    python evaluate_false_alarms.py desklib 150 --fine   # 20-Wort-Schritte unter 120 (Grenze „unsicher“)
 """
 import argparse
+import json
 import random
 import re
 
@@ -24,7 +26,8 @@ from prepare_dataset import iter_hc3_pairs
 MAX_CHARS = {"tmr": 2000, "desklib": 1500}
 # Wortzahl-Bereiche; 40 = Mindestlänge des Auto-Scans (content.js, MIN_WORDS)
 BUCKETS = [(40, 79), (80, 119), (120, 149), (150, 10_000)]
-RED = [0.9, 0.95, 0.97, 0.98, 0.99]
+FINE_BUCKETS = [(40, 59), (60, 79), (80, 99), (100, 119), (120, 149), (150, 10_000)]
+RED = [0.87, 0.9, 0.95, 0.97, 0.98, 0.99]  # 0.87 = desklib-Preset
 YELLOW = [0.5, 0.6, 0.8]
 
 
@@ -87,7 +90,11 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("backend", choices=["tmr", "desklib"])
     ap.add_argument("per_bucket", type=int, help="Texte pro Quelle und Längenbereich")
+    ap.add_argument("--fine", action="store_true", help="feinere Längenbereiche unter 120 Wörtern")
+    ap.add_argument("--dump", help="Einzelwerte als JSONL (Quelle, Wörter, Zeichen, Score, Text) für eigene Auswertungen")
     args = ap.parse_args()
+    if args.fine:
+        BUCKETS[:] = FINE_BUCKETS
     random.seed(0)
     score = eb.score_tmr if args.backend == "tmr" else eb.score_desklib
     max_chars = MAX_CHARS[args.backend]
@@ -102,13 +109,20 @@ def main() -> None:
     print(f"\n{args.backend}: Anteil mit Score >= Schwelle (Mensch = Fehlalarm, KI = erkannt)")
     header = f"{'Quelle':20} {'Wörter':>9} {'n':>4} " + " ".join(f"{'>=' + str(t):>7}" for t in YELLOW + RED)
     print(header)
+    rows = []
     for name, buckets in sources.items():
         for (lo, hi), texts in buckets.items():
             if not texts:
                 continue
-            s = score([clip(t, max_chars) for t in texts])
+            clipped = [clip(t, max_chars) for t in texts]
+            s = score(clipped)
+            rows += [{"source": name, "words": words(t), "chars": len(t), "score": p, "text": t} for t, p in zip(clipped, s)]
             label = f"{lo}-{hi}" if hi < 10_000 else f"{lo}+"
             print(f"{name:20} {label:>9} {len(s):4d} " + " ".join(f"{share(s, t):>7}" for t in YELLOW + RED))
+
+    if args.dump:
+        with open(args.dump, "w", encoding="utf-8") as f:
+            f.writelines(json.dumps(r) + "\n" for r in rows)
 
 
 if __name__ == "__main__":
