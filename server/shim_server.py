@@ -9,6 +9,8 @@ Backends:
     Oxidane/tmr-ai-text-detector (RoBERTa-base, 125M, kein Training noetig)
   - "desklib"                                        -> lokal geladenes
     desklib/ai-text-detector-v1.01 (DeBERTa-v3-large, 430M, eigene Pooling-Klasse)
+  - "fakespot"                                        -> lokal geladenes
+    fakespot-ai/roberta-base-ai-text-detection-v1 (RoBERTa-base, 125M, wie TMR aufgebaut)
 
 Zusaetzlich gibt es den schlanken Vertrag, den die Extension fuer die Provider
 "Lokal" und "Eigener Server" verwendet (Details: README.md, "Vertrag"):
@@ -46,10 +48,12 @@ LAYA_UPSTREAM = "http://127.0.0.1:11500"
 LAYA_MODELS = {"english", "multilingual", "typed-decisions"}
 TMR_MODEL_ID = "Oxidane/tmr-ai-text-detector"
 DESKLIB_MODEL_ID = "desklib/ai-text-detector-v1.01"
+FAKESPOT_MODEL_ID = "fakespot-ai/roberta-base-ai-text-detection-v1"
 # Fest gepinnt, damit sich Scores nicht durch ein Upstream-Update unbemerkt aendern. Die Revision geht
 # ueber /v1/info in den Modellschluessel der Extension ein - neue Revision = alte Scores ungueltig.
 TMR_REVISION = "0ceddea903015ef99cbaa040a4d8a216aed9c683"
 DESKLIB_REVISION = "5fdea974cd4287c61674951ec78803aa274e2fb7"
+FAKESPOT_REVISION = "f9cdb14d1f8b105f597d80fa7b56f20c6ea0e9db"
 CANDIDATE_QID = re.compile(r"^c(\d+)$")
 API_KEY = os.environ.get("AIVSAI_API_KEY") or None
 MAX_TEXTS_PER_REQUEST = 64
@@ -64,6 +68,10 @@ _tmr_ai_index = None
 _desklib_tokenizer = None
 _desklib_model = None
 
+_fakespot_tokenizer = None
+_fakespot_model = None
+_fakespot_ai_index = None
+
 
 def load_tmr():
     global _tmr_tokenizer, _tmr_model, _tmr_ai_index
@@ -74,6 +82,17 @@ def load_tmr():
     _tmr_model.eval()
     ai_idx = [k for k, v in _tmr_model.config.id2label.items() if v.lower() in ("ai", "machine", "generated")]
     _tmr_ai_index = ai_idx[0] if ai_idx else 1
+
+
+def load_fakespot():
+    global _fakespot_tokenizer, _fakespot_model, _fakespot_ai_index
+    if _fakespot_model is not None:
+        return
+    _fakespot_tokenizer = AutoTokenizer.from_pretrained(FAKESPOT_MODEL_ID, revision=FAKESPOT_REVISION)
+    _fakespot_model = AutoModelForSequenceClassification.from_pretrained(FAKESPOT_MODEL_ID, revision=FAKESPOT_REVISION)
+    _fakespot_model.eval()
+    ai_idx = [k for k, v in _fakespot_model.config.id2label.items() if v.lower() in ("ai", "machine", "generated")]
+    _fakespot_ai_index = ai_idx[0] if ai_idx else 1
 
 
 def length_buckets(lengths: list[int], ratio: float = 1.25, slack: int = 16) -> list[list[int]]:
@@ -105,6 +124,16 @@ def score_tmr_texts(texts: list[str]) -> list[float]:
     load_tmr()
     return score_bucketed(
         texts, _tmr_tokenizer, 512, lambda enc: torch.softmax(_tmr_model(**enc).logits, dim=-1)[:, _tmr_ai_index].tolist()
+    )
+
+
+def score_fakespot_texts(texts: list[str]) -> list[float]:
+    load_fakespot()
+    return score_bucketed(
+        texts,
+        _fakespot_tokenizer,
+        512,
+        lambda enc: torch.softmax(_fakespot_model(**enc).logits, dim=-1)[:, _fakespot_ai_index].tolist(),
     )
 
 
@@ -158,7 +187,7 @@ def score_desklib_texts(texts: list[str]) -> list[float]:
     )
 
 
-LOCAL_SCORERS = {"tmr": score_tmr_texts, "desklib": score_desklib_texts}
+LOCAL_SCORERS = {"tmr": score_tmr_texts, "desklib": score_desklib_texts, "fakespot": score_fakespot_texts}
 
 # Antwort von /v1/info - Textlaenge und Ampel wie in extension/models.js (dort die Begruendung)
 MODEL_INFO = {
@@ -178,6 +207,15 @@ MODEL_INFO = {
         "suggestedThresholds": {"yellowFrom": 0.5, "redFrom": 0.87},
         "reliableWords": 120,
         "shortRedFrom": 0.98,
+    },
+    "fakespot": {
+        "name": "fakespot roberta-base-ai-text-detection-v1",
+        "version": FAKESPOT_REVISION[:7],
+        "maxChars": 2000,
+        "languages": ["en"],
+        "suggestedThresholds": {"yellowFrom": 0.95, "redFrom": 0.999},
+        "reliableWords": 120,
+        "shortRedFrom": 0.9994,
     },
 }
 
@@ -215,6 +253,7 @@ async def healthz():
         "laya_upstream": laya_up,
         "tmr_loaded": _tmr_model is not None,
         "desklib_loaded": _desklib_model is not None,
+        "fakespot_loaded": _fakespot_model is not None,
     }
 
 

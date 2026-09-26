@@ -50,8 +50,19 @@ describe("level", () => {
     assert.equal(A.shortRedFrom(cfg({ provider: "custom", customUrl: "https://x.example/v1/score" })), null);
   });
 
+  it("fakespot: wie desklib eigene shortRedFrom-Schwelle, deutlich strenger als redFrom", () => {
+    const fakespot = cfg({ provider: "browser", browserModel: "fakespot", yellowFrom: 0.95, redFrom: 0.999 });
+    const short = A.reliableWords(fakespot) - 1;
+    assert.equal(A.shortRedFrom(fakespot), 0.9994);
+    assert.equal(A.level(0.9994, fakespot, short), "red");
+    assert.equal(A.level(0.999, fakespot, short), "uncertain"); // >= redFrom, aber unter shortRedFrom
+    assert.equal(A.level(0.96, fakespot, short), "uncertain"); // >= yellowFrom, aber unter shortRedFrom
+    assert.equal(A.level(0.9, fakespot, short), "green"); // unter yellowFrom bleibt grün, auch kurz
+    assert.equal(A.level(0.999, fakespot, short + 1), "red"); // ab reliableWords die normale Schwelle
+  });
+
   it("Mindestlänge und Sprachen kommen vom Modell, bei unbekannten Modellen Standard bzw. keine Angabe", () => {
-    for (const key of ["tmr", "desklib"]) {
+    for (const key of ["tmr", "desklib", "fakespot"]) {
       const c = cfg({ provider: "browser", browserModel: key });
       assert.equal(A.reliableWords(c), A.MODELS[key].reliableWords);
       assert.deepEqual(A.languages(c), ["en"]);
@@ -222,11 +233,13 @@ describe("maxChars / presetFor / maxInFlight", () => {
     assert.equal(A.maxChars(cfg()), 1500); // Standardmodell desklib
     assert.equal(A.maxChars(cfg({ browserModel: "tmr" })), 2000);
     assert.equal(A.maxChars(cfg({ browserModel: "desklib" })), 1500);
+    assert.equal(A.maxChars(cfg({ browserModel: "fakespot" })), 2000);
     assert.equal(A.maxChars(cfg({ provider: "local", localModel: "desklib" })), 1500);
     assert.equal(A.maxChars(cfg({ provider: "custom", customModel: "desklib" })), 2000);
     assert.equal(A.maxChars(cfg({ provider: "local", localModel: "unbekannt" })), 2000);
 
     assert.equal(A.presetFor(cfg({ browserModel: "desklib" })), A.PRESETS.desklib);
+    assert.equal(A.presetFor(cfg({ browserModel: "fakespot" })), A.PRESETS.fakespot);
     assert.equal(A.presetFor(cfg({ provider: "local", localModel: "tmr" })), A.PRESETS.tmr);
     assert.equal(A.presetFor(cfg({ provider: "huggingface" })), A.PRESETS.generic);
   });

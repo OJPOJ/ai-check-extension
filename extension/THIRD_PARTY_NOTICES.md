@@ -43,6 +43,13 @@ höchstens 1200 Zeichen gekürzt. Das Referenzset steht als Ganzes unter CC BY-S
   sondern zur Laufzeit von Hugging Face geladen und im Browser auf 8 Bit quantisiert.
   Mitgeliefert wird nur der daraus exportierte Rechengraph ohne Gewichte (`models/desklib/`,
   erzeugt mit `scripts/build_desklib_skeleton.py`). Basismodell DeBERTa-v3-large (MIT, © Microsoft).
+- **fakespot AI Text Detector** – `fakespot-ai/roberta-base-ai-text-detection-v1`, Apache License 2.0
+  (https://www.apache.org/licenses/LICENSE-2.0), © Fakespot/Mozilla. ONNX-Konvertierung von einem
+  Dritten (nicht dem Modell-Ersteller): `MedAliFarhat/ai-text-detector-onnx` (ebenfalls Apache-2.0),
+  Revision `0c809a8de6e600ec2fd0fcdeb595a5461d93e8dc` – gegen das PyTorch-Original geprüft
+  (`training/compare_onnx.py`, Ergebnisse in `training/MODEL_SEARCH.md`). Basismodell RoBERTa-base
+  (MIT, © Facebook AI); Trainingsdaten nicht im Detail offengelegt (Verweis auf
+  github.com/FakespotAILabs/ApolloDFT).
 
 ## MIT License (gilt für die oben als MIT gekennzeichneten Komponenten)
 
