@@ -1,54 +1,53 @@
-# URL-Liste für scripts/measure-pages.mjs (WP-08). Format: URL<TAB>Sprache<TAB>Kurzbeschreibung
+# URL-Liste für scripts/measure-pages.mjs (WP-08). Format: URL<TAB>Sprache<TAB>Kategorie<TAB>Kurzbeschreibung
 # Sprache: erwartete Hauptsprache der Seite - "en", "de", "fr", "es" oder "mixed" (mehrsprachig/gemischt
-# auf derselben Seite, kein einzelnes erwartetes Ergebnis). Nur öffentliche Seiten ohne Login/Formular.
+# auf derselben Seite, kein einzelnes erwartetes Ergebnis).
+# Kategorie: "news" (Nachrichtenartikel), "blog", "howto" (Anleitung), "doc" (Dokumentation), "wiki".
+# Nur öffentliche Seiten ohne Login/Formular, bewusst einzelne Artikel statt Startseiten/Übersichten
+# (Startseiten bestehen fast nur aus Teaser-Links < 40 Wörtern und sagen wenig über Gruppierung aus -
+# siehe Nachbesserung nach Orchestrator-Review, orchestration/LOG.md). URLs per curl auf HTTP 200 geprüft
+# (Stand 2026-09-26) - Nachrichtenartikel veralten, bei Bedarf einzelne Zeilen ersetzen.
 # Zeilen mit # werden ignoriert, ebenso leere Zeilen.
 
-# --- Englisch: Nachrichten ---
-https://www.bbc.com/news	en	BBC News (Startseite)
-https://www.theguardian.com/international	en	The Guardian (Startseite international)
-https://www.npr.org/sections/news/	en	NPR News (Rubrik)
-https://www.aljazeera.com/news/	en	Al Jazeera (Rubrik)
-https://www.smithsonianmag.com/	en	Smithsonian Magazine (Startseite)
+# --- Englisch: Nachrichtenartikel (6 Häuser) ---
+https://www.bbc.com/news/articles/c60m334grx9vo	en	news	BBC News, Einzelartikel
+https://www.bbc.com/news/articles/cjn5ddzekwnro	en	news	BBC News, Einzelartikel
+https://www.bbc.com/news/articles/cq4g55r76d9lo	en	news	BBC News, Einzelartikel
+https://www.theguardian.com/society/2026/sep/26/luna-wong-hong-kong-death-reveals-treatment-international-students-uk	en	news	The Guardian, Einzelartikel
+https://www.theguardian.com/world/2026/sep/26/dream-come-true-six-year-old-rubiks-cube-world-record	en	news	The Guardian, Einzelartikel
+https://www.theguardian.com/us-news/2026/sep/25/michigan-ceo-loses-job-lake-america-photo	en	news	The Guardian, Einzelartikel
+https://www.aljazeera.com/news/2026/9/25/pope-leo-xiv-warns-ai-could-undermine-humanity-during-france-visit	en	news	Al Jazeera, Einzelartikel
+https://www.aljazeera.com/news/2026/9/25/un-expands-list-of-firms-involved-in-illegal-israeli-settlement-activities	en	news	Al Jazeera, Einzelartikel
+https://www.aljazeera.com/news/2026/9/25/iran-says-it-awaits-us-response-on-seven-day-roadmap-to-end-war	en	news	Al Jazeera, Einzelartikel
+https://apnews.com/article/alzheimers-blood-tests-amyloid-tau-55eb2d490231b57acec8ef2848072d93	en	news	AP News, Einzelartikel
+https://apnews.com/article/artificial-intelligence-campaign-ads-midterms-d375801e10821b3e6ac776ffc77e1f28	en	news	AP News, Einzelartikel
+https://apnews.com/article/china-united-nations-unga-xi-eef81e4afc9842ebeefb33883cb05597	en	news	AP News, Einzelartikel
+https://www.pbs.org/newshour/world/trump-rejects-irans-proposal-to-reopen-the-strait-of-hormuz-and-other-middle-east-news	en	news	PBS NewsHour, Einzelartikel
+https://www.dw.com/en/could-flattering-ai-make-humanity-turn-on-itself/a-79377894	en	news	Deutsche Welle (EN), Einzelartikel
 
-# --- Englisch: Blogs ---
-https://overreacted.io/	en	Dan Abramov, Tech-Blog (Übersicht)
-https://danluu.com/	en	Dan Luu, Tech-Blog (Übersicht)
-https://css-tricks.com/	en	CSS-Tricks (Startseite)
-https://stackoverflow.blog/	en	Stack Overflow Blog (Startseite)
+# --- Englisch: Blogartikel (einzeln) ---
+https://danluu.com/wat/	en	blog	Dan Luu, Einzelartikel
+https://overreacted.io/a-complete-guide-to-useeffect/	en	blog	Dan Abramov, Einzelartikel
+https://css-tricks.com/complete-guide-css-grid-layout/	en	blog	CSS-Tricks, Einzelartikel
+https://jvns.ca/blog/2026/07/21/more-nice-django-things/	en	blog	Julia Evans, Einzelartikel
 
-# --- Englisch: Wikipedia ---
-https://en.wikipedia.org/wiki/Artificial_intelligence	en	Wikipedia EN, langer Artikel
-https://en.wikipedia.org/wiki/Climate_change	en	Wikipedia EN, langer Artikel
-https://en.wikipedia.org/wiki/History_of_the_United_States	en	Wikipedia EN, langer Artikel
-
-# --- Englisch: Anleitungen ---
-https://www.wikihow.com/Bake-a-Cake	en	WikiHow-Anleitung
-https://www.instructables.com/circuits/	en	Instructables (Kategorie-Seite)
+# --- Englisch: Anleitungen (einzeln) ---
+https://www.wikihow.com/Bake-a-Cake	en	howto	WikiHow-Anleitung
+https://www.wikihow.com/Tie-a-Tie	en	howto	WikiHow-Anleitung
+https://www.wikihow.com/Change-a-Tire	en	howto	WikiHow-Anleitung
 
 # --- Englisch: Dokumentation ---
-https://docs.python.org/3/tutorial/introduction.html	en	Python-Tutorial
-https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide	en	MDN JavaScript Guide
+https://docs.python.org/3/tutorial/introduction.html	en	doc	Python-Tutorial
+https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Closures	en	doc	MDN JavaScript Guide, Einzelkapitel
 
-# --- Englisch: Foren ---
-https://news.ycombinator.com/	en	Hacker News (Startseite)
-https://old.reddit.com/r/AskHistorians/	en	Reddit (alte Oberfläche)
-https://stackoverflow.com/questions/11227809/why-is-processing-a-sorted-array-faster-than-processing-an-unsorted-array	en	Stack Overflow, bekannte Frage
+# --- Wikipedia (max. 3, wie mit dem Orchestrator abgestimmt) ---
+https://en.wikipedia.org/wiki/Climate_change	en	wiki	Wikipedia EN, langer Artikel
+https://de.wikipedia.org/wiki/Deutschland	de	wiki	Wikipedia DE, langer Artikel
+https://en.wikipedia.org/wiki/Denglisch	mixed	wiki	Englischer Artikel mit eingebetteten deutschen Beispielen
 
-# --- Deutsch ---
-https://de.wikipedia.org/wiki/Deutschland	de	Wikipedia DE, langer Artikel
-https://www.tagesschau.de/	de	Tagesschau (Startseite, öffentlich-rechtlich)
-https://www.dw.com/de/	de	Deutsche Welle, deutsche Ausgabe
-
-# --- Französisch ---
-https://fr.wikipedia.org/wiki/France	fr	Wikipedia FR, langer Artikel
-https://www.ladepeche.fr/	fr	La Dépêche (Regionalzeitung, Startseite)
-
-# --- Spanisch ---
-https://es.wikipedia.org/wiki/Espa%C3%B1a	es	Wikipedia ES, langer Artikel
-https://www.dw.com/es/	es	Deutsche Welle, spanische Ausgabe
-https://www.20minutos.es/	es	20minutos (Startseite)
-
-# --- Gemischtsprachig ---
-https://german.stackexchange.com/questions	mixed	Deutsch-Lernforum: Fragen oft EN, Beispiele/Antworten oft DE
-https://en.wikipedia.org/wiki/Denglisch	mixed	Englischer Artikel mit eingebetteten deutschen Beispielen
-https://old.reddit.com/r/de/	mixed	Deutsches Subreddit, Seite selbst mit lang="en" (UI-Chrome englisch)
+# --- Nicht-Englisch: Nachrichtenartikel (einzeln) ---
+https://www.tagesschau.de/ausland/europa/papst-leo-reise-frankreich-100.html	de	news	Tagesschau, Einzelartikel
+https://www.dw.com/de/papst-leo-xiv-feiert-messe-in-paris-place-de-la-concorde-katholiken/a-79444602	de	news	Deutsche Welle (DE), Einzelartikel
+https://www.20minutes.fr/animaux/4248597-20260926-pourquoi-chats-adorent-cartons	fr	news	20minutes.fr, Einzelartikel
+https://www.dw.com/fr/pape-leon-visite-france-europe/a-79429249	fr	news	Deutsche Welle (FR), Einzelartikel
+https://www.dw.com/es/mapa-celular-para-entender-las-enfermedades-cerebrales/a-79438643	es	news	Deutsche Welle (ES), Einzelartikel
+https://www.rtve.es/noticias/20260921/m23-mineros-oro-coltan-congo-amnistia-internacional-ejecuciones/17230058.shtml	es	news	RTVE, Einzelartikel
