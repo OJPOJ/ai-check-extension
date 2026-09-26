@@ -229,3 +229,172 @@ Modellaufrufe pro Absatz. Weg 2 lohnt sich nicht.
   Wikipedia-Absätze rot (Tabelle oben). Dort bleibt „unsicher“ die richtige Antwort.
 - Einschränkungen wie oben: nur Englisch, KI nur ChatGPT 2023 aus HC3 (Erkennungsraten eher zu
   optimistisch); 600 kurze Wikipedia-Absätze, 1 % = 6 Texte.
+
+## Breitere Eval-Suite (2026-09-26, WP-01)
+
+Frage: Die bisherigen Zahlen stammen fast vollständig aus HC3 (Reddit-ELI5 vs. ChatGPT 2023) plus
+einer Wikipedia-Fehlalarm-Messung - eine Domäne, ein KI-Modell. Wie verhalten sich TMR und desklib
+über mehrere Domänen und mehrere, aktuellere KI-Generatoren?
+
+**Datenquelle:** [`Jinyan1/COLING_2025_MGT_en`](https://huggingface.co/datasets/Jinyan1/COLING_2025_MGT_en)
+(Hugging Face), eine Zusammenstellung aus drei Human-vs-KI-Detection-Forschungsdatensätzen:
+MAGE ([`yaful/MAGE`](https://huggingface.co/datasets/yaful/MAGE), Apache-2.0), M4GT-Bench
+(mbzuai-nlp/M4, EACL 2024 - im GitHub-Repo keine LICENSE-Datei gefunden, reine Recherche-/Eval-
+Nutzung) und HC3 (Apache-2.0, bereits in `prepare_dataset.py` genutzt). Für die Zusammenstellung
+selbst ist im Dataset-Karten-YAML keine Lizenz eingetragen; genutzt nur zur lokalen Auswertung,
+Rohdaten bleiben unter `data/` (gitignored), keine Weiterverteilung. **RAID** (`liamdugan/raid`,
+MIT-Lizenz) wurde geprüft, aber verworfen: `train`/`extra`-Split enthalten dort nur offene Modelle
+(Llama-Chat, Mistral, MPT, GPT-2) - die im Datensatz gelisteten GPT-4/ChatGPT/Cohere-Generationen
+liegen offenbar nur im unlabeled `test`-Split (Leaderboard), sind also öffentlich nicht mit Label
+nutzbar.
+
+**Zusammenstellung** (`build_eval_suite.py`, Seed 42, reproduzierbar): sechs Domänen, menschliche
+Texte vor 2023 (die Quell-Datensätze/-Aufgaben selbst sind alle älter, XSum/CNN/Wikipedia/Reddit/
+arXiv/Yelp/IMDb/WikiHow), KI-Text von den aktuellsten in diesem Datensatz verfügbaren Generatoren:
+
+| Domäne (unsere Kategorie) | Sub-Quellen | Verfügbare Generatoren |
+|---|---|---|
+| news | xsum, cnn, tldr, dialogsum | gpt-3.5-turbo (einziger verfügbar) |
+| wikipedia | wikipedia, wiki_csai | gpt4, gpt4o, gpt-3.5-turbo, llama3-70b, mixtral-8x7b, gemma2-9b-it, cohere |
+| forum | reddit, cmv, reddit_eli5, eli5 | s.o. (alle 7) |
+| sci_abstract | arxiv, sci_gen, peerread, pubmed | s.o. (alle 7) |
+| reviews | yelp, imdb | gpt-3.5-turbo (einziger verfügbar) |
+| howto | wikihow | s.o. (alle 7) |
+
+Je Domäne 100 menschliche + 100 KI-Texte (auf die verfügbaren Generatoren aufgeteilt) = **1200
+Texte gesamt, 600/600 balanciert**. Absätze 40–400 Wörter (wie `content.js` MIN_WORDS bzw.
+`extension/length-buckets.js`), am Satzende gekürzt; Tokenisierungs-Artefakt „Leerzeichen vor
+Satzzeichen" (bekannt aus `reddit_eli5`/HC3, s.o.) normalisiert. Ältere/kleine Generatoren im
+Quell-Datensatz (davinci, opt_\*, flan_t5_\*, t0_\*, bloom\*, gpt_j, gpt_neox, GLM130B, dolly\*)
+bewusst ausgelassen - nicht mehr repräsentativ für heutigen KI-Text im Web. **Kein Claude/Gemini
+verfügbar:** kein öffentlicher Datensatz mit gelabelten Claude-/Gemini-Generationen gefunden (diese
+Extension hat keine API-Keys für eigene Generierung) - Einschränkung, keine Umgehung.
+
+**Bewertung** (`evaluate_suite.py`): TMR auf allen 1200 Texten, desklib auf einer stratifizierten
+Stichprobe von 480 (Domäne × Mensch/KI gleich verteilt) - desklib braucht auf dieser CPU ~2,3 s/Text
+(gemessen, `benchmark_latency.py`-Größenordnung bestätigt sich), 1200 Texte hätten ~46 Minuten
+gekostet, die Stichprobe ~18,5 Minuten. Rohscores: `data/eval_scores_tmr_suite.jsonl` /
+`data/eval_scores_desklib_suite.jsonl` (gitignored).
+
+### Ergebnis: AUROC und Fehlalarme an den aktuellen Schwellen
+
+Aktuelle Schwellen aus `extension/models.js` (nur gelesen, nicht verändert): TMR yellowFrom 0.95 /
+redFrom 0.98; desklib yellowFrom 0.5 / redFrom 0.87 (kurze Absätze < 120 Wörter: `shortRedFrom` 0.98
+bzw. gar keins bei TMR → dort immer „unsicher“ statt rot).
+
+| Backend | n | AUROC gesamt | Fehlalarme (Mensch) ≥ redFrom | KI erkannt ≥ redFrom |
+|---|---|---|---|---|
+| TMR | 1200 | 0.929 | 12.0 % | 83.5 % |
+| desklib | 480 | 0.990 | 2.5 % | 95.4 % |
+
+**Je Domäne:**
+
+| Domäne | TMR AUROC | TMR FA@red | TMR erkannt | desklib AUROC | desklib FA@red | desklib erkannt |
+|---|---|---|---|---|---|---|
+| forum | 0.962 | 6.0 % | 86.0 % | 1.000 | 0 % | 100 % |
+| howto | **0.767** | 20.0 % | 64.0 % | 0.968 | 2.5 % | 92.5 % |
+| news | 0.940 | **34.0 %** | 99.0 % | 0.991 | **10.0 %** | 95.0 % |
+| reviews | 0.924 | 10.0 % | 74.0 % | 0.992 | 0 % | 90.0 % |
+| sci_abstract | 0.977 | 1.0 % | 86.0 % | 0.995 | 2.5 % | 97.5 % |
+| wikipedia | 0.995 | 1.0 % | 92.0 % | 0.999 | 0 % | 97.5 % |
+
+TMR ist auf `howto` (Anleitungen, oft listenartig) deutlich schwächer (AUROC 0.767) als auf den
+bisher gemessenen Domänen. Beide Modelle haben auf `news` die höchste Fehlalarmrate - menschliche
+Nachrichtentexte/-zusammenfassungen (XSum/CNN) ähneln stilistisch offenbar KI-Zusammenfassungen
+(glatt, neutral, kurz). Bei desklib ist das mit n=80 je Domäne aber eine grobe Schätzung (10 % FA
+= 8 Texte).
+
+**Je Generator** (Anteil KI-Texte ≥ redFrom erkannt):
+
+| Generator | TMR (n≈56–256) | desklib (n≈19–102) |
+|---|---|---|
+| gpt4 | 86.7 % | 100 % |
+| gpt4o | 88.3 % | 100 % |
+| gpt-3.5-turbo | 87.1 % | 94.1 % |
+| llama3-70b | 85.7 % | 96.4 % |
+| mixtral-8x7b | 83.9 % | 89.5 % |
+| cohere | 71.4 % | 95.5 % |
+| gemma2-9b-it | **67.9 %** | 94.7 % |
+
+TMR erkennt GPT-Familie und Llama am zuverlässigsten, ist bei Cohere und besonders Gemma2 spürbar
+schwächer (68–71 % statt 84–88 %). desklib bleibt über alle sieben Generatoren zwischen 90–100 % -
+kein Generator, an dem es deutlich schwächelt.
+
+**Je Längen-Bucket** (nur Mensch-Zeilen für Fehlalarme, nur KI-Zeilen für „erkannt"):
+
+| Wörter | TMR FA@yellow | TMR FA@red | TMR erkannt | desklib FA@yellow | desklib FA@red | desklib erkannt |
+|---|---|---|---|---|---|---|
+| 40–79 | 56.7 % | 33.3 % | 70.7 % | 21.7 % | 4.3 % | 75.0 % |
+| 80–119 | 51.9 % | 31.2 % | 86.6 % | 25.0 % | 6.2 % | 96.0 % |
+| 120–149 | 12.8 % | 2.6 % | 82.6 % | 23.1 % | 7.7 % | 100 % |
+| 150+ | 19.1 % | 6.4 % | 84.7 % | 7.6 % | 1.2 % | 97.8 % |
+
+Bestätigt die bisherige `reliableWords=120`-Grenze: unter 120 Wörtern sind beide Modelle bei „rot"
+unzuverlässig (TMR 31–33 % FA, desklib 4–6 % FA) - genau deshalb zeigt die Extension dort „unsicher“
+statt gelb/rot (außer desklib mit `shortRedFrom`). Die 150+-Zahlen liegen etwas höher als die frühere
+Wikipedia-only-Messung (TMR 1,3 % → 6,4 %, desklib ~1,3 % → 1,2 %, hier eher gleich), weil jetzt auch
+`news`/`howto`/`forum` einfließen, nicht nur Wikipedia/HC3.
+
+### Schwellen-Empfehlung für ~1 % Fehlalarme auf dieser Suite
+
+Perzentil-Methode (99. Perzentil der Mensch-Scores dieser Suite), getrennt nach `reliableWords`:
+
+| Backend | Bucket | Schwelle für ~1 % FA | tatsächliche FA | KI erkannt dabei | aktuelle Schwelle |
+|---|---|---|---|---|---|
+| TMR | alle | 0.9865 | 1.0 % | 36.3 % | redFrom 0.98 |
+| TMR | < 120 Wörter | 0.9868 | 1.5 % | 9.6 % | (immer „unsicher“) |
+| TMR | ≥ 120 Wörter | 0.9853 | 1.1 % | 61.9 % | redFrom 0.98 |
+| desklib | alle | 0.9463 | 1.3 % | 93.8 % | redFrom 0.87 |
+| desklib | < 120 Wörter | 0.9566 | 1.8 % | 79.6 % | shortRedFrom 0.98 (73 % erkannt, siehe oben) |
+| desklib | ≥ 120 Wörter | 0.9254 | 1.1 % | 97.4 % | redFrom 0.87 (2,5 % FA) |
+
+**Konkrete Schwellen-Empfehlung:**
+
+- **TMR:** Der aktuelle Wert (redFrom 0.98) liegt auf dieser breiteren Suite bei ~12 % Fehlalarmen,
+  nicht ~1 % - die frühere Kalibrierung war auf Wikipedia/HC3 zugeschnitten, hält aber auf `news`/
+  `howto` nicht. Für ein echtes ~1 %-Ziel über alle Domänen bräuchte es **redFrom ≈ 0.985–0.987**,
+  was die Erkennung bei langen Texten von ~85 % auf ~62 % drückt und bei kurzen Texten (ohnehin
+  „unsicher“) fast nichts mehr erkennt (9,6 %). TMR bleibt also ein Modell mit schmalem nutzbarem
+  Band zwischen Fehlalarmen und Erkennung - die bestehende Empfehlung „TMR fürs Hintergrund-Scannen,
+  aber mit Vorsicht bei Nachrichten/Anleitungen“ wird hierdurch bestätigt statt widerlegt.
+- **desklib:** Der aktuelle Wert (redFrom 0.87) liegt bei ~2,5 % FA - schon nah am Ziel, aber
+  `news` treibt das auf 10 % hoch. **redFrom ≈ 0.92–0.95** würde über alle Domänen ~1 % FA
+  erreichen, bei nur minimalem Erkennungsverlust (95,4 % → 93,8–97,4 %, da desklib in diesem Bereich
+  kaum Trennschärfe verliert) - ein günstiger Tausch, den Punkt 5 (Kalibrierung) aufgreifen sollte.
+  Für kurze Absätze (< 120 Wörter) legt diese Suite **shortRedFrom ≈ 0.955–0.96** nahe statt der
+  aktuellen 0.98 - ähnliche Fehlalarmrate (1,8 % vs. ~1 % auf der alten Wikipedia-only-Messung),
+  aber spürbar mehr erkannte kurze KI-Texte (79,6 % statt 73 %). Vor einer Änderung an
+  `extension/models.js` lohnt sich - wie schon beim Kurz-Absatz-Fund oben - eine Kreuzvalidierung
+  (train/test-Split dieser Suite), weil 480 Texte (Fehlalarm-Bucket teils nur ~20–30 Texte) noch
+  keine sehr enge Fehlerspanne geben.
+
+### Empfehlung Default-Modell
+
+**desklib bleibt die klar bessere Wahl, wo Latenz es zulässt.** Auf dieser breiteren, härteren
+Suite (6 Domänen, 7 aktuelle Generatoren inkl. GPT-4o, Llama-3-70B, Mixtral, Gemma-2, Cohere) hält
+der AUROC-Abstand (0.990 vs. 0.929) und wächst sogar: TMR verliert bei `howto` deutlich an
+Trennschärfe (0.767) und bei Cohere/Gemma2 an Erkennung (68–71 %), während desklib über alle
+Domänen und Generatoren zwischen 0.968–1.000 AUROC bzw. 90–100 % Erkennung bleibt. Die bestehende
+Rollenverteilung in der Extension (TMR fürs automatische Hintergrund-Scannen wegen Tempo, desklib
+für „Nur auf Knopfdruck“/genauere Prüfung) bleibt sinnvoll - TMR eher als grober erster Filter,
+mit dem Wissen, dass es bei Nachrichten/Anleitungen und neueren Nicht-OpenAI-Modellen (Gemma,
+Cohere) schwächer ist.
+
+### Einschränkungen
+
+- Kein Claude/Gemini als Generator verfügbar (kein öffentlicher gelabelter Datensatz gefunden,
+  keine eigenen API-Keys) - die Erkennungsraten sagen nichts über diese beiden Modellfamilien.
+- M4GT-Bench-Lizenz ungeklärt (siehe oben) - Daten bleiben lokal, keine Weiterverteilung.
+- desklib nur auf 480/1200 Texten gemessen (Zeitbudget); Domänen-Werte dort auf n=80 je Domäne,
+  Generator-Werte auf n=19–102 - insbesondere die 10 %-FA bei `news` (8/80) und die
+  Kurz-Absatz-Zahlen (n=13–32) haben spürbare Stichproben-Unsicherheit.
+- Menschliche Texte sind die Originaldokumente der Quell-Datensätze (vor 2023), aber teils selbst
+  schon algorithmisch vorverarbeitet (z. B. XSum/CNN sind Zusammenfassungs-Datensätze) - „menschlich“
+  heißt hier „von Menschen verfasst“, nicht zwingend „unbearbeiteter Rohtext einer echten Webseite“.
+- Absätze wurden aus ggf. längeren Dokumenten am Anfang entnommen (erster passender Ausschnitt),
+  nicht zufällig aus der Mitte - bei sehr langen Dokumenten (z. B. `howto`, Median 500+ Wörter)
+  könnte der Rest des Dokuments andere Werte liefern.
+- Wie immer bei diesen Benchmarks: TMR/desklib könnten Teile dieser Quell-Datensätze (MAGE/M4GT/HC3
+  sind alle vor 2025 veröffentlicht) im eigenen Training gesehen haben - absolute Erkennungsraten
+  eher zu optimistisch, der Domänen-/Generator-*Vergleich* (gleiche Texte, gleiches Modell) bleibt
+  aussagekräftig.
