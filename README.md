@@ -166,14 +166,9 @@ Ja – siehe [`DEVELOPMENT.md`](DEVELOPMENT.md) und [`server/README.md`](server/
 
 ---
 
-## ☕ Unterstützen
+## 💬 Feedback
 
-AI Content Flag ist und bleibt kostenlos, werbefrei und ohne Tracking. Wenn dir die Extension
-nützt, freuen wir uns über einen Kaffee:
-
-[![Auf Ko-fi unterstützen](https://img.shields.io/badge/Ko--fi-Kaffee%20spendieren-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/ojpoj)
-
-Genauso hilfreich: Fehlalarme oder Probleme als [Issue](https://github.com/OJPOJ/ai-check-extension/issues)
+Fehlalarme oder Probleme bitte als [Issue](https://github.com/OJPOJ/ai-check-extension/issues)
 melden.
 
 ---

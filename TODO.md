@@ -76,14 +76,13 @@ Verteilt wird vorerst nur über GitHub-Releases (Zip aus `npm run package`, Anle
 nicht über Chrome Web Store / Edge Add-ons.
 
 Erledigt: Icons, „Über / Lizenzen“, Store-Texte und Begründung der Berechtigungen (`store/`), README
-für Nutzer, Ko-fi-Link (`.github/FUNDING.yml`), Kontakt in `privacy.html` (Verweis auf GitHub-Issues –
+für Nutzer, Kontakt in `privacy.html` (Verweis auf GitHub-Issues –
 die Entwickler erhalten keine Daten, sind also nicht Verantwortliche im Sinne der DSGVO).
 Offen (für einen späteren Store-Eintrag Details in `store/CHECKLIST.md`):
 
 - **Erstes GitHub-Release** mit dem Zip anlegen (die README verlinkt auf `releases/latest`).
-- **Impressum:** bewusst keins (Hobbyprojekt, § 5 DDG wegen Ko-fi-Link Grauzone). Falls eine
-  Abmahnung kommt oder nennenswert Spenden eingehen: Ko-fi-Link entfernen oder Impressum mit
-  c/o-Adresse anlegen.
+- **Impressum:** bewusst keins (Hobbyprojekt ohne Spendenlink). Falls sich das ändert oder eine
+  Abmahnung kommt: Impressum mit c/o-Adresse anlegen.
 - **Nur für den Store:** Datenschutzerklärung öffentlich hosten (z.B. GitHub Pages); der Store
   verlangt eine URL.
 - **Screenshots mit echtem Modell** auf einer echten Seite neu machen; die aktuellen stammen aus dem
