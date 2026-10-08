@@ -8,22 +8,22 @@ as displayed) and desklib (1.7 GB download / ~475 MB in the browser, ~1.3-2.3 s/
 
 ## Candidates (researched)
 
-Criteria from the brief: open licence without a non-commercial clause, < 500 MB (ideally < 200 MB),
+Criteria from the brief: open license without a non-commercial clause, < 500 MB (ideally < 200 MB),
 public without a gate, current training data, transformers.js-compatible architecture (checked:
 RoBERTa, BERT and ModernBERT are present in the `@huggingface/transformers@4.3.0` pinned in this repo
 - `package/src/models/{roberta,bert,modernbert}/`; Longformer is not).
 
-| Repo | Licence | Architecture | Size (fp32 / ONNX) | ONNX available | Training data | Status |
+| Repo | License | Architecture | Size (fp32 / ONNX) | ONNX available | Training data | Status |
 |---|---|---|---|---|---|---|
 | **fakespot-ai/roberta-base-ai-text-detection-v1** | Apache-2.0 | RoBERTa-base (125M) | 499 MB / **125 MB int8** | Yes ([MedAliFarhat/ai-text-detector-onnx](https://huggingface.co/MedAliFarhat/ai-text-detector-onnx), Apache-2.0, `sha 0c809a8`, explicitly built for transformers.js) | Not disclosed in detail (refers to github.com/FakespotAILabs/ApolloDFT, technical report without a concrete list of sources) | **Measured, recommended** |
 | MayZhou/e5-small-lora-ai-generated-detector | MIT | BERT/e5-small (33M) | 133 MB / no ONNX | No | RAID-train (80k human, 128k AI) + 10k Twitter+GPT-4o-mini paraphrases | Measured, **rejected** (poorly calibrated) |
 | AICodexLab/answerdotai-ModernBERT-base-ai-detector | Apache-2.0 | ModernBERT-base (149M) | 598 MB / no ONNX | No | DAIGT V2 (Kaggle student essays + ChatGPT/Claude/DeepSeek, ~36k texts) | Measured, **rejected** (scores saturate near 1.0, generalises poorly) |
 | ShantanuT01/gradient-ai-text-detector | MIT | DeBERTa-v3-large (~435M, like desklib) | 1.74 GB / 408 MB (int4 `model_q4.onnx` only, no int8) | Yes (int4) | DACTYL 2.0 + LLMTrace + MAGA-Bench (~1.1 million texts) | Not measured: size target clearly missed (almost as large as desklib, int4 in the browser also risky/little tested); model card claims AUROC 0.955 OOD vs. desklib 0.921 OOD - own value, not verified |
 | yaful/MAGE | Apache-2.0 | Longformer | - | - | MAGE dataset | **Rejected**: Longformer is not supported by transformers.js; MAGE is also one of the three sources of our own eval suite (`training/EVAL_RESULTS.md`) - direct contamination |
-| Hello-SimpleAI/chatgpt-detector-roberta | no licence given | RoBERTa-base | - | - | HC3 | **Rejected**: no licence in the model repo, HC3 is part of our eval suite (forum domain) - contamination |
-| andreas122001/roberta-academic-detector, roberta-mixed-detector | OpenRAIL | RoBERTa-large | - | - | NicolaiSivesind/human-vs-machine | **Rejected**: OpenRAIL is a behavioural licence (usage restrictions), not MIT/Apache/CC-BY as required |
-| raj-tomar001/LLM-DetectAIve_deberta-base | no licence/model card | DeBERTa-base | - | - | unknown | **Rejected**: no model card, no licence information |
-| SuperAnnotate/ai-detector(-low-fpr) | "other" (unclear) | RoBERTa-large | 1.4 GB | No | Wikipedia + ELI5 | **Rejected**: licence unclear, too large, Wikipedia/ELI5 are part of our eval suite - contamination |
+| Hello-SimpleAI/chatgpt-detector-roberta | no license given | RoBERTa-base | - | - | HC3 | **Rejected**: no license in the model repo, HC3 is part of our eval suite (forum domain) - contamination |
+| andreas122001/roberta-academic-detector, roberta-mixed-detector | OpenRAIL | RoBERTa-large | - | - | NicolaiSivesind/human-vs-machine | **Rejected**: OpenRAIL is a behavioural license (usage restrictions), not MIT/Apache/CC-BY as required |
+| raj-tomar001/LLM-DetectAIve_deberta-base | no license/model card | DeBERTa-base | - | - | unknown | **Rejected**: no model card, no license information |
+| SuperAnnotate/ai-detector(-low-fpr) | "other" (unclear) | RoBERTa-large | 1.4 GB | No | Wikipedia + ELI5 | **Rejected**: license unclear, too large, Wikipedia/ELI5 are part of our eval suite - contamination |
 
 8 candidates researched, 3 actually measured (acceptance requires at least 2).
 
@@ -310,7 +310,7 @@ already covers fakespot completely (see label check above). `desklib` stays the 
 as with desklib's own pooling class needed) - little effort, so included. Revision there:
 `f9cdb14d1f8b105f597d80fa7b56f20c6ea0e9db` (PyTorch original, last commit).
 
-**Licence:** `extension/THIRD_PARTY_NOTICES.md` extended with the fakespot entry (Apache-2.0 for
+**License:** `extension/THIRD_PARTY_NOTICES.md` extended with the fakespot entry (Apache-2.0 for
 original and third-party ONNX, base model RoBERTa-base MIT).
 
 ### Limitations (in addition to WP-06)

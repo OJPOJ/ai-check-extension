@@ -75,7 +75,7 @@ As displayed: TMR 4.7% false alarms (without WikiHow 1.6%), desklib 1.2% with `r
 For now distribution is only via GitHub releases (zip from `npm run package`, instructions in `README.md`),
 not via Chrome Web Store / Edge Add-ons.
 
-Done: icons, "About / Licenses", store texts and justification of the permissions (`store/`), README
+Done: icons, "About / licenses", store texts and justification of the permissions (`store/`), README
 for users, contact in `privacy.html` (reference to GitHub issues –
 the developers receive no data, so they are not controllers within the meaning of the GDPR).
 Open (for a later store listing details in `store/CHECKLIST.md`):

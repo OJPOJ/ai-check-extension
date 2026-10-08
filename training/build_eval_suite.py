@@ -2,10 +2,10 @@
 Builds a broader, reproducible eval suite (TODO item 3 / WP-01) from the public
 dataset Jinyan1/COLING_2025_MGT_en (Hugging Face). This dataset combines three research
 benchmarks for human-vs-AI detection (column "source"): MAGE (Apache-2.0), M4GT-Bench
-(EACL 2024, mbzuai-nlp/M4 - no explicit licence file found in the repo, pure research
+(EACL 2024, mbzuai-nlp/M4 - no explicit license file found in the repo, pure research
 use) and HC3 (**CC BY-SA 4.0**, not Apache-2.0 - verified via the dataset card, see
 git history of orchestration/LOG.md, WP-11; already used in this project for prepare_dataset.py).
-For the compilation itself (Jinyan1/COLING_2025_MGT_en) no licence is entered in the dataset card YAML
+For the compilation itself (Jinyan1/COLING_2025_MGT_en) no license is entered in the dataset card YAML
 - see DECISION in the log. Used only for local evaluation, raw data
 stays under training/data/ (gitignored), is not redistributed.
 
@@ -17,11 +17,11 @@ Domains (our category -> sub_source values of the dataset):
     reviews      yelp, imdb
     howto        wikihow
 
-Note on licence/origin per sub_source (column "source", verified by cross-check, WP-11):
+Note on license/origin per sub_source (column "source", verified by cross-check, WP-11):
 finance/medicine/open_qa/reddit_eli5/wiki_csai = hc3 (CC BY-SA 4.0); cmv/cnn/dialogsum/eli5/
 hswag/imdb/pubmed/roct/sci_gen/tldr/wp/xsum/yelp = mage (Apache-2.0, but human
 source texts partly with their own terms of use, e.g. Yelp/IMDb); arxiv/outfox/peerread/
-reddit/wikihow/**wikipedia** = m4gt (**no licence**, M4GT-Bench/M4 without a LICENSE file/field).
+reddit/wikihow/**wikipedia** = m4gt (**no license**, M4GT-Bench/M4 without a LICENSE file/field).
 The sub_source "wikipedia" above does NOT come from MAGE but from M4GT - contrary to what the name
 suggests. MAGE's own Wikipedia/SQuAD domain is called "squad" here (not included in DOMAINS above)
 and only has older generators (gpt-3.5-turbo, otherwise text-davinci-00x/flan-t5/opt/

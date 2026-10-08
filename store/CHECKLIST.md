@@ -64,7 +64,7 @@ Check before uploading:
 
 - Icons 16/32/48/128 (SVG source + build script, `npm run build:icons`), entered in the manifest.
   `npm run package` no longer shows the icon warning.
-- "About / Licenses" in the extension (`extension/about.html`, linked from the settings at the bottom under
+- "About / licenses" in the extension (`extension/about.html`, linked from the settings at the bottom under
   Privacy): version, MIT license, CC-BY-SA notice for blocklist and reference set,
   third-party components, link to the privacy policy.
 - `store/LISTING.md`, `store/PERMISSIONS.md` (this file).

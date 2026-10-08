@@ -87,8 +87,6 @@ for (const [p, from] of refs) {
 
 // --- Notes for the Web Store ------------------------------------------------------------------
 if (!manifest.icons?.["128"]) warnings.push("Store: no 128 px icon in the manifest (\"icons\")");
-const privacy = fs.readFileSync(path.join(extDir, "privacy.html"), "utf8");
-if (/\[Name und Kontaktadresse/.test(privacy)) warnings.push("Store: contact in privacy.html is still a placeholder");
 
 const blocklistSrc = fs.readFileSync(path.join(extDir, "generated", "blocklist.js"), "utf8");
 const generated = blocklistSrc.match(/generated:\s*"(\d{4}-\d{2}-\d{2})"/)?.[1];

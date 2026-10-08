@@ -8,7 +8,6 @@ Completed WPs (WP-01 to WP-11) are in the git history; their results live in `tr
 |---|---|---|---|---|---|
 | WP-04 | "Check model" with a real HF token | item 1 | – | blocked (user) | needs token |
 | WP-05 | Contact/legal notice in `privacy.html` | item 4 | – | blocked (user) | needs name/address |
-| WP-12 | Switch repo language to English only (issue #3) | – | see log | running | 12a `extension/**`, `test/**` · 12b docs, `store/**`, `server/**`, `scripts/**` · 12c `training/**` |
 
 ## Candidates for the next round
 

@@ -106,7 +106,7 @@ starts from scratch.
 ## 🚀 Usage
 
 **Approve a page:** On a web page, click the extension icon and turn on the
-switch "Scan this page automatically". From then on the page is checked when you visit it. Alternatively,
+switch "Scan this site automatically". From then on the page is checked when you visit it. Alternatively,
 "Scan page now" once.
 
 **Check a single passage:** Select text → right-click → "Check selected text for AI"

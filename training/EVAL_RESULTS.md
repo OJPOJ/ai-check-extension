@@ -240,9 +240,9 @@ across several domains and several, more recent AI generators?
 MAGE ([`yaful/MAGE`](https://huggingface.co/datasets/yaful/MAGE), Apache-2.0), M4GT-Bench
 (mbzuai-nlp/M4, EACL 2024 - no LICENSE file found in the GitHub repo, pure research/eval
 use) and HC3 (Apache-2.0, already used in `prepare_dataset.py`). For the compilation
-itself no licence is entered in the dataset card YAML; used only for local evaluation,
+itself no license is entered in the dataset card YAML; used only for local evaluation,
 raw data stays under `data/` (gitignored), no redistribution. **RAID** (`liamdugan/raid`,
-MIT licence) was examined but rejected: the `train`/`extra` splits there contain only open models
+MIT license) was examined but rejected: the `train`/`extra` splits there contain only open models
 (Llama-Chat, Mistral, MPT, GPT-2) - the GPT-4/ChatGPT/Cohere generations listed in the dataset
 apparently exist only in the unlabeled `test` split (leaderboard), so they are not publicly
 usable with labels.
@@ -412,7 +412,7 @@ Cohere).
 
 - No Claude/Gemini available as a generator (no public labelled dataset found,
   no own API keys) - the detection rates say nothing about these two model families.
-- M4GT-Bench licence unresolved (see above) - data stays local, no redistribution.
+- M4GT-Bench license unresolved (see above) - data stays local, no redistribution.
 - desklib measured on only 480/1200 texts (time budget); domain values there on n=80 per domain,
   generator values on n=19–102 - in particular the 10% FA on `news` (8/80) and the
   short-paragraph numbers (n=13–32) have noticeable sampling uncertainty.
@@ -604,7 +604,7 @@ changed).
   not a formality.
 - The WikiHow structure analysis is code reading + domain knowledge, not a measurement on real pages (fetch
   of wikihow.com blocked in this environment). It shows a plausible range, not a value.
-- As in "Broader eval suite": no Claude/Gemini as a generator, M4GT licence unresolved (data stays
+- As in "Broader eval suite": no Claude/Gemini as a generator, M4GT license unresolved (data stays
   local), human texts partly already editorially/algorithmically preprocessed (XSum/CNN), models
   may have seen parts of the source datasets in training.
 - desklib now fully on 1200 texts (720 new + 480 from WP-01, text itself as the key when

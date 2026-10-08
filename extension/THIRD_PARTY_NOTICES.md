@@ -8,7 +8,7 @@
 
 ## Shipped data (`generated/blocklist.js`, via `npm run build:blocklist`)
 
-The shipped blocklist is compiled from the following sources and as a whole is under
+The bundled blocklist is compiled from the following sources and as a whole is under
 **CC BY-SA 4.0** (https://creativecommons.org/licenses/by-sa/4.0/):
 
 - **UT1 blacklists**, categories `bank` and `webmail` – © Université Toulouse Capitole, maintained by

@@ -47,7 +47,7 @@ In Chrome/Edge:
 1. `chrome://extensions` → "Developer mode" on → "Load unpacked" → `extension/`.
 2. The settings open → choose a model, "Download" (one time, from Hugging Face,
    no token): desklib (default) 1.7 GB, converted in the browser to ~475 MB; TMR 126 MB.
-3. Extension icon → "Scan this page automatically" or "Scan page now".
+3. Extension icon → "Scan this site automatically" or "Scan page now".
 4. Offline test page: for the extension "Allow access to file URLs", then open `test/harness.html`.
 
 Optional – server backend (desklib or TMR via PyTorch), provider "Local":
@@ -89,7 +89,7 @@ and records every text sent (random port, a running `shim_server.py` does not in
 | `extraction.test.mjs` | What goes to the model: 23 edge cases (navigation, cookie banner, hidden paragraphs, code, icon fonts, forms …), with and without lazy scan |
 | `text-length.test.mjs` | Up to 2000 characters, cut at sentence end, batch budget 2500 characters, right-click = same excerpt as auto-scan |
 | `feedback.test.mjs` | Feedback in the popover: click on the badge (also in links, without re-scoring), consent before the first save, undo, export without address, withdrawal, switching off |
-| `score-store.test.mjs` | Persistent store: SW restart, mapping across pages, model switch, retention, "Don't store" |
+| `score-store.test.mjs` | Persistent store: SW restart, mapping across pages, model switch, retention, "Do not store" |
 | `model-check.test.mjs` | "Check model" in the settings: required before saving, swapped labels rejected, traffic light taken from the server, version in the model key, new URL invalidates the check |
 
 Not covered: scoring with the real browser model (would need the model download) and the
@@ -167,7 +167,7 @@ Hugging Face provider with a real token (mocked only, see `providers.test.mjs`).
 - **Check single passages:** right-click on selected text or on a paragraph (or
   `Alt+Shift+C`), independent of the scan mode and also for text the auto-scan leaves out
   (from 5 words, up to 2000 characters). Marking via CSS Custom Highlight API, result in the popover.
-- **Remember scores (default 30 days, adjustable up to 1 year or "don't store"):**
+- **Remember scores (default 30 days, adjustable up to 1 year or "Do not store"):**
   known paragraphs are marked immediately without recomputing – also after a browser restart and
   on other pages with the same text.
 - **Feedback (stage 1 – local only):** clicking the badge of a marked paragraph opens
@@ -378,7 +378,7 @@ statistics from the register instead of document scans.
 - Very short paragraphs (15–39 words) are scored in groups (BBC articles now covered).
 - Reference set for "Check model" broadened (114 texts, HC3 + RAID wiki, short paragraphs), license checked per
   sub-source.
-- Store preparation: icons, "About / Licenses" page (`about.html`), store texts and justification of the
+- Store preparation: icons, "About / licenses" page (`about.html`), store texts and justification of the
   permissions (`store/`), screenshot script.
 
 **Open:** see `TODO.md`.

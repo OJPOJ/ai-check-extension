@@ -113,7 +113,7 @@ globalThis.AIVSAI = (() => {
     // Shipped: generated/blocklist.js (scripts/build-blocklist.mjs), plus own entries and exceptions.
     builtinBlocklist: true,
     blockedSites: [], // own entries, always apply
-    unblockedSites: [], // exceptions from the shipped list
+    unblockedSites: [], // exceptions from the bundled list
     // Treat sites with a visible password or payment field as blocked (catches what no list knows)
     sensitiveHeuristic: true,
     // only score paragraphs near the visible area, the rest only on scrolling (saves cloud costs)
@@ -201,7 +201,7 @@ globalThis.AIVSAI = (() => {
     return sites.some((s) => host === s || host.endsWith(`.${s}`));
   }
 
-  // Shipped list as a "\nd1\nd2\n...\n" string: search by host and all parent domains,
+  // Bundled list as a "\nd1\nd2\n...\n" string: search by host and all parent domains,
   // without building a set with 10,000 entries in every tab. Result remembered per host.
   const builtinCache = new Map();
   function builtinMatch(host) {
@@ -216,7 +216,7 @@ globalThis.AIVSAI = (() => {
     return builtinCache.get(host);
   }
 
-  // Why a site is blocked: "user" (own entry), "builtin" (shipped list) or null
+  // Why a site is blocked: "user" (own entry), "builtin" (bundled list) or null
   function blockReason(host, cfg) {
     if (siteMatches(host, cfg.blockedSites || [])) return "user";
     if (cfg.builtinBlocklist && builtinMatch(host) && !siteMatches(host, cfg.unblockedSites || [])) return "builtin";

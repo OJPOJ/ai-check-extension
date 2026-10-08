@@ -39,7 +39,7 @@ function renderSite() {
     $("siteHint").textContent = "Cannot scan here";
   } else if (reason) {
     $("siteHint").textContent =
-      reason === "builtin" ? "Shipped blocklist (bank/mail) – is never scanned" : "Blocklist – is never scanned";
+      reason === "builtin" ? "Bundled blocklist (bank/mail) – is never scanned" : "Blocklist – is never scanned";
   } else if (config.scanMode === "all") {
     siteAuto.checked = true;
     siteAuto.disabled = true;
@@ -148,7 +148,7 @@ $("siteAuto").addEventListener("change", async (e) => {
 $("blockToggle").addEventListener("click", async () => {
   const notHost = (list) => list.filter((s) => !AIVSAI.siteMatches(host, [s]));
   if (AIVSAI.blockReason(host, config)) {
-    // remove own entries; if the shipped list still applies, add an exception for this host
+    // remove own entries; if the bundled list still applies, add an exception for this host
     config.blockedSites = notHost(config.blockedSites);
     if (AIVSAI.blockReason(host, config)) config.unblockedSites = [...config.unblockedSites, host];
   } else {

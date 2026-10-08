@@ -180,7 +180,7 @@ very accurate (Russell et al. 2025) – but individually not error-free either. 
 Rough costs: 20,000 pairs × ~150 output tokens over 6 models is ~3 million output tokens –
 via API in the low double-digit dollar range depending on the model, free locally with open models.
 Legal: check the providers' terms of use (some forbid using outputs to train
-competing models – a detector is not that, but read them anyway), licences of the
+competing models – a detector is not that, but read them anyway), licenses of the
 human sources (CC-BY-SA → attribution/redistribution), for web texts § 44b UrhG (German copyright act; text and
 data mining allowed, except with a machine-readable reservation of rights; delete copies when no longer
 needed).

@@ -99,12 +99,12 @@ describe("builtinMatch", () => {
 });
 
 describe("blockReason", () => {
-  it("own entries take precedence, even if the shipped list is off", () => {
+  it("own entries take precedence, even if the bundled list is off", () => {
     assert.equal(A.blockReason("x.private.example", cfg({ blockedSites: ["private.example"] })), "user");
     assert.equal(A.blockReason("bank.example", cfg({ blockedSites: ["bank.example"], builtinBlocklist: false })), "user");
   });
 
-  it("shipped list: on/off and exceptions (also for subdomains)", () => {
+  it("bundled list: on/off and exceptions (also for subdomains)", () => {
     assert.equal(A.blockReason("www.bank.example", cfg()), "builtin");
     assert.equal(A.blockReason("www.bank.example", cfg({ builtinBlocklist: false })), null);
     assert.equal(A.blockReason("www.bank.example", cfg({ unblockedSites: ["bank.example"] })), null);

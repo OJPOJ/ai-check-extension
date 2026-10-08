@@ -30,7 +30,7 @@ leaves your machine. If you prefer, you can instead use a local server, your own
 or the Hugging Face Inference API; the extension clearly shows where text would be sent before it is.
 
 **When it scans:** Only on pages you explicitly allow (or only on demand, per click) – no text is
-sent without your action. A built-in blocklist (online banking, webmail, government login portals)
+sent without your action. A bundled blocklist (online banking, webmail, government login portals)
 and detection of password/payment fields additionally prevent scanning of sensitive pages, regardless
 of this setting.
 
@@ -46,4 +46,4 @@ of this setting.
 
 **Open source:** The code is MIT-licensed. License and data-provenance details (including a
 CC BY-SA 4.0 blocklist and a CC BY-SA 4.0 reference set used for "Check model") are available via
-"About / Licenses" in the extension's settings.
+"About / licenses" in the extension's settings.

@@ -24,7 +24,7 @@ describe("Scan and operation", () => {
         "tall.test": tall,
         "bank.test": tall,
         "sub.bank.test": tall,
-        "www.chase.com": tall, // is on the shipped blocklist
+        "www.chase.com": tall, // is on the bundled blocklist
         "login.test": tall.replace("<body>", '<body><form><input type="password"></form>'),
         "news.test": tall.replace("<body>", '<body><div role="dialog"><input type="password"></div><input type="password" hidden>')
       }
@@ -254,9 +254,9 @@ describe("Scan and operation", () => {
     await bank.close();
   });
 
-  it("blocks domains of the shipped list, with an exception per host", async () => {
+  it("blocks domains of the bundled list, with an exception per host", async () => {
     const info = await ext.options.evaluate(() => ({ count: AIVSAI_BLOCKLIST.count, reason: AIVSAI.blockReason("secure.chase.com", AIVSAI.DEFAULTS) }));
-    assert.ok(info.count > 5000, "shipped list is missing or too small");
+    assert.ok(info.count > 5000, "bundled list is missing or too small");
     assert.equal(info.reason, "builtin");
 
     const before = backend.requests;
