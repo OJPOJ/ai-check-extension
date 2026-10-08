@@ -1,72 +1,72 @@
 (() => {
   const MIN_WORDS = 40;
-  // Untergrenze für Absätze, die NUR als Teil einer Gruppe Kandidat werden dürfen (siehe groupCandidates,
-  // TODO.md Punkt 2 / WP-10). Manche Seiten (BBC: 7-38 Wörter je <p>, test/REAL_PAGES.md) schreiben so
-  // kurze Absätze, dass fast keiner MIN_WORDS erreicht - vorher fiel jeder Einzelabsatz schon vor der
-  // Gruppierung raus, und der ganze Artikel-Container wurde stattdessen zum einzigen Kandidaten
-  // (hasLongCandidateChild). 15 liegt klar über typischen Navigations-/Bildunterschriften-Längen (oft
-  // < 10 Wörter: Bildcredits, Breadcrumbs, Kurz-Labels) und klar unter MIN_WORDS, damit realistisch
-  // mehrere Nachbarn zusammen auf MIN_WORDS kommen. Ein einzelner Absatz in diesem Bereich, der mit
-  // keinem Nachbarn zusammen MIN_WORDS erreicht, bleibt wie bisher unbewertet (kein Kandidat).
+  // Lower bound for paragraphs that may become a candidate ONLY as part of a group (see groupCandidates,
+  // TODO.md item 2 / WP-10). Some sites (BBC: 7-38 words per <p>, test/REAL_PAGES.md) write such
+  // short paragraphs that almost none reaches MIN_WORDS - previously every single paragraph dropped out before
+  // grouping, and the whole article container became the only candidate instead
+  // (hasLongCandidateChild). 15 is clearly above typical navigation/caption lengths (often
+  // < 10 words: image credits, breadcrumbs, short labels) and clearly below MIN_WORDS, so that realistically
+  // several neighbors together reach MIN_WORDS. A single paragraph in this range that does not reach
+  // MIN_WORDS together with any neighbor stays unscored as before (no candidate).
   const GROUP_MIN_WORDS = 15;
-  // Wie viel Text pro Absatz ans Modell geht, bestimmt das Modell (AIVSAI.maxChars: TMR 2000, desklib
-  // 1500 Zeichen): mehr Kontext bringt viel (TMR: 500 statt 1500 Zeichen = ~9 % statt <1 % Fehler), Chunks
-  // sind schlechter als ein Stück (training/EVAL_RESULTS.md, "Textlänge"). Gilt für Auto-Scan und manuelle
-  // Prüfung gleich, damit derselbe Absatz immer denselben Text und damit denselben Score/Feedback-Eintrag ergibt.
-  // Batches nach Textmenge statt nur nach Anzahl: kostet etwa so viel Rechenzeit wie früher 5 × 500
-  // Zeichen - ein Batch mit langen Absätzen würde sonst die Priorisierung beim Scrollen blockieren.
+  // How much text per paragraph goes to the model is determined by the model (AIVSAI.maxChars: TMR 2000, desklib
+  // 1500 characters): more context helps a lot (TMR: 500 instead of 1500 characters = ~9% instead of <1% errors), chunks
+  // are worse than one piece (training/EVAL_RESULTS.md, "Text length"). Applies equally to auto-scan and manual
+  // check, so that the same paragraph always yields the same text and thus the same score/feedback entry.
+  // Batches by amount of text instead of just by count: costs about as much compute time as 5 × 500
+  // characters did before - a batch of long paragraphs would otherwise block the prioritization while scrolling.
   const BATCH_MAX_ITEMS = 5;
   const BATCH_MAX_CHARS = 2500;
   const DEBOUNCE_MS = 600;
-  // lazyScan: nur Absätze bis zu so vielen Bildschirmhöhen über/unter dem sichtbaren
-  // Bereich bewerten, der Rest folgt beim Scrollen
+  // lazyScan: only score paragraphs up to this many screen heights above/below the visible
+  // area, the rest follows on scrolling
   const NEAR_SCREENS = 1.5;
   const CANDIDATE_SELECTOR = "article, p, li";
-  // Absätze innerhalb dieser Bereiche nie bewerten: Navigation/Seitenrahmen (auch ohne semantische
-  // Tags), Dialoge (meist Cookie-/Consent-Banner - Standardtext, der gern als KI gilt), Code, Eingaben.
-  // Bewusst NICHT: aria-hidden/inert (viele Seiten verstecken damit den ganzen Inhalt, solange ein
-  // Modal offen ist - dann würde nie gescannt), form (ASP.NET packt die ganze Seite in ein <form>).
+  // Never score paragraphs within these areas: navigation/page frame (even without semantic
+  // tags), dialogs (mostly cookie/consent banners - boilerplate text that is readily taken for AI), code, inputs.
+  // Deliberately NOT: aria-hidden/inert (many sites hide the entire content with it while a
+  // modal is open - then nothing would ever be scanned), form (ASP.NET wraps the whole page in a <form>).
   const EXCLUDE_SELECTOR =
     "nav, header, footer, script, style, noscript, template, pre, dialog, " +
     "[role='navigation'], [role='banner'], [role='contentinfo'], [role='search'], " +
     "[role='dialog'], [role='alertdialog'], " +
     "[contenteditable], [contenteditable='true'], textarea, input, select, button, " +
     "[role='textbox']";
-  // Innerhalb eines Absatzes herausrechnen: Icon-Fonts ("chevron_right"), Code-Blöcke
+  // Strip out within a paragraph: icon fonts ("chevron_right"), code blocks
   const STRIP_SELECTOR = "[aria-hidden='true'], pre";
   const LEVEL_CLASSES = ["aivsai-green", "aivsai-yellow", "aivsai-red", "aivsai-uncertain", "aivsai-badge"];
-  // Manuelle Prüfung: auch kurze Texte (Ergebnis dann mit Hinweis)
+  // Manual check: short texts too (result then comes with a note)
   const MANUAL_MIN_WORDS = 5;
   const HIGHLIGHT_STATES = ["pending", "green", "yellow", "red", "uncertain"];
-  // Heuristik "sensible Seite": sichtbares Passwort-, Zahlungs- oder Einmalcode-Feld. Felder in Dialogen
-  // zählen nicht - sonst beendet das Login-Popup einer News-Seite den Scan des Artikels darunter.
+  // Heuristic "sensitive site": visible password, payment or one-time-code field. Fields in dialogs
+  // do not count - otherwise the login popup of a news site ends the scan of the article underneath.
   const SENSITIVE_SELECTOR =
     "input[type='password'], input[autocomplete^='cc-'], input[autocomplete='one-time-code']";
   const DIALOG_SELECTOR = "dialog, [role='dialog'], [role='alertdialog'], [aria-modal='true']";
   const BLOCK_MESSAGES = {
-    list: "Diese Seite steht auf der Sperrliste",
-    sensitive: "Diese Seite enthält ein Passwort- oder Zahlungsfeld"
+    list: "This site is on the blocklist",
+    sensitive: "This site contains a password or payment field"
   };
   const host = location.hostname;
   const Popover = AIVSAIPopover;
 
   let config = { ...AIVSAI.DEFAULTS };
-  let manualScan = false; // "Diese Seite scannen" aus Popup/Tastenkürzel, gilt bis zum Neuladen
-  let generation = 0; // erhöht bei jedem Neu-Scan, damit veraltete Antworten verworfen werden
+  let manualScan = false; // "Scan page now" from popup/keyboard shortcut, applies until reload
+  let generation = 0; // incremented on every rescan, so that stale responses are discarded
   let lastError = null;
-  let sensitive = false; // Heuristik hat angeschlagen - gilt bis zum Neuladen
+  let sensitive = false; // heuristic has triggered - applies until reload
 
-  // Ergebnis-Register - die eine Quelle für Statistik, Neu-Einfärben und später Feedback/Berichte.
-  //   results:      Element -> { hash, text, truncated, words, p, model, source: "auto" | "manual", at, foreign? }
-  //   manualRanges: Range   -> { text, truncated, words, p, model, at, foreign? } bzw. null, solange die Prüfung läuft
-  //   skipped:      Element -> Sprache ("de", ...): vom Auto-Scan nicht bewertet, das Modell kennt sie nicht
-  // words = Wortzahl des ganzen Texts (-> Stufe "uncertain"), foreign = Sprache, falls trotzdem geprüft
+  // Result registry - the one source for statistics, recoloring and later feedback/reports.
+  //   results:      element -> { hash, text, truncated, words, p, model, source: "auto" | "manual", at, foreign? }
+  //   manualRanges: Range   -> { text, truncated, words, p, model, at, foreign? } or null while the check is running
+  //   skipped:      element -> language ("de", ...): not scored by the auto-scan, the model does not know it
+  // words = word count of the whole text (-> level "uncertain"), foreign = language, if checked anyway
   const results = new Map();
   const manualRanges = new Map();
   const skipped = new Map();
-  const seen = new Map(); // textHash -> { p, model }, damit gleiche Absätze nur einmal bewertet werden
+  const seen = new Map(); // textHash -> { p, model }, so that identical paragraphs are scored only once
 
-  // Warteschlange: textHash -> { id, text, els, near }
+  // Queue: textHash -> { id, text, els, near }
   const pending = new Map();
   const inFlight = new Map();
   let batchesInFlight = 0;
@@ -76,15 +76,15 @@
   let statsTimer = null;
   let pumpTimer = null;
   const addedNodes = new Set();
-  let contextTarget = null; // Element unter dem letzten Rechtsklick
-  const staticPosition = new WeakMap(); // Element -> position: static? (getComputedStyle nur einmal)
+  let contextTarget = null; // element under the last right-click
+  const staticPosition = new WeakMap(); // element -> position: static? (getComputedStyle only once)
 
-  // Live-Collections: Zählen ohne Dokument-Scan
+  // Live collections: counting without a document scan
   const pendingEls = document.getElementsByClassName("aivsai-pending");
   const deferredEls = document.getElementsByClassName("aivsai-deferred");
 
-  // Meldet, wenn ein zurückgestellter Absatz in die Nähe des sichtbaren Bereichs kommt -
-  // deckt Scrollen, Fenstergröße und aufgeklappte Inhalte ab, ohne Scroll-Listener.
+  // Reports when a deferred paragraph comes near the visible area -
+  // covers scrolling, window size and expanded content, without a scroll listener.
   const nearObserver = new IntersectionObserver(
     (entries) => {
       if (entries.some((e) => e.isIntersecting)) schedulePump();
@@ -92,9 +92,9 @@
     { rootMargin: `${NEAR_SCREENS * 100}% 0px` }
   );
 
-  // Nachgeladene Inhalte (Infinite Scroll, SPAs) - Knoten über die Debounce-Zeit sammeln,
-  // damit keine Mutationen verloren gehen, wenn der Timer neu startet.
-  // Läuft nur, solange auf der Seite gescannt wird (siehe syncObserver).
+  // Lazy-loaded content (infinite scroll, SPAs) - collect nodes over the debounce time,
+  // so that no mutations are lost when the timer restarts.
+  // Only runs while the site is being scanned (see syncObserver).
   const mutationObserver = new MutationObserver((mutations) => {
     for (const m of mutations) {
       m.addedNodes.forEach((node) => {
@@ -106,7 +106,7 @@
     mutationTimer = setTimeout(() => {
       const nodes = Array.from(addedNodes).filter((n) => n.isConnected);
       addedNodes.clear();
-      // z.B. SPA, die nach dem Laden auf die Login-Seite wechselt: sofort aufhören
+      // e.g. an SPA that switches to the login page after loading: stop immediately
       if (nodes.some(detectSensitive)) {
         clearAll();
         syncObserver();
@@ -133,7 +133,7 @@
     syncObserver();
 
     if (!isActive()) {
-      // beim Ausschalten auch manuell geprüfte Stellen entfernen, die es ohne Auto-Scan geben kann
+      // when switching off, also remove manually checked passages, which can exist without auto-scan
       if (wasActive || ("enabled" in changes && !config.enabled)) clearAll();
     } else if (!wasActive || AIVSAI.PROVIDER_KEYS.some((k) => k in changes) || "groupShortParagraphs" in changes) {
       rescanAll();
@@ -146,13 +146,13 @@
 
   const MESSAGE_HANDLERS = {
     SCAN_NOW: () => {
-      // auf Seiten ohne Auto-Scan lief bisher keine Erkennung (kein MutationObserver)
+      // on sites without auto-scan no detection has run so far (no MutationObserver)
       detectSensitive(document.body);
-      // Popup bietet den Knopf dort gar nicht an - bleibt das Tastenkürzel
+      // The popup does not offer the button there at all - the keyboard shortcut remains
       if (policy() === "blocked") {
         Popover.show({}, Popover.claim(), {
-          error: `${BLOCK_MESSAGES[blockReason()]} und wird nicht gescannt.`,
-          notes: ["Einzelne Stellen: Text markieren oder Absatz rechtsklicken → „Auf KI prüfen“."]
+          error: `${BLOCK_MESSAGES[blockReason()]} and is not scanned.`,
+          notes: ["Single passages: select text or right-click a paragraph → \"Check for AI\"."]
         });
         return stats();
       }
@@ -176,7 +176,7 @@
     if (result !== undefined) sendResponse(result);
   });
 
-  // "list" (Sperrliste), "sensitive" (Heuristik) oder null
+  // "list" (blocklist), "sensitive" (heuristic) or null
   function blockReason() {
     if (!config.enabled) return null;
     if (AIVSAI.blockReason(host, config)) return "list";
@@ -188,7 +188,7 @@
     return p !== "off" && blockReason() ? "blocked" : p;
   }
 
-  // true, wenn in `root` ein sichtbares sensibles Feld steckt (dann bleibt `sensitive` gesetzt)
+  // true if `root` contains a visible sensitive field (then `sensitive` stays set)
   function detectSensitive(root) {
     if (sensitive || !config.sensitiveHeuristic || root?.nodeType !== Node.ELEMENT_NODE) return false;
     const fields = root.matches(SENSITIVE_SELECTOR) ? [root] : root.querySelectorAll(SENSITIVE_SELECTOR);
@@ -213,8 +213,8 @@
     }
   }
 
-  // cyrb53: schneller 53-Bit-Hash - identifiziert Absätze innerhalb der Seite (Warteschlange, Duplikate).
-  // Der dauerhafte Speicher im Service Worker nutzt SHA-256 über den Text selbst.
+  // cyrb53: fast 53-bit hash - identifies paragraphs within the page (queue, duplicates).
+  // The persistent store in the service worker uses SHA-256 over the text itself.
   function hashText(text) {
     let h1 = 0xdeadbeef;
     let h2 = 0x41c6ce57;
@@ -228,7 +228,7 @@
     return `${text.length}_${(4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36)}`;
   }
 
-  // Sichtbarer Text ohne Icon-Fonts und Code-Blöcke. Nur lesen - Teil von Phase 1 in collectCandidates.
+  // Visible text without icon fonts and code blocks. Read only - part of phase 1 in collectCandidates.
   function readText(el) {
     let text = el.innerText || "";
     if (el.querySelector(STRIP_SELECTOR)) {
@@ -240,8 +240,8 @@
     return text.trim();
   }
 
-  // Auf AIVSAI.maxChars kürzen, möglichst am letzten Satzende (sonst am letzten Leerzeichen) - das Modell soll
-  // keinen abgeschnittenen Halbsatz sehen. Nur lesen, deterministisch: gleicher Text -> gleicher Ausschnitt.
+  // Clip to AIVSAI.maxChars, preferably at the last sentence end (otherwise at the last space) - the model should
+  // not see a truncated half-sentence. Read only, deterministic: same text -> same excerpt.
   function clipText(text) {
     const maxChars = AIVSAI.maxChars(config);
     if (text.length <= maxChars) return text;
@@ -258,18 +258,18 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Gruppierung kurzer Absätze (TODO.md Punkt 2): benachbarte Absätze unter reliableWords im selben
-  // Block-Container werden als ein Text bewertet und teilen sich das Ergebnis - mehr Kontext senkt die
-  // Fehlerquote stark (training/EVAL_RESULTS.md, "Textlänge"). Ein für sich schon zuverlässiger (langer)
-  // Absatz bleibt einzeln, eine Gruppe wächst nur bis maxChars (Modell-Kontext).
+  // Grouping of short paragraphs (TODO.md item 2): adjacent paragraphs below reliableWords in the same
+  // block container are scored as one text and share the result - more context lowers the
+  // error rate sharply (training/EVAL_RESULTS.md, "Text length"). A paragraph that is already reliable (long)
+  // on its own stays single, a group only grows up to maxChars (model context).
   // ---------------------------------------------------------------------------
 
   const GROUP_SEPARATOR = "\n\n";
-  // Überschrift oder Liste zwischen zwei Absätzen -> nicht mehr "direkt benachbart"
+  // Heading or list between two paragraphs -> no longer "directly adjacent"
   const GROUP_BREAK_SELECTOR = "h1, h2, h3, h4, h5, h6, ul, ol, table, hr";
 
-  // true, wenn zwischen `a` und `b` (in Dokumentreihenfolge) eine Überschrift oder Liste liegt - über
-  // Range statt Geschwister-Verkettung, damit es unabhängig von der Verschachtelungstiefe funktioniert.
+  // true if there is a heading or list between `a` and `b` (in document order) - via
+  // Range instead of sibling chaining, so that it works independent of the nesting depth.
   function hasBreakBetween(a, b) {
     try {
       const range = document.createRange();
@@ -281,19 +281,19 @@
       }
       return false;
     } catch {
-      return true; // z.B. Knoten inzwischen entfernt - im Zweifel nicht zusammenfassen
+      return true; // e.g. node removed in the meantime - when in doubt, do not group
     }
   }
 
-  // found (Phase 1 aus collectCandidates, in Dokumentreihenfolge) zu Gruppen zusammenfassen. Jede Gruppe
-  // ist ein Array von found-Einträgen; einzelne (lange, fremdsprachige oder nicht anschließbare) Absätze
-  // bilden eine Gruppe mit nur einem Eintrag - Phase 2 behandelt sie dann wie bisher.
+  // Combine found (phase 1 from collectCandidates, in document order) into groups. Each group
+  // is an array of found entries; single (long, foreign-language or unattachable) paragraphs
+  // form a group with only one entry - phase 2 then treats them as before.
   function groupCandidates(found, cfg) {
     if (!cfg.groupShortParagraphs) return found.map((f) => [f]);
     const reliable = AIVSAI.reliableWords(cfg);
     const limit = AIVSAI.maxChars(cfg);
     const groups = [];
-    let open = null; // { items, chars, lang, lastEl } der zuletzt begonnenen, noch erweiterbaren Gruppe
+    let open = null; // { items, chars, lang, lastEl } of the most recently started group that can still be extended
     for (const f of found) {
       const foreign = foreignOf(f.lang);
       const short = !foreign && f.words < reliable;
@@ -301,7 +301,7 @@
         open &&
         short &&
         f.lang === open.lang &&
-        open.lastEl.parentElement === f.el.parentElement && // gemeinsamer Elternknoten (Block-Container)
+        open.lastEl.parentElement === f.el.parentElement && // common parent node (block container)
         !hasBreakBetween(open.lastEl, f.el) &&
         open.chars + GROUP_SEPARATOR.length + f.text.length <= limit
       ) {
@@ -317,12 +317,12 @@
     return groups;
   }
 
-  // Container (z.B. <article>) nur bewerten, wenn keiner seiner Kind-Kandidaten selbst schon Kandidat
-  // werden kann - sonst entstehen verschachtelte Doppel-Markierungen. Schwelle GROUP_MIN_WORDS statt
-  // MIN_WORDS: seit WP-10 können auch Kinder unterhalb MIN_WORDS eigene (gruppierte) Kandidaten werden,
-  // der Container darf dann nicht zusätzlich seinen ganzen Text einreichen (Abnahmekriterium "kein Doppel
-  // mit dem Container"). Nachteil: ein isolierter Kurz-Absatz ohne gruppierbaren Nachbarn lässt auch den
-  // Container leer ausgehen, statt ersatzweise den ganzen Container zu bewerten - siehe Bericht.
+  // Only score a container (e.g. <article>) if none of its child candidates can itself become a candidate
+  // - otherwise nested double markings arise. Threshold GROUP_MIN_WORDS instead of
+  // MIN_WORDS: since WP-10 children below MIN_WORDS can also become their own (grouped) candidates,
+  // the container must then not additionally submit its entire text (acceptance criterion "no duplicate
+  // with the container"). Downside: an isolated short paragraph without a groupable neighbor also leaves the
+  // container empty-handed, instead of scoring the whole container as a fallback - see report.
   function hasLongCandidateChild(el) {
     for (const child of el.querySelectorAll(CANDIDATE_SELECTOR)) {
       if (wordCount(child.textContent || "") >= GROUP_MIN_WORDS) return true;
@@ -333,7 +333,7 @@
   function candidatesIn(root) {
     const nodes = new Set();
     const ancestor = root.parentElement?.closest(CANDIDATE_SELECTOR);
-    if (ancestor) nodes.add(ancestor); // Text innerhalb eines Absatzes hat sich geändert
+    if (ancestor) nodes.add(ancestor); // text within a paragraph has changed
     if (root.matches(CANDIDATE_SELECTOR)) nodes.add(root);
     root.querySelectorAll(CANDIDATE_SELECTOR).forEach((el) => nodes.add(el));
     return nodes;
@@ -345,19 +345,19 @@
     );
   }
 
-  // lang-Attribut um `el` ("de-AT" -> "de"), "" wenn keins
+  // lang attribute around `el` ("de-AT" -> "de"), "" if none
   const attrLang = (el) => (el?.closest("[lang]")?.lang || "").toLowerCase().split("-")[0];
 
-  // Sprache von `text` ("de", ...; "" = unklar). Ist sie unklar (gemischt, keine der erkannten Sprachen),
-  // entscheidet beim Auto-Scan das lang-Attribut (`attr`). Das Attribut allein reicht nicht: fehlt oft,
-  // steht auf dem Vorlagen-Standard "en" oder gilt nicht für den einzelnen Absatz. Manuelle Prüfung ohne
-  // `attr`: nur die Erkennung - dort ist der Text oft kurz und das Attribut der Seite kein guter Hinweis,
-  // und der Nutzer hat ausdrücklich gefragt. Geht als `lang` mit an den Server (Vertrag in server/README.md).
+  // Language of `text` ("de", ...; "" = unclear). If it is unclear (mixed, none of the detected languages),
+  // the lang attribute (`attr`) decides in the auto-scan. The attribute alone is not enough: often missing,
+  // set to the template default "en" or does not apply to the individual paragraph. Manual check without
+  // `attr`: detection only - there the text is often short and the page's attribute is not a good hint,
+  // and the user explicitly asked. Goes along to the server as `lang` (contract in server/README.md).
   async function detectLang(text, attr = "") {
     return (await AIVSAI_LANG.detectAsync(text)) || attr;
   }
 
-  // `lang`, falls das Modell die Sprache nicht kennt (AIVSAI.languages), sonst ""
+  // `lang` if the model does not know the language (AIVSAI.languages), otherwise ""
   function foreignOf(lang) {
     const langs = AIVSAI.languages(config);
     return lang && langs && !langs.includes(lang) ? lang : "";
@@ -365,25 +365,25 @@
 
   const langList = (langs) => langs.map(AIVSAI_LANG.name).join(", ");
 
-  // Absätze, deren Sprache gerade erkannt wird: Element -> Hash (verhindert doppeltes Einreihen, wenn
-  // währenddessen ein weiterer Scan läuft)
+  // Paragraphs whose language is currently being detected: element -> hash (prevents double queueing if
+  // another scan runs in the meantime)
   const detecting = new Map();
 
   async function collectCandidates(root) {
     if (!root || root.nodeType !== Node.ELEMENT_NODE) return;
     const gen = generation;
 
-    // Phase 1 nur lesen. innerText braucht aktuelle Styles - würden zwischen den Lesezugriffen
-    // Klassen geändert, müsste der Browser für jeden Absatz neu rechnen (Layout-Thrashing).
+    // Phase 1 read only. innerText needs current styles - if classes were changed between the
+    // reads, the browser would have to recompute for every paragraph (layout thrashing).
     const found = [];
     for (const el of candidatesIn(root)) {
-      // billiger Vorfilter ohne Layout: GROUP_MIN_WORDS Wörter brauchen mindestens so viele Zeichen
+      // cheap prefilter without layout: GROUP_MIN_WORDS words need at least that many characters
       if ((el.textContent || "").length < GROUP_MIN_WORDS) continue;
       if (el.closest(EXCLUDE_SELECTOR) || hasLongCandidateChild(el)) continue;
       const text = readText(el);
       const words = text ? wordCount(text) : 0;
-      // ab GROUP_MIN_WORDS überhaupt Kandidat; unter MIN_WORDS nur, wenn groupCandidates ihn mit
-      // Nachbarn auf MIN_WORDS bringt (groupOnly) - sonst bleibt er wie bisher unbewertet
+      // a candidate at all from GROUP_MIN_WORDS; below MIN_WORDS only if groupCandidates brings it to
+      // MIN_WORDS with neighbors (groupOnly) - otherwise it stays unscored as before
       if (words < GROUP_MIN_WORDS) continue;
       const hash = hashText(text);
       if ((el.dataset.aivsaiHash === hash && isQueuedOrScored(el)) || detecting.get(el) === hash) continue;
@@ -392,29 +392,29 @@
     }
     if (!found.length) return;
 
-    // Sprache erkennen - für jeden Absatz einzeln, und zwar genau den Ausschnitt, den das Modell sähe
-    // (clipText). Asynchron, schreibt nichts; danach verworfen, falls inzwischen alles zurückgesetzt wurde
-    // oder ein neuerer Scan denselben Absatz mit anderem Text übernommen hat. Nachgeladene oder geänderte
-    // Absätze laufen über den MutationObserver erneut hier durch.
+    // Detect language - for each paragraph individually, namely exactly the excerpt the model would see
+    // (clipText). Asynchronous, writes nothing; afterwards discarded if everything was reset in the meantime
+    // or a newer scan took over the same paragraph with different text. Lazy-loaded or changed
+    // paragraphs pass through here again via the MutationObserver.
     const langs = await Promise.all(found.map((f) => detectLang(clipText(f.text), f.attr)));
     if (gen !== generation) return;
     found.forEach((f, i) => (f.lang = langs[i]));
 
-    // Phase 2 nur schreiben. Statt Einzelabsätzen laufen jetzt Gruppen durch (Gruppengröße 1 = wie bisher).
+    // Phase 2 write only. Groups now pass through instead of single paragraphs (group size 1 = as before).
     for (const items of groupCandidates(found, config)) {
-      // frisch: nur Absätze, deren Text sich seit Phase 1 nicht schon wieder geändert hat (paralleler Scan)
+      // fresh: only paragraphs whose text has not changed again since phase 1 (parallel scan)
       const fresh = items.filter((it) => detecting.get(it.el) === it.hash);
       if (!fresh.length) continue;
       for (const it of fresh) {
         detecting.delete(it.el);
-        it.el.dataset.aivsaiHash = it.hash; // eigener Hash je Element - erkennt spätere Änderungen an ihm
-        unstyle(it.el); // Text hat sich geändert - alte Bewertung gilt nicht mehr
+        it.el.dataset.aivsaiHash = it.hash; // own hash per element - detects later changes to it
+        unstyle(it.el); // text has changed - old score no longer applies
       }
 
       const foreign = foreignOf(fresh[0].lang);
       if (foreign) {
-        // Nicht bewerten: In fremder Sprache sind Scores Rauschen und oft zu hoch (deutscher Fachtext: 78).
-        // Keine Markierung am Absatz, das Popup nennt die Zahl; per Rechtsklick lässt er sich trotzdem prüfen.
+        // Do not score: in a foreign language scores are noise and often too high (German technical text: 78).
+        // No marking on the paragraph, the popup gives the number; it can still be checked via right-click.
         for (const it of fresh) {
           skipped.set(it.el, foreign);
           it.el.dataset.aivsaiSkipped = foreign;
@@ -422,14 +422,14 @@
         continue;
       }
 
-      // Gruppe aus lauter Absätzen unter MIN_WORDS (groupOnly), die zusammen MIN_WORDS nicht erreicht -
-      // z.B. ein einzelner sehr kurzer Absatz ohne passenden Nachbarn. Bleibt unbewertet, kein Kandidat,
-      // wie ein einzelner zu kurzer Absatz auch vor WP-10 schon (Abnahmekriterium).
+      // Group made up entirely of paragraphs under MIN_WORDS (groupOnly) that together do not reach MIN_WORDS -
+      // e.g. a single very short paragraph without a suitable neighbor. Stays unscored, no candidate,
+      // like a single too-short paragraph already was before WP-10 (acceptance criterion).
       const words = fresh.reduce((n, it) => n + it.words, 0);
       if (words < MIN_WORDS && fresh.every((it) => it.groupOnly)) continue;
 
-      // Gruppentext = gemeinsamer Cache-/Anfrage-Schlüssel (bei einem Absatz: dessen eigener Hash/Text,
-      // unverändert zum bisherigen Verhalten); Wortzahl der Gruppe entscheidet über die Ampel.
+      // Group text = shared cache/request key (for a single paragraph: its own hash/text,
+      // unchanged from previous behavior); the group's word count decides the traffic light.
       const grouped = fresh.length > 1 ? fresh.length : undefined;
       const fullText = fresh.map((it) => it.text).join(GROUP_SEPARATOR);
       const hash = grouped ? hashText(fullText) : fresh[0].hash;
@@ -462,8 +462,8 @@
     reportStats();
   }
 
-  // Abstand zum sichtbaren Bereich in px (0 = sichtbar) und Position des nächsten Elements.
-  // Unsichtbare/abgehängte Elemente kommen ganz nach hinten.
+  // Distance to the visible area in px (0 = visible) and position of the nearest element.
+  // Invisible/detached elements go to the very back.
   function viewportDistance(entry) {
     let dist = Infinity;
     let top = Infinity;
@@ -489,22 +489,22 @@
     }
   }
 
-  // Priorität wird erst beim Absenden bestimmt, nicht beim Einreihen: so bekommt nach
-  // einem Scroll automatisch der dann sichtbare Bereich den nächsten freien Slot.
-  // Ohne Scrollen ergibt das einfach "von oben nach unten".
+  // Priority is determined only on sending, not on queueing: so after
+  // a scroll the then-visible area automatically gets the next free slot.
+  // Without scrolling that simply yields "top to bottom".
   function takeNextBatch() {
     const limit = config.lazyScan ? NEAR_SCREENS * innerHeight : Infinity;
 
-    // Phase 1 lesen: Positionen aller wartenden Absätze
+    // Phase 1 read: positions of all waiting paragraphs
     const ranked = [];
     for (const entry of pending.values()) {
       if (!entry.els.some((el) => el.isConnected)) {
-        pending.delete(entry.id); // SPA hat den Absatz inzwischen entfernt
+        pending.delete(entry.id); // SPA has removed the paragraph in the meantime
         continue;
       }
       const { dist, top } = viewportDistance(entry);
-      // nicht gerendert (display:none, hidden, zugeklappt): nie senden, auch ohne lazyScan -
-      // wird es sichtbar, meldet sich der nearObserver
+      // not rendered (display:none, hidden, collapsed): never send, even without lazyScan -
+      // if it becomes visible, the nearObserver reports in
       entry.near = dist !== Infinity && dist <= limit;
       if (entry.near) ranked.push({ entry, dist, top });
     }
@@ -518,19 +518,19 @@
     }
     batch.forEach((b) => pending.delete(b.id));
 
-    // Phase 2 schreiben: Markierung "wird geprüft" bzw. "beim Scrollen"
+    // Phase 2 write: marking "being checked" or "on scrolling"
     pending.forEach(markQueued);
     batch.forEach(markQueued);
     return batch;
   }
 
-  // Batches nacheinander statt alle auf einmal - sonst rechnet der Server alles parallel
-  // und die Priorisierung hätte keinen Effekt.
+  // Batches one after another instead of all at once - otherwise the server computes everything in parallel
+  // and the prioritization would have no effect.
   function pump() {
     const maxInFlight = AIVSAI.maxInFlight(config);
     while (batchesInFlight < maxInFlight && pending.size && isActive()) {
       const batch = takeNextBatch();
-      if (!batch.length) break; // alles Übrige ist zurückgestellt, bis gescrollt wird
+      if (!batch.length) break; // everything else is deferred until scrolled
       sendBatch(batch);
     }
     reportStats();
@@ -541,7 +541,7 @@
     pumpTimer = setTimeout(pump, 150);
   }
 
-  // manual: ausdrücklich angeforderte Einzelprüfung - der Service Worker lässt nur die auf Seiten der Sperrliste zu
+  // manual: explicitly requested single check - the service worker only allows these on blocklisted sites
   function requestScores(items, manual = false) {
     return new Promise((resolve) => {
       try {
@@ -549,7 +549,7 @@
           resolve(chrome.runtime.lastError ? null : resp)
         );
       } catch {
-        // Extension wurde neu geladen - dieses Content-Script ist verwaist
+        // Extension was reloaded - this content script is orphaned
         resolve(null);
       }
     });
@@ -569,8 +569,8 @@
     batch.forEach((b) => inFlight.get(b.id) === b && inFlight.delete(b.id));
     pump();
     if (gen !== generation) return;
-    // fail open: ein nicht erreichbares Backend blockiert nie die Seite, es wird nur nichts markiert
-    lastError = resp ? resp.error || null : "Extension nicht erreichbar";
+    // fail open: an unreachable backend never blocks the page, nothing is just marked
+    lastError = resp ? resp.error || null : "Extension unreachable";
     for (const b of batch) {
       const p = resp?.scores?.[b.id];
       if (typeof p === "number") {
@@ -599,33 +599,33 @@
     style(el);
   }
 
-  // Stufe eines Ergebnisses: kurzer Text oder fremde Sprache -> "uncertain" statt gelb/rot
+  // Level of a result: short text or foreign language -> "uncertain" instead of yellow/red
   function levelOf({ p, words, foreign }) {
     return foreign ? "uncertain" : AIVSAI.level(p, config, words);
   }
 
-  // Überschrift zu einem Ergebnis, bei "uncertain" mit Grund
+  // Heading for a result, with the reason for "uncertain"
   function levelTitle(rec, level) {
     if (level !== "uncertain") return AIVSAI.LEVEL_TEXT[level];
-    return rec.foreign ? `Nicht bewertbar – ${AIVSAI_LANG.name(rec.foreign)}` : AIVSAI.LEVEL_TEXT.uncertain;
+    return rec.foreign ? `Cannot be scored – ${AIVSAI_LANG.name(rec.foreign)}` : AIVSAI.LEVEL_TEXT.uncertain;
   }
 
-  // KI-Score als Zahl von 0 bis 100, bewusst nicht als Prozent: nicht kalibriert, keine Wahrscheinlichkeit
-  const scoreText = (p) => `KI-Score ${Math.round(p * 100)}`;
+  // AI score as a number from 0 to 100, deliberately not as a percentage: not calibrated, not a probability
+  const scoreText = (p) => `AI score ${Math.round(p * 100)}`;
 
   function style(el) {
     const rec = results.get(el);
     const { p } = rec;
-    // vor allen Schreibzugriffen lesen, sonst erzwingt getComputedStyle eine Neuberechnung
+    // read before all write accesses, otherwise getComputedStyle forces a recomputation
     if (config.showBadge && !staticPosition.has(el)) {
       staticPosition.set(el, getComputedStyle(el).position === "static");
     }
     const level = levelOf(rec);
     el.classList.remove(...LEVEL_CLASSES, "aivsai-pos");
-    // nur als Hook für Tests/Debugging - der Code selbst liest aus `results`
+    // only as a hook for tests/debugging - the code itself reads from `results`
     el.dataset.aivsaiScore = String(p);
     el.dataset.aivsaiLevel = level;
-    el.dataset.aivsaiWords = String(rec.words); // Wortzahl, die die Ampel entschieden hat (ggf. der Gruppe)
+    el.dataset.aivsaiWords = String(rec.words); // word count that decided the traffic light (of the group, if applicable)
     if (rec.grouped) el.dataset.aivsaiGrouped = String(rec.grouped);
     else delete el.dataset.aivsaiGrouped;
 
@@ -633,20 +633,20 @@
     if (visible) {
       el.classList.add(`aivsai-${level}`);
       if (config.showBadge) {
-        el.dataset.aivsaiLabel = level === "uncertain" ? "unsicher" : scoreText(p);
+        el.dataset.aivsaiLabel = level === "uncertain" ? "uncertain" : scoreText(p);
         el.classList.add("aivsai-badge");
-        // Badge wird per ::after absolut positioniert und braucht dafür einen Bezugsrahmen
+        // The badge is absolutely positioned via ::after and needs a positioning context for that
         if (staticPosition.get(el)) el.classList.add("aivsai-pos");
       }
     }
 
-    // bestehende title-Attribute der Seite nicht überschreiben
+    // do not overwrite existing title attributes of the page
     if (visible && (!el.hasAttribute("title") || el.dataset.aivsaiTitle)) {
       el.title =
-        `${levelTitle(rec, level)} – ${scoreText(p)} von 100 ` +
-        `(${AIVSAI.providerLabel(config)}; Hinweis, kein Beweis)` +
-        (rec.grouped ? ` · Bewertung von ${rec.grouped} benachbarten Absätzen zusammen` : "") +
-        (config.showBadge ? " · Klick aufs Badge: Details und Feedback" : "");
+        `${levelTitle(rec, level)} – ${scoreText(p)} of 100 ` +
+        `(${AIVSAI.providerLabel(config)}; hint, not proof)` +
+        (rec.grouped ? ` · score of ${rec.grouped} adjacent paragraphs together` : "") +
+        (config.showBadge ? " · Click the badge: details and feedback" : "");
       el.dataset.aivsaiTitle = "1";
     } else if (!visible && el.dataset.aivsaiTitle) {
       el.removeAttribute("title");
@@ -675,7 +675,7 @@
   function clearAll() {
     generation++;
     pending.clear();
-    inFlight.clear(); // laufende Batches gehören zur alten Generation, ihr Ergebnis wird verworfen
+    inFlight.clear(); // running batches belong to the old generation, their result is discarded
     clearTimeout(debounceTimer);
     clearTimeout(pumpTimer);
     document.querySelectorAll("[data-aivsai-hash]").forEach((el) => {
@@ -700,14 +700,14 @@
   function stats() {
     const counts = { red: 0, yellow: 0, green: 0, uncertain: 0 };
     for (const [el, rec] of results) {
-      // entfernte Absätze (SPA, Infinite Scroll) nicht mehr zählen und nicht im Speicher halten
+      // no longer count removed paragraphs (SPA, infinite scroll) and do not keep them in memory
       if (!el.isConnected) results.delete(el);
       else counts[levelOf(rec)]++;
     }
     for (const el of skipped.keys()) if (!el.isConnected) skipped.delete(el);
     return {
       ...counts,
-      skipped: skipped.size, // andere Sprache, nicht bewertet
+      skipped: skipped.size, // other language, not scored
       pending: pendingEls.length,
       deferred: deferredEls.length,
       active: isActive(),
@@ -719,35 +719,35 @@
     };
   }
 
-  // Geht an Background (Icon-Badge) und ein offenes Popup
+  // Goes to background (icon badge) and an open popup
   function reportStats() {
     clearTimeout(statsTimer);
     statsTimer = setTimeout(() => {
       try {
         chrome.runtime.sendMessage({ type: "STATS", stats: stats() }, () => void chrome.runtime.lastError);
       } catch {
-        // verwaistes Content-Script nach Extension-Reload
+        // orphaned content script after extension reload
       }
     }, 200);
   }
 
   // ---------------------------------------------------------------------------
-  // Manuelle Prüfung per Rechtsklick/Tastenkürzel: markierter Text oder der Absatz unter
-  // dem Mauszeiger - auch wenn die Seite nicht automatisch gescannt wird oder der Text
-  // für den Auto-Scan zu kurz ist bzw. ausgeschlossen wurde.
+  // Manual check via right-click/keyboard shortcut: selected text or the paragraph under
+  // the mouse pointer - even if the site is not scanned automatically or the text
+  // is too short for the auto-scan or was excluded.
   // ---------------------------------------------------------------------------
 
   document.addEventListener("contextmenu", (e) => (contextTarget = e.target), true);
 
-  // Klick aufs Prozent-Badge: Details und Feedback zum schon bewerteten Absatz, ohne neu zu rechnen.
-  // Das Badge ist ein ::after des Absatzes - Klicks darauf landen beim Absatz selbst, deshalb entscheidet
-  // die Position. Nur Klicks genau auf dem Badge werden abgefangen (sonst z.B. Links im Absatz kaputt).
+  // Click on the percent badge: details and feedback for the already scored paragraph, without recomputing.
+  // The badge is an ::after of the paragraph - clicks on it land on the paragraph itself, so the
+  // position decides. Only clicks exactly on the badge are intercepted (otherwise e.g. links in the paragraph break).
   function badgeHit(e) {
     const el = e.target instanceof Element ? e.target.closest(".aivsai-badge") : null;
     if (!el || !results.has(el)) return null;
     const r = el.getBoundingClientRect();
     const b = getComputedStyle(el, "::after");
-    // Lage aus content.css: top -12px, right -6px (relativ zur Padding-Box des Absatzes)
+    // Position from content.css: top -12px, right -6px (relative to the paragraph's padding box)
     const right = r.right - parseFloat(getComputedStyle(el).borderRightWidth) + 6;
     const top = r.top + parseFloat(getComputedStyle(el).borderTopWidth) - 12;
     const width = parseFloat(b.width) + parseFloat(b.paddingLeft) + parseFloat(b.paddingRight);
@@ -759,7 +759,7 @@
   window.addEventListener(
     "mousedown",
     (e) => {
-      if (e.button === 0 && badgeHit(e)) e.preventDefault(); // keine Textauswahl/Fokus der Seite
+      if (e.button === 0 && badgeHit(e)) e.preventDefault(); // no text selection/focus of the page
     },
     true
   );
@@ -769,7 +769,7 @@
     (e) => {
       const el = e.button === 0 && badgeHit(e);
       if (!el) return;
-      e.preventDefault(); // Absatz in einem Link: nicht navigieren
+      e.preventDefault(); // paragraph inside a link: do not navigate
       e.stopPropagation();
       showDetails(el);
     },
@@ -788,15 +788,15 @@
     const sel = getSelection();
     const text = sel && !sel.isCollapsed ? sel.toString().replace(/\s+/g, " ").trim() : "";
     if (!text) {
-      Popover.show({}, Popover.claim(), { error: "Kein Text markiert." });
+      Popover.show({}, Popover.claim(), { error: "No text selected." });
       return;
     }
     const range = sel.getRangeAt(0).cloneRange();
-    sel.collapseToEnd(); // sonst verdeckt die Auswahlfarbe die Markierung
+    sel.collapseToEnd(); // otherwise the selection color covers the marking
     checkManual(text, { range });
   }
 
-  // Nächstes Block-Element mit genug Text, z.B. ein <div> ohne <p> oder ein kurzer Listeneintrag
+  // Nearest block element with enough text, e.g. a <div> without <p> or a short list item
   function blockFor(node) {
     for (let el = node instanceof Element ? node : node?.parentElement; el && el !== document.body; el = el.parentElement) {
       if (getComputedStyle(el).display.startsWith("inline")) continue;
@@ -813,8 +813,8 @@
       Popover.show({ el: target }, Popover.claim(), { error: tooShort(words) });
       return;
     }
-    // Text und Hash wie beim Auto-Scan (ohne Icon-Fonts/Code): derselbe Absatz wird dort nicht noch einmal
-    // eingereiht, und Score-Speicher und Feedback-Eintrag passen zur Bewertung per Badge
+    // Text and hash as in the auto-scan (without icon fonts/code): the same paragraph is not queued again
+    // there, and score store and feedback entry match the scoring via badge
     const text = readText(el);
     const hash = hashText(text);
     pending.delete(hash);
@@ -823,15 +823,15 @@
   }
 
   function tooShort(words) {
-    return `Zu wenig Text (${words} ${words === 1 ? "Wort" : "Wörter"}) – mindestens ${MANUAL_MIN_WORDS} Wörter nötig.`;
+    return `Too little text (${words} ${words === 1 ? "word" : "words"}) – at least ${MANUAL_MIN_WORDS} words needed.`;
   }
 
-  // force: auch in einer Sprache prüfen, die das Modell nicht kennt (Knopf „Trotzdem prüfen“)
+  // force: check even in a language the model does not know (button "Check anyway")
   async function checkManual(fullText, target, force = false) {
     const token = Popover.claim();
     const words = wordCount(fullText);
     if (!config.enabled) {
-      Popover.show(target, token, { error: "Die Extension ist ausgeschaltet." });
+      Popover.show(target, token, { error: "The extension is switched off." });
       return;
     }
     if (words < MANUAL_MIN_WORDS) {
@@ -842,13 +842,13 @@
     const foreign = foreignOf(lang);
     if (foreign && !force) {
       Popover.show(target, token, {
-        pill: { text: "nicht geprüft", level: "uncertain" },
-        title: `Text auf ${AIVSAI_LANG.name(foreign)}`,
+        pill: { text: "not checked", level: "uncertain" },
+        title: `Text in ${AIVSAI_LANG.name(foreign)}`,
         notes: [
-          `Das Modell kennt nur ${langList(AIVSAI.languages(config))}. In anderen Sprachen sind die Scores ` +
-            "nicht aussagekräftig und oft zu hoch – deutscher Fachtext kam z.B. auf 78 von 100."
+          `The model only knows ${langList(AIVSAI.languages(config))}. In other languages the scores are ` +
+            "not meaningful and often too high – German technical text got e.g. 78 out of 100."
         ],
-        buttons: [{ text: "Trotzdem prüfen", onClick: () => checkManual(fullText, target, true) }]
+        buttons: [{ text: "Check anyway", onClick: () => checkManual(fullText, target, true) }]
       });
       return;
     }
@@ -856,14 +856,14 @@
     const id = `m_${hashText(text)}`;
     const gen = generation;
     markManual(target, null);
-    Popover.show(target, token, { title: "Wird auf KI geprüft…", notes: [AIVSAI.providerLabel(config), ...blockedNotes()] });
+    Popover.show(target, token, { title: "Checking for AI…", notes: [AIVSAI.providerLabel(config), ...blockedNotes()] });
 
     const resp = await requestScores([{ id, text, lang }], true);
     if (gen !== generation) return;
     const p = resp?.scores?.[id];
     if (typeof p !== "number") {
       markManual(target, undefined);
-      const error = resp?.error || (resp ? "Keine Bewertung erhalten." : "Extension nicht erreichbar – Seite neu laden.");
+      const error = resp?.error || (resp ? "No score received." : "Extension unreachable – reload the page.");
       Popover.show(target, token, { error });
       return;
     }
@@ -876,82 +876,82 @@
     reportStats();
   }
 
-  // Ergebnisansicht fürs Popover. Bei "uncertain" steht statt der Zahl der Grund vorn, der Rohwert nur im Text.
+  // Result view for the popover. For "uncertain" the reason comes first instead of the number, the raw value only in the text.
   function resultView(rec) {
     const { p, words } = rec;
     const level = levelOf(rec);
-    const raw = `Rohwert ${Math.round(p * 100)} von 100`;
+    const raw = `Raw value ${Math.round(p * 100)} of 100`;
     const notes = [];
     if (rec.grouped) {
       notes.push(
-        `Bewertung gilt für ${rec.grouped} benachbarte, kurze Absätze zusammen (${words} Wörter gesamt) – ` +
-          "mehr Kontext senkt Fehlalarme bei kurzen Absätzen."
+        `Score applies to ${rec.grouped} adjacent, short paragraphs together (${words} words in total) – ` +
+          "more context lowers false alarms on short paragraphs."
       );
     }
     if (rec.foreign) {
       notes.push(
-        `Das Modell kennt nur ${langList(AIVSAI.languages(config))} – ${raw}, in dieser Sprache nicht aussagekräftig.`
+        `The model only knows ${langList(AIVSAI.languages(config))} – ${raw}, not meaningful in this language.`
       );
     } else if (level === "uncertain") {
       const short = AIVSAI.shortRedFrom(config);
       notes.push(
         short === null
-          ? `Nur ${words} Wörter – unter ${AIVSAI.reliableWords(config)} Wörtern liegt das Modell zu oft daneben, ` +
-              `um einen Text als auffällig zu markieren. ${raw}.`
-          : `Nur ${words} Wörter – unter ${AIVSAI.reliableWords(config)} Wörtern liegt das Modell öfter daneben, ` +
-              `deshalb gilt ein kurzer Text erst ab ${Math.round(short * 100)} als auffällig. ${raw}.`
+          ? `Only ${words} words – under ${AIVSAI.reliableWords(config)} words the model is wrong too often ` +
+              `to mark a text as flagged. ${raw}.`
+          : `Only ${words} words – under ${AIVSAI.reliableWords(config)} words the model is wrong more often, ` +
+              `so a short text only counts as flagged from ${Math.round(short * 100)}. ${raw}.`
       );
     } else if (level === "red" && words < AIVSAI.reliableWords(config)) {
       notes.push(
-        `Kurzer Text (${words} Wörter) – dafür gilt die strengere Schwelle ${Math.round(AIVSAI.shortRedFrom(config) * 100)}, ` +
-          "damit er nicht öfter fälschlich auffällt als ein langer."
+        `Short text (${words} words) – the stricter threshold ${Math.round(AIVSAI.shortRedFrom(config) * 100)} applies to it, ` +
+          "so that it is not falsely flagged more often than a long one."
       );
     } else if (words < MIN_WORDS) {
-      notes.push(`Kurzer Text (${words} Wörter) – Ergebnis wenig verlässlich.`);
+      notes.push(`Short text (${words} words) – result not very reliable.`);
     }
     if (rec.truncated) {
-      notes.push(`Bewertet wurden die ersten ${rec.text.length} Zeichen (bis zum Satzende) – mehr sieht das Modell nicht.`);
+      notes.push(`The first ${rec.text.length} characters (up to the sentence end) were scored – the model does not see more.`);
     }
     notes.push(
-      "Hinweis, kein Beweis: Der KI-Score zeigt, wie sehr der Text dem ähnelt, was das Modell als KI-Text gelernt " +
-        "hat – keine Wahrscheinlichkeit. Auch menschliche Texte können hoch liegen.",
+      "Hint, not proof: The AI score shows how much the text resembles what the model learned as AI text " +
+        "– not a probability. Human texts can also score high.",
       AIVSAI.providerLabel(config),
       ...blockedNotes()
     );
-    const pill = level === "uncertain" ? "unsicher" : scoreText(p);
+    const pill = level === "uncertain" ? "uncertain" : scoreText(p);
     return { pill: { text: pill, level }, title: levelTitle(rec, level), notes };
   }
 
-  // Auf gesperrten Seiten ist nur die Einzelprüfung erlaubt - dann transparent machen, was passiert ist
+  // On blocked sites only the single check is allowed - then make transparent what happened
   function blockedNotes() {
     const reason = blockReason();
     if (!reason) return [];
     const target = AIVSAI.remoteTarget(config);
     return [
-      `${BLOCK_MESSAGES[reason]} – geprüft, weil du es ausdrücklich angefordert hast.`,
-      ...(target ? [`Der Text wurde an ${target} gesendet.`] : [])
+      `${BLOCK_MESSAGES[reason]} – checked because you explicitly requested it.`,
+      ...(target ? [`The text was sent to ${target}.`] : [])
     ];
   }
 
   // ---------------------------------------------------------------------------
-  // Feedback im Ergebnis-Popover: Woher stammt der Text wirklich? Menschen erkennen KI-Text am Stil
-  // kaum besser als per Zufall - deshalb wird zusätzlich gefragt, *woher* man es weiß, und reine
-  // Eindrücke werden als solche markiert (zählen beim Training nicht als gesichertes Label).
-  // Gespeichert wird nur nach Einwilligung, nur lokal (bg/feedback-store.js).
+  // Feedback in the result popover: where does the text really come from? People recognize AI text by style
+  // hardly better than by chance - so we additionally ask *how* they know, and mere
+  // impressions are marked as such (they do not count as a reliable label in training).
+  // Stored only after consent, local only (bg/feedback-store.js).
   // ---------------------------------------------------------------------------
 
   const FEEDBACK_CONSENT = "feedbackConsentAt";
-  const FEEDBACK_LABELS = { human: "von einem Menschen", ai: "von einer KI" };
+  const FEEDBACK_LABELS = { human: "by a human", ai: "by an AI" };
   const FEEDBACK_BASES = {
     human: [
-      ["own", "Selbst geschrieben / Autor:in bekannt"],
-      ["date", "Vor 2023 veröffentlicht"],
-      ["guess", "Nur mein Eindruck"]
+      ["own", "Written myself / author known"],
+      ["date", "Published before 2023"],
+      ["guess", "Just my impression"]
     ],
     ai: [
-      ["own", "Selbst mit KI erzeugt"],
-      ["marked", "Als KI-Text gekennzeichnet"],
-      ["guess", "Nur mein Eindruck"]
+      ["own", "Generated myself with AI"],
+      ["marked", "Labeled as AI text"],
+      ["guess", "Just my impression"]
     ]
   };
 
@@ -960,16 +960,16 @@
       try {
         chrome.runtime.sendMessage(msg, (resp) => resolve(chrome.runtime.lastError ? null : resp));
       } catch {
-        resolve(null); // verwaistes Content-Script nach Extension-Reload
+        resolve(null); // orphaned content script after extension reload
       }
     });
   }
 
-  // Sperrliste bzw. Passwort-/Zahlungsfeld (Mail, Banking): dort keine Texte sammeln, auch nicht lokal
+  // Blocklist or password/payment field (mail, banking): do not collect texts there, not even locally
   const feedbackOffered = () => config.feedbackButtons && !blockReason();
 
-  // fb: { target, token, view (Ergebnisansicht), scored: { text, p, model, source },
-  //       saved: bisherige Angabe zu diesem Text { id, label, basis, at } oder null }
+  // fb: { target, token, view (result view), scored: { text, p, model, source },
+  //       saved: previous answer for this text { id, label, basis, at } or null }
   async function openWithFeedback(fb) {
     fb.saved = null;
     if (feedbackOffered()) {
@@ -989,28 +989,28 @@
       return {
         ...fb.view,
         prompt:
-          `Deine Angabe: ${FEEDBACK_LABELS[label]} – ${basisText(label, basis)} ` +
-          `(${new Date(at).toLocaleDateString("de-DE")})`,
+          `Your answer: ${FEEDBACK_LABELS[label]} – ${basisText(label, basis)} ` +
+          `(${new Date(at).toLocaleDateString("en-US")})`,
         buttons: [
-          { text: "Ändern", onClick: () => askLabel(fb) },
-          { text: "Entfernen", onClick: () => removeFeedback(fb) }
+          { text: "Change", onClick: () => askLabel(fb) },
+          { text: "Remove", onClick: () => removeFeedback(fb) }
         ]
       };
     }
-    return { ...fb.view, prompt: "Weißt du, woher der Text stammt?", buttons: labelButtons(fb) };
+    return { ...fb.view, prompt: "Do you know where the text comes from?", buttons: labelButtons(fb) };
   }
 
   function labelButtons(fb) {
     return [
-      { text: "Von einem Menschen", onClick: () => askBasis(fb, "human") },
-      { text: "Von einer KI", onClick: () => askBasis(fb, "ai") }
+      { text: "By a human", onClick: () => askBasis(fb, "human") },
+      { text: "By an AI", onClick: () => askBasis(fb, "ai") }
     ];
   }
 
   function askLabel(fb) {
     showFeedback(fb, {
-      prompt: "Woher stammt der Text?",
-      buttons: [...labelButtons(fb), { text: "Zurück", onClick: () => Popover.show(fb.target, fb.token, withFeedback(fb)) }]
+      prompt: "Where does the text come from?",
+      buttons: [...labelButtons(fb), { text: "Back", onClick: () => Popover.show(fb.target, fb.token, withFeedback(fb)) }]
     });
   }
 
@@ -1020,10 +1020,10 @@
 
   function askBasis(fb, label) {
     showFeedback(fb, {
-      prompt: `Text ${FEEDBACK_LABELS[label]} – woher weißt du das?`,
+      prompt: `Text ${FEEDBACK_LABELS[label]} – how do you know?`,
       buttons: [
         ...FEEDBACK_BASES[label].map(([basis, text]) => ({ text, onClick: () => saveFeedback(fb, label, basis) })),
-        { text: "Zurück", onClick: () => (fb.saved ? askLabel(fb) : Popover.show(fb.target, fb.token, withFeedback(fb))) }
+        { text: "Back", onClick: () => (fb.saved ? askLabel(fb) : Popover.show(fb.target, fb.token, withFeedback(fb))) }
       ]
     });
   }
@@ -1034,23 +1034,23 @@
     const previous = fb.saved;
     const resp = await storeFeedback(fb, label, basis);
     if (!resp?.ok) {
-      showFeedback(fb, { prompt: `Nicht gespeichert: ${resp?.error || "Extension nicht erreichbar"}`, buttons: [] });
+      showFeedback(fb, { prompt: `Not saved: ${resp?.error || "Extension unreachable"}`, buttons: [] });
       return;
     }
     const notes = [
       ...fb.view.notes,
-      `Nur in diesem Browser gespeichert (${resp.count} ${resp.count === 1 ? "Eintrag" : "Einträge"}). ` +
-        "Export und Löschen: Einstellungen → Feedback."
+      `Stored only in this browser (${resp.count} ${resp.count === 1 ? "entry" : "entries"}). ` +
+        "Export and delete: Settings → Feedback."
     ];
-    if (basis === "guess") notes.push("Als Eindruck vermerkt – zählt beim Training nicht als gesichertes Label.");
+    if (basis === "guess") notes.push("Noted as an impression – does not count as a reliable label in training.");
     showFeedback(fb, {
       notes,
-      prompt: `Danke! Gespeichert: ${FEEDBACK_LABELS[label]}.`,
-      buttons: [{ text: "Rückgängig", onClick: () => undoFeedback(fb, previous) }]
+      prompt: `Thanks! Saved: ${FEEDBACK_LABELS[label]}.`,
+      buttons: [{ text: "Undo", onClick: () => undoFeedback(fb, previous) }]
     });
   }
 
-  // Pro Text gibt es genau einen Eintrag - Speichern ersetzt eine frühere Angabe
+  // There is exactly one entry per text - saving replaces an earlier answer
   async function storeFeedback(fb, label, basis) {
     const entry = { ...fb.scored, label, basis, lang: document.documentElement.lang || "" };
     const resp = await sendMessage({ type: "FEEDBACK_SAVE", entry });
@@ -1058,7 +1058,7 @@
     return resp;
   }
 
-  // Rückgängig: frühere Angabe wiederherstellen bzw. den neuen Eintrag löschen
+  // Undo: restore the earlier answer or delete the new entry
   async function undoFeedback(fb, previous) {
     if (previous) {
       await storeFeedback(fb, previous.label, previous.basis);
@@ -1078,28 +1078,28 @@
 
   function askConsent(fb, label, basis) {
     showFeedback(fb, {
-      prompt: "Feedback speichern?",
+      prompt: "Save feedback?",
       notes: [
-        "Gespeichert werden der geprüfte Text (bis 2000 Zeichen), deine Angabe, Score, Modell und die Sprache " +
-          "der Seite – keine Adresse. Nur in diesem Browser, es wird nichts gesendet.",
-        "Du kannst die Sammlung in den Einstellungen exportieren (z.B. für eigenes Training) oder jederzeit " +
-          "löschen und die Einwilligung widerrufen."
+        "What is stored: the checked text (up to 2000 characters), your answer, score, model and the language " +
+          "of the page – no address. Only in this browser, nothing is sent.",
+        "You can export the collection in the settings (e.g. for your own training) or at any time " +
+          "delete it and withdraw consent."
       ],
       buttons: [
         {
-          text: "Einverstanden, speichern",
+          text: "Agree, save",
           primary: true,
           onClick: async () => {
             await chrome.storage.local.set({ [FEEDBACK_CONSENT]: Date.now() });
             saveFeedback(fb, label, basis);
           }
         },
-        { text: "Abbrechen", onClick: () => Popover.show(fb.target, fb.token, withFeedback(fb)) }
+        { text: "Cancel", onClick: () => Popover.show(fb.target, fb.token, withFeedback(fb)) }
       ]
     });
   }
 
-  // record: Ergebnis-Objekt, null = wird geprüft, undefined = Markierung entfernen
+  // record: result object, null = being checked, undefined = remove marking
   function markManual({ range, el, hash }, record) {
     if (range) {
       if (record === undefined) manualRanges.delete(range);
@@ -1118,8 +1118,8 @@
     }
   }
 
-  // CSS Custom Highlight API: färbt beliebige Textbereiche, ohne das DOM der Seite anzufassen.
-  // record: Ergebnis, null = wird geprüft, undefined = Markierung entfernen
+  // CSS Custom Highlight API: colors arbitrary text ranges without touching the page's DOM.
+  // record: result, null = being checked, undefined = remove marking
   function highlightRange(range, record) {
     if (!window.CSS?.highlights) return;
     for (const state of HIGHLIGHT_STATES) CSS.highlights.get(`aivsai-${state}`)?.delete(range);

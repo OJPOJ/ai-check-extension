@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>AI Content Flag – Test-Harness</title>
+<title>AI Content Flag – Test Harness</title>
 <style>
   body { font-family: Georgia, serif; max-width: 720px; margin: 40px auto; padding: 0 16px; line-height: 1.6; }
   h1 { font-family: system-ui, sans-serif; font-size: 20px; }
@@ -13,17 +13,17 @@
 </style>
 </head>
 <body>
-  <h1>Test-Harness: bekannte Mensch-/KI-Textbeispiele</h1>
+  <h1>Test harness: known human/AI text examples</h1>
   <p class="meta">
-    Diese Seite ist nur zum manuellen Testen der Extension gedacht. Jeder &lt;p&gt;-Block hat
-    &gt;= 40 Wörter, damit er von content.js als Kandidat erkannt wird - außer den Absätzen von
-    Beispiel F (ab 15 Wörtern, nur als Gruppe). Extension als "unpacked" laden
-    (chrome://extensions), dann diese Seite laden und beobachten, welche Absätze einen
-    Glow-Rahmen bekommen.
+    This page is only meant for manually testing the extension. Every &lt;p&gt; block has
+    &gt;= 40 words so that content.js recognizes it as a candidate - except the paragraphs of
+    example F (from 15 words, only as a group). Load the extension as "unpacked"
+    (chrome://extensions), then load this page and watch which paragraphs get a
+    glow border.
   </p>
 
   <article>
-    <p class="meta">Beispiel A – menschlich, informell (Reddit-Stil)</p>
+    <p class="meta">Example A – human, informal (Reddit style)</p>
     <p>
       honestly i've been putting off fixing my bike for like three weeks now and every single
       day i tell myself "tomorrow" and then tomorrow comes and i just... don't. the back tire
@@ -34,7 +34,7 @@
   </article>
 
   <article>
-    <p class="meta">Beispiel B – typischer LLM-Stil (glatt, aufzählend, hochwertig)</p>
+    <p class="meta">Example B – typical LLM style (smooth, enumerating, polished)</p>
     <p>
       Maintaining a bicycle in good working condition requires regular attention to several
       key components. First, it is important to inspect the tires for proper inflation and
@@ -46,7 +46,7 @@
   </article>
 
   <article>
-    <p class="meta">Beispiel C – menschlich, deutscher Fachtext (wird nicht bewertet: Modell kennt nur Englisch)</p>
+    <p class="meta">Example C – human, German technical text (is not scored: the model only knows English)</p>
     <p>
       Die Wärmeleitfähigkeit von Kupfer liegt bei etwa 401 W/(m·K) und damit deutlich über der
       von Aluminium mit rund 235 W/(m·K). In unserem Versuchsaufbau haben wir beide Materialien
@@ -58,7 +58,7 @@
   </article>
 
   <article>
-    <p class="meta">Beispiel D – menschlich, langer Sachtext (ab 120 Wörtern gelb/rot statt „unsicher“)</p>
+    <p class="meta">Example D – human, long expository text (from 120 words yellow/red instead of "uncertain")</p>
     <p id="long-example">
       The town library moved into the old grain exchange in 1962, after a long argument in the council
       about whether a building with so few windows could ever be pleasant to read in. The architects
@@ -74,7 +74,7 @@
   </article>
 
   <article>
-    <p class="meta">Beispiel E – drei kurze Absätze (je unter 120 Wörter), zusammen eine Gruppe</p>
+    <p class="meta">Example E – three short paragraphs (each under 120 words), together one group</p>
     <p>
       Eventually I did walk to the shop, mostly because the rain finally stopped for a whole afternoon
       and I ran out of excuses. The kid behind the counter did not even blink when I described the
@@ -92,7 +92,7 @@
   </article>
 
   <article>
-    <p class="meta">Beispiel F – kurze BBC-Absätze (WP-10), zusammen eine Gruppe</p>
+    <p class="meta">Example F – short BBC paragraphs (WP-10), together one group</p>
     <p>
       Rain swept across the harbour before dawn, and by sunrise the fishing boats were already back at
       the quay.
@@ -107,24 +107,24 @@
   </article>
 
   <article>
-    <p class="meta">Beispiel G – ein kurzer Absatz ohne Nachbarn, bleibt unbewertet (WP-10)</p>
+    <p class="meta">Example G – a short paragraph without neighbors, stays unscored (WP-10)</p>
     <p>
       A council spokesperson declined to give further details before the public inquiry concludes some
       time next year, citing ongoing legal proceedings.
     </p>
   </article>
 
-  <p class="meta">Kurzer Text unter 40 Wörtern (sollte NIE als Kandidat gescannt werden):</p>
-  <p>Das ist zu kurz, um klassifiziert zu werden.</p>
+  <p class="meta">Short text under 40 words (should NEVER be scanned as a candidate):</p>
+  <p>This is too short to be classified.</p>
 
-  <p class="meta">Eingabefeld (sollte NIE markiert werden, egal was drinsteht):</p>
+  <p class="meta">Input field (should NEVER be marked, no matter what it contains):</p>
   <textarea>
     Furthermore, it is important to note that this text is inside a textarea and should
     therefore be excluded from scanning entirely, regardless of its length or style, because
     users must always be able to type freely without the extension interfering.
   </textarea>
 
-  <p class="meta">Dynamisch nachgeladener Block (testet MutationObserver, erscheint nach 2s):</p>
+  <p class="meta">Dynamically loaded block (tests MutationObserver, appears after 2s):</p>
   <div id="dynamic-slot"></div>
 
   <script>

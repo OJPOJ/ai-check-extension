@@ -1,6 +1,6 @@
-// Backends aus extension/bg/providers.js mit gemocktem fetch/chrome: Vertrag, /v1/info, Antwortformen der
-// Hugging-Face-API, Hub-Metadaten, Label-Zuordnung und Fehlermeldungen. Die E2E-Tests decken nur "Lokal" gegen ein
-// Fake-Backend ab; Hugging Face mit echtem Token bleibt ungetestet (DEVELOPMENT.md, "Tests").
+// Backends from extension/bg/providers.js with mocked fetch/chrome: contract, /v1/info, response shapes of the
+// Hugging Face API, Hub metadata, label mapping and error messages. The E2E tests only cover "Local" against a
+// fake backend; Hugging Face with a real token stays untested (DEVELOPMENT.md, "Tests").
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import { BACKENDS, backendFor, describeError, trimSlash } from "../../extension/bg/providers.js";
@@ -12,7 +12,7 @@ await import("../../extension/config.js");
 const realFetch = globalThis.fetch;
 let calls = [];
 
-// Nächste Antworten des Backends; jede ist {status?, body} (body als Objekt -> JSON, als String -> roh)
+// Next responses of the backend; each is {status?, body} (body as an object -> JSON, as a string -> raw)
 function mockFetch(...responses) {
   calls = [];
   globalThis.fetch = async (url, init) => {
@@ -32,23 +32,23 @@ const custom = { provider: "custom", customUrl: "https://s.example/score", custo
 const hf = { provider: "huggingface", hfModel: "org/detector", hfToken: "hf_x", hfAiLabel: "" };
 
 describe("trimSlash / backendFor", () => {
-  it("entfernt nur abschließende Schrägstriche", () => {
+  it("removes only trailing slashes", () => {
     assert.equal(trimSlash("http://h:1///"), "http://h:1");
     assert.equal(trimSlash("http://h/a/b"), "http://h/a/b");
   });
 
-  it("fällt bei unbekanntem Provider auf Lokal zurück", () => {
+  it("falls back to Local for an unknown provider", () => {
     assert.equal(backendFor({ provider: "huggingface" }), BACKENDS.huggingface);
-    assert.equal(backendFor({ provider: "weg" }), BACKENDS.local);
+    assert.equal(backendFor({ provider: "gone" }), BACKENDS.local);
   });
 
-  it("zu jedem Provider aus config.js gibt es ein Backend und umgekehrt", () => {
+  it("there is a backend for every provider from config.js and vice versa", () => {
     assert.deepEqual(Object.keys(BACKENDS).sort(), Object.keys(globalThis.AIVSAI.PROVIDERS).sort());
   });
 });
 
-describe("Lokal / Eigener Server (Vertrag POST {texts, model?} -> {scores})", () => {
-  it("Lokal: /v1/score, Modell im Body, kein Authorization-Header", async () => {
+describe("Local / Custom server (contract POST {texts, model?} -> {scores})", () => {
+  it("Local: /v1/score, model in the body, no Authorization header", async () => {
     mockFetch({ body: { scores: [0.1, 0.9] } });
     assert.deepEqual(await BACKENDS.local.score(["a", "b"], local), [0.1, 0.9]);
     assert.equal(calls[0].url, "http://127.0.0.1:8787/v1/score");
@@ -57,21 +57,21 @@ describe("Lokal / Eigener Server (Vertrag POST {texts, model?} -> {scores})", ()
     assert.equal(calls[0].init.headers.Authorization, undefined);
   });
 
-  it("Eigener Server: URL unverändert, Bearer-Key, ohne Modell kein model-Feld", async () => {
+  it("Custom server: URL unchanged, bearer key, no model field without a model", async () => {
     mockFetch({ body: { scores: [0.5] } });
-    await BACKENDS.custom.score(["a"], { ...custom, customApiKey: "geheim" });
+    await BACKENDS.custom.score(["a"], { ...custom, customApiKey: "secret" });
     assert.equal(calls[0].url, "https://s.example/score");
-    assert.equal(calls[0].init.headers.Authorization, "Bearer geheim");
+    assert.equal(calls[0].init.headers.Authorization, "Bearer secret");
     assert.deepEqual(calls[0].body, { texts: ["a"] });
   });
 
-  it("Nicht-Zahlen und Werte außerhalb 0..1 werden null (Absatz bleibt unbewertet), der Rest bleibt", async () => {
+  it("non-numbers and values outside 0..1 become null (paragraph stays unscored), the rest remains", async () => {
     mockFetch({ body: { scores: [0.2, null, "0.7", -0.1, 1.5, 0, 1] } });
     const texts = ["a", "b", "c", "d", "e", "f", "g"];
     assert.deepEqual(await BACKENDS.custom.score(texts, custom), [0.2, null, null, null, null, 0, 1]);
   });
 
-  it("lang geht mit, wenn bekannt", async () => {
+  it("lang goes along when known", async () => {
     mockFetch({ body: { scores: [0.5] } }, { body: { scores: [0.5] } });
     await BACKENDS.local.score(["a"], local, { lang: "en" });
     await BACKENDS.custom.score(["a"], custom, { lang: "de" });
@@ -79,24 +79,24 @@ describe("Lokal / Eigener Server (Vertrag POST {texts, model?} -> {scores})", ()
     assert.deepEqual(calls[1].body, { texts: ["a"], lang: "de" });
   });
 
-  it("lehnt Antworten ohne passendes scores-Array ab", async () => {
+  it("rejects responses without a matching scores array", async () => {
     for (const body of [{ scores: [0.1] }, { score: [0.1, 0.2] }, { scores: "0.1,0.2" }]) {
       mockFetch({ body });
-      await assert.rejects(BACKENDS.custom.score(["a", "b"], custom), /passendes 'scores'-Array/);
+      await assert.rejects(BACKENDS.custom.score(["a", "b"], custom), /matching 'scores' array/);
     }
   });
 
-  it("Eigener Server ohne URL: Fehler statt Anfrage", async () => {
+  it("Custom server without a URL: error instead of a request", async () => {
     mockFetch();
-    await assert.rejects(async () => BACKENDS.custom.score(["a"], { ...custom, customUrl: "" }), /Keine Server-URL/);
+    await assert.rejects(async () => BACKENDS.custom.score(["a"], { ...custom, customUrl: "" }), /No server URL/);
     assert.equal(calls.length, 0);
   });
 
-  it("HTTP-Fehler mit Detail aus dem Body (FastAPI, OpenAI-Stil, Objekt, kein JSON)", async () => {
+  it("HTTP errors with detail from the body (FastAPI, OpenAI style, object, not JSON)", async () => {
     const cases = [
-      [{ status: 422, body: { detail: "texts fehlt" } }, "HTTP 422: texts fehlt"],
+      [{ status: 422, body: { detail: "texts missing" } }, "HTTP 422: texts missing"],
       [{ status: 401, body: { error: { message: "bad key" } } }, "HTTP 401: bad key"],
-      [{ status: 400, body: { error: "kaputt" } }, "HTTP 400: kaputt"],
+      [{ status: 400, body: { error: "broken" } }, "HTTP 400: broken"],
       [{ status: 422, body: { detail: [{ loc: ["texts"] }] } }, 'HTTP 422: [{"loc":["texts"]}]'],
       [{ status: 502, body: "<html>Bad Gateway</html>" }, "HTTP 502"]
     ];
@@ -107,7 +107,7 @@ describe("Lokal / Eigener Server (Vertrag POST {texts, model?} -> {scores})", ()
   });
 });
 
-describe("GET /v1/info (inspect für Lokal / Eigener Server)", () => {
+describe("GET /v1/info (inspect for Local / Custom server)", () => {
   const info = {
     name: "Det",
     version: "v2",
@@ -118,14 +118,14 @@ describe("GET /v1/info (inspect für Lokal / Eigener Server)", () => {
     shortRedFrom: 0.97
   };
 
-  it("Lokal: neben /v1/score, mit Modell als Parameter", async () => {
+  it("Local: next to /v1/score, with the model as a parameter", async () => {
     mockFetch({ body: info });
     assert.deepEqual(await BACKENDS.local.inspect(local), { info, notes: [] });
     assert.equal(calls[0].url, "http://127.0.0.1:8787/v1/info?model=tmr");
     assert.equal(calls[0].init.method, undefined); // GET
   });
 
-  it("Eigener Server: relativ zur Endpunkt-URL, Bearer-Key", async () => {
+  it("Custom server: relative to the endpoint URL, bearer key", async () => {
     mockFetch({ body: info }, { body: info });
     await BACKENDS.custom.inspect({ ...custom, customUrl: "https://s.example/api/v1/score", customApiKey: "k", customModel: "a b" });
     assert.equal(calls[0].url, "https://s.example/api/v1/info?model=a%20b");
@@ -134,18 +134,18 @@ describe("GET /v1/info (inspect für Lokal / Eigener Server)", () => {
     assert.equal(calls[1].url, "https://s.example/info");
   });
 
-  it("fehlender Endpunkt ist kein Fehler, andere HTTP-Fehler schon", async () => {
+  it("a missing endpoint is not an error, other HTTP errors are", async () => {
     for (const status of [404, 405, 501]) {
       mockFetch({ status, body: "" });
       const r = await BACKENDS.custom.inspect(custom);
       assert.deepEqual(r.info, {});
-      assert.match(r.notes[0], /Kein \/v1\/info/);
+      assert.match(r.notes[0], /No \/v1\/info/);
     }
     mockFetch({ status: 401, body: { detail: "invalid or missing API key" } });
     await assert.rejects(BACKENDS.custom.inspect(custom), /HTTP 401/);
   });
 
-  it("verwirft ungültige Felder mit Hinweis, Version als Text", async () => {
+  it("discards invalid fields with a note, version as text", async () => {
     mockFetch({
       body: {
         name: 3,
@@ -162,12 +162,12 @@ describe("GET /v1/info (inspect für Lokal / Eigener Server)", () => {
     assert.equal(r.notes.length, 6);
 
     mockFetch({ body: {} });
-    assert.match((await BACKENDS.custom.inspect(custom)).notes[0], /keine Version/);
+    assert.match((await BACKENDS.custom.inspect(custom)).notes[0], /no version/);
   });
 });
 
 describe("Hugging Face", () => {
-  it("Anfrage: Router-URL mit Modell, Token als Bearer, Texte als inputs", async () => {
+  it("Request: router URL with model, token as bearer, texts as inputs", async () => {
     mockFetch({ body: [[{ label: "Fake", score: 0.8 }, { label: "Real", score: 0.2 }]] });
     assert.deepEqual(await BACKENDS.huggingface.score(["a"], hf), [0.8]);
     assert.equal(calls[0].url, "https://router.huggingface.co/hf-inference/models/org/detector");
@@ -175,7 +175,7 @@ describe("Hugging Face", () => {
     assert.deepEqual(calls[0].body, { inputs: ["a"] });
   });
 
-  it("Antwortformen: pro Text eine Liste, Einzeltext flach, Top-1 flach", async () => {
+  it("Response shapes: a list per text, single text flat, top-1 flat", async () => {
     mockFetch({ body: [[{ label: "AI", score: 0.9 }, { label: "Human", score: 0.1 }], [{ label: "Human", score: 0.7 }, { label: "AI", score: 0.3 }]] });
     assert.deepEqual(await BACKENDS.huggingface.score(["a", "b"], hf), [0.9, 0.3]);
 
@@ -186,7 +186,7 @@ describe("Hugging Face", () => {
     assert.deepEqual(await BACKENDS.huggingface.score(["a", "b"], hf), [0.95, 0.25]);
   });
 
-  it("automatische Label-Erkennung", async () => {
+  it("automatic label detection", async () => {
     const labels = [
       ["machine-generated", 0.7], ["AI_generated", 0.7], ["gpt", 0.7], ["LLM", 0.7], ["fake", 0.7]
     ];
@@ -194,45 +194,45 @@ describe("Hugging Face", () => {
       mockFetch({ body: [[{ label, score }, { label: "human", score: 1 - score }]] });
       assert.deepEqual(await BACKENDS.huggingface.score(["a"], hf), [score], label);
     }
-    // Top-1 = Mensch -> Gegenwahrscheinlichkeit; ohne Top-1 lässt sich nichts ableiten
+    // top-1 = human -> complementary probability; without top-1 nothing can be derived
     mockFetch({ body: [[{ label: "human-written", score: 0.75 }]] });
     assert.deepEqual(await BACKENDS.huggingface.score(["a"], hf), [0.25]);
   });
 
-  it("manuelles KI-Label (Groß-/Kleinschreibung egal) überstimmt die Automatik", async () => {
+  it("manual AI label (case-insensitive) overrides the automatic detection", async () => {
     mockFetch({ body: [[{ label: "Fake", score: 0.2 }, { label: "Synthetic", score: 0.8 }]] });
     assert.deepEqual(await BACKENDS.huggingface.score(["a"], { ...hf, hfAiLabel: "synthetic" }), [0.8]);
   });
 
-  it("einzelne Texte ohne KI-Label werden null, alle ohne -> Fehler mit den gesehenen Labels", async () => {
+  it("single texts without an AI label become null, all without -> error with the labels seen", async () => {
     mockFetch({ body: [[{ label: "AI", score: 0.9 }], [{ label: "POSITIVE", score: 0.9 }]] });
     assert.deepEqual(await BACKENDS.huggingface.score(["a", "b"], hf), [0.9, null]);
 
     mockFetch({ body: [[{ label: "POSITIVE", score: 0.9 }, { label: "NEGATIVE", score: 0.1 }]] });
-    await assert.rejects(BACKENDS.huggingface.score(["a"], hf), /Modell liefert: POSITIVE, NEGATIVE/);
+    await assert.rejects(BACKENDS.huggingface.score(["a"], hf), /model returns: POSITIVE, NEGATIVE/);
   });
 
-  it("Fehler: kein Modell, keine Liste, falsche Anzahl", async () => {
+  it("Errors: no model, no list, wrong count", async () => {
     mockFetch();
-    await assert.rejects(BACKENDS.huggingface.score(["a"], { ...hf, hfModel: "" }), /Kein Hugging-Face-Modell/);
+    await assert.rejects(BACKENDS.huggingface.score(["a"], { ...hf, hfModel: "" }), /No Hugging Face model/);
     assert.equal(calls.length, 0);
 
     mockFetch({ body: { error: "Model is loading" } });
-    await assert.rejects(BACKENDS.huggingface.score(["a"], hf), /Unerwartete Antwort/);
+    await assert.rejects(BACKENDS.huggingface.score(["a"], hf), /Unexpected response/);
 
     mockFetch({ body: [[{ label: "AI", score: 0.9 }]] });
-    await assert.rejects(BACKENDS.huggingface.score(["a", "b"], hf), /Anzahl Ergebnisse/);
+    await assert.rejects(BACKENDS.huggingface.score(["a", "b"], hf), /Number of results/);
 
     mockFetch({ status: 503, body: { error: "Model is loading" } });
     await assert.rejects(BACKENDS.huggingface.score(["a"], hf), { message: "HTTP 503: Model is loading" });
   });
 });
 
-describe("Hugging Face: Metadaten vom Hub (inspect)", () => {
+describe("Hugging Face: metadata from the Hub (inspect)", () => {
   const meta = (over = {}) => ({ body: { sha: "0123456789abcdef", pipeline_tag: "text-classification", ...over } });
   const config = (id2label) => ({ body: { id2label } });
 
-  it("liest Modellinfo und config.json derselben Revision, mit Token", async () => {
+  it("reads model info and config.json of the same revision, with token", async () => {
     mockFetch(meta(), config({ 0: "Human", 1: "AI" }));
     const r = await BACKENDS.huggingface.inspect(hf);
     assert.equal(calls[0].url, "https://huggingface.co/api/models/org/detector");
@@ -242,11 +242,11 @@ describe("Hugging Face: Metadaten vom Hub (inspect)", () => {
     assert.deepEqual(r.labels, ["Human", "AI"]);
   });
 
-  it("KI-Label aus id2label: per KI-Name, per Mensch-Name, sonst offen", async () => {
+  it("AI label from id2label: by AI name, by human name, otherwise open", async () => {
     const cases = [
       [{ 0: "machine-generated", 1: "human" }, "machine-generated"],
-      [{ 0: "Real", 1: "Synthetic" }, "Synthetic"], // nur die Mensch-Klasse ist erkennbar
-      [{ 0: "LABEL_0", 1: "LABEL_1" }, undefined], // Konvention unbekannt -> model-check.js entscheidet
+      [{ 0: "Real", 1: "Synthetic" }, "Synthetic"], // only the human class is recognizable
+      [{ 0: "LABEL_0", 1: "LABEL_1" }, undefined], // convention unknown -> model-check.js decides
       [{ 1: "b", 0: "a" }, undefined]
     ];
     for (const [id2label, aiLabel] of cases) {
@@ -257,27 +257,27 @@ describe("Hugging Face: Metadaten vom Hub (inspect)", () => {
     assert.deepEqual((await BACKENDS.huggingface.inspect(hf)).labels, ["a", "b"]);
   });
 
-  it("eingetragenes Label muss es geben (Groß-/Kleinschreibung egal)", async () => {
+  it("an entered label must exist (case-insensitive)", async () => {
     mockFetch(meta(), config({ 0: "LABEL_0", 1: "LABEL_1" }));
     assert.equal((await BACKENDS.huggingface.inspect({ ...hf, hfAiLabel: "label_0" })).info.aiLabel, "LABEL_0");
     mockFetch(meta(), config({ 0: "LABEL_0", 1: "LABEL_1" }));
-    await assert.rejects(BACKENDS.huggingface.inspect({ ...hf, hfAiLabel: "AI" }), /„AI“ gibt es nicht/);
+    await assert.rejects(BACKENDS.huggingface.inspect({ ...hf, hfAiLabel: "AI" }), /"AI" does not exist/);
   });
 
-  it("lehnt falschen Modelltyp, andere Klassenzahl und unbekannte Modelle ab", async () => {
+  it("rejects wrong model type, different class count and unknown models", async () => {
     mockFetch(meta({ pipeline_tag: "text-generation" }));
     await assert.rejects(BACKENDS.huggingface.inspect(hf), /pipeline_tag: text-generation/);
     mockFetch(meta({ pipeline_tag: undefined }));
-    await assert.rejects(BACKENDS.huggingface.inspect(hf), /pipeline_tag: fehlt/);
-    mockFetch(meta(), config({ 0: "neg", 1: "neu", 2: "pos" }));
-    await assert.rejects(BACKENDS.huggingface.inspect(hf), /genau 2 Klassen.*hat 3: neg, neu, pos/);
+    await assert.rejects(BACKENDS.huggingface.inspect(hf), /pipeline_tag: missing/);
+    mockFetch(meta(), config({ 0: "neg", 1: "neutral", 2: "pos" }));
+    await assert.rejects(BACKENDS.huggingface.inspect(hf), /exactly 2 classes.*has 3: neg, neutral, pos/);
     mockFetch(meta(), config(undefined));
-    await assert.rejects(BACKENDS.huggingface.inspect(hf), /hat keine$/);
+    await assert.rejects(BACKENDS.huggingface.inspect(hf), /has none$/);
     mockFetch({ status: 401, body: { error: "Invalid credentials" } });
-    await assert.rejects(BACKENDS.huggingface.inspect(hf), /nicht gefunden \(oder privat\/gated/);
+    await assert.rejects(BACKENDS.huggingface.inspect(hf), /not found \(or private\/gated/);
   });
 
-  it("Bewertung nutzt das KI-Label aus der bestandenen Prüfung, Top-1 der anderen Klasse -> Gegenwert", async () => {
+  it("scoring uses the AI label from the passed check, top-1 of the other class -> complement", async () => {
     const sig = globalThis.AIVSAI.checkSignature(hf);
     const checked = { ...hf, modelChecks: { huggingface: { ok: true, sig, info: { aiLabel: "LABEL_0" } } } };
     mockFetch({ body: [[{ label: "LABEL_1", score: 0.9 }, { label: "LABEL_0", score: 0.1 }], [{ label: "LABEL_1", score: 0.75 }]] });
@@ -285,8 +285,8 @@ describe("Hugging Face: Metadaten vom Hub (inspect)", () => {
   });
 });
 
-describe("Im Browser", () => {
-  it("fragt das Offscreen-Dokument (legt es bei Bedarf an) und reicht die Scores durch", async () => {
+describe("In the browser", () => {
+  it("asks the offscreen document (creates it if needed) and passes the scores through", async () => {
     const sent = [];
     let created = 0;
     globalThis.chrome = {
@@ -298,19 +298,19 @@ describe("Im Browser", () => {
     assert.deepEqual(sent, [{ target: "offscreen", type: "score", texts: ["a"], model: "desklib" }]);
   });
 
-  it("Fehler aus dem Offscreen-Dokument kommen als Fehler an", async () => {
+  it("errors from the offscreen document arrive as errors", async () => {
     globalThis.chrome = {
       offscreen: { hasDocument: async () => true },
-      runtime: { sendMessage: async () => ({ ok: false, error: "Modell nicht heruntergeladen" }) }
+      runtime: { sendMessage: async () => ({ ok: false, error: "Model not downloaded" }) }
     };
-    await assert.rejects(BACKENDS.browser.score(["a"], { browserModel: "tmr" }), /Modell nicht heruntergeladen/);
+    await assert.rejects(BACKENDS.browser.score(["a"], { browserModel: "tmr" }), /Model not downloaded/);
     globalThis.chrome.runtime.sendMessage = async () => undefined;
-    await assert.rejects(BACKENDS.browser.score(["a"], { browserModel: "tmr" }), /antwortet nicht/);
+    await assert.rejects(BACKENDS.browser.score(["a"], { browserModel: "tmr" }), /does not respond/);
   });
 });
 
 describe("health", () => {
-  it("Lokal: /healthz, Fehler als Text statt Ausnahme", async () => {
+  it("Local: /healthz, errors as text instead of an exception", async () => {
     mockFetch({ body: "ok" });
     globalThis.fetch = async (url) => (calls.push({ url }), new Response("ok"));
     assert.deepEqual(await BACKENDS.local.health(local), { ok: true });
@@ -320,32 +320,32 @@ describe("health", () => {
     globalThis.fetch = async () => {
       throw new TypeError("Failed to fetch");
     };
-    assert.match((await BACKENDS.local.health(local)).error, /nicht erreichbar/);
+    assert.match((await BACKENDS.local.health(local)).error, /unreachable/);
   });
 
-  it("Im Browser: Download-Status aus dem Offscreen-Dokument", async () => {
+  it("In the browser: download status from the offscreen document", async () => {
     const models = { tmr: { downloaded: true, loaded: false }, desklib: { downloaded: false, downloading: { loaded: 1 } } };
     globalThis.chrome = {
       offscreen: { hasDocument: async () => true },
       runtime: { sendMessage: async () => ({ ok: true, models }) }
     };
-    assert.deepEqual(await BACKENDS.browser.health({ browserModel: "tmr" }), { ok: true, detail: "Modell bereit" });
-    assert.match((await BACKENDS.browser.health({ browserModel: "desklib" })).error, /heruntergeladen…/);
+    assert.deepEqual(await BACKENDS.browser.health({ browserModel: "tmr" }), { ok: true, detail: "Model ready" });
+    assert.match((await BACKENDS.browser.health({ browserModel: "desklib" })).error, /downloaded…/);
   });
 
-  it("Cloud-Backends haben keinen eigenen Check (kostet Quota)", () => {
+  it("cloud backends have no check of their own (costs quota)", () => {
     assert.equal(BACKENDS.custom.health, undefined);
     assert.equal(BACKENDS.huggingface.health, undefined);
   });
 });
 
 describe("describeError", () => {
-  it("übersetzt Zeitüberschreitung und Netzwerkfehler, sonst die Meldung", () => {
+  it("translates timeout and network errors, otherwise the message", () => {
     const timeout = Object.assign(new Error("x"), { name: "TimeoutError" });
-    assert.equal(describeError(timeout, local), "Zeitüberschreitung beim Backend");
-    assert.match(describeError(new TypeError("Failed to fetch"), local), /Lokaler Server nicht erreichbar \(http:\/\/127\.0\.0\.1:8787\/\)/);
-    assert.match(describeError(new TypeError("Failed to fetch"), custom), /fehlende Berechtigung/);
+    assert.equal(describeError(timeout, local), "Backend timed out");
+    assert.match(describeError(new TypeError("Failed to fetch"), local), /Local server unreachable \(http:\/\/127\.0\.0\.1:8787\/\)/);
+    assert.match(describeError(new TypeError("Failed to fetch"), custom), /missing permission/);
     assert.equal(describeError(new Error("HTTP 500"), custom), "HTTP 500");
-    assert.equal(describeError("roh", custom), "roh");
+    assert.equal(describeError("raw", custom), "raw");
   });
 });

@@ -1,40 +1,40 @@
-// Gemeinsame Defaults/Helfer für background.js, content.js, popup.js und options.js.
-// Klassisches Skript (content_scripts/<script>) und per `import "./config.js"` im Service Worker
-// nutzbar - deshalb als Eigenschaft von globalThis statt als Modul-Export. Braucht models.js davor.
+// Shared defaults/helpers for background.js, content.js, popup.js and options.js.
+// Usable as a classic script (content_scripts/<script>) and via `import "./config.js"` in the service worker
+// - hence a property of globalThis instead of a module export. Needs models.js before it.
 globalThis.AIVSAI = (() => {
-  // Modellkatalog aus models.js
+  // Model catalog from models.js
   const MODELS = globalThis.AIVSAI_MODELS;
-  // Standardmodell "Im Browser": desklib hat auf der breiten Eval-Suite ~1 % Fehlalarme statt ~5 % bei TMR
-  // (training/EVAL_RESULTS.md, "Breitere Eval-Suite"). Bis v0.5 war es TMR - background.js, pinLegacyModel.
+  // Default model "In the browser": on the broad eval suite desklib has ~1% false alarms instead of ~5% for TMR
+  // (training/EVAL_RESULTS.md, "Broader eval suite"). Up to v0.5 it was TMR - background.js, pinLegacyModel.
   const DEFAULT_MODEL = "desklib";
-  if (!MODELS) throw new Error("models.js muss vor config.js geladen werden");
+  if (!MODELS) throw new Error("models.js must be loaded before config.js");
 
   const LOCAL_URL = "http://127.0.0.1:8787";
 
-  // Provider = wo und wie bewertet wird. Jeder beschreibt sich hier selbst; die Einstellungsseite baut
-  // Auswahl und Formular daraus, der Rest (Cache-Schlüssel, Datenschutz-Hinweis, Parallelität) wird
-  // abgeleitet. Die eigentliche Anfrage steht unter demselben Schlüssel in bg/providers.js.
+  // Provider = where and how scoring happens. Each one describes itself here; the settings page builds the
+  // selection and the form from it, the rest (cache key, privacy note, parallelism) is derived. The actual
+  // request lives under the same key in bg/providers.js.
   //
-  //   name           kurz, für Popup, Tooltip und Popover ("Im Browser (TMR)")
-  //   title, description  Auswahlkarte in den Einstellungen
-  //   fields         eigene Einstellungen. key = Schlüssel im Storage (secret: storage.local, wird nicht
-  //                  synchronisiert). type: "model" (Auswahl aus models.js, Abschnitt `catalog`), "url",
-  //                  "text", "password". required: darf nicht leer sein. note/hint/placeholder: Texte.
-  //   family(cfg)    Schlüssel in models.js, falls das Modell bekannt ist -> Textlänge und Ampel-Presets
-  //   model(cfg)     stabile Kennung des Modells inkl. Version (Teil von modelKey)
-  //   detail(cfg)    Zusatz zum Namen, z.B. das Modell
-  //   endpoint(cfg)  URL, an die Texte gehen (null = bleiben in der Extension) -> Host-Berechtigung
-  //   origins        weitere Host-Berechtigungen (z.B. für Modell-Metadaten)
-  //   remote         fester Text für den Datenschutz-Hinweis statt des Hosts aus endpoint()
-  //   serial         rechnet ohnehin nur ein Prozess -> keine parallelen Batches
-  //   check          „Modell prüfen“ (bg/model-check.js): "required" = Pflicht vor dem Speichern, "optional".
-  //                  Das Ergebnis liefert Version (-> modelKey), Textlänge und Ampel-Startwerte, siehe modelCheck()
+  //   name           short, for popup, tooltip and popover ("In the browser (TMR)")
+  //   title, description  selection card in the settings
+  //   fields         own settings. key = key in storage (secret: storage.local, is not synced).
+  //                  type: "model" (selection from models.js, section `catalog`), "url", "text",
+  //                  "password". required: must not be empty. note/hint/placeholder: texts.
+  //   family(cfg)    key in models.js if the model is known -> text length and traffic light presets
+  //   model(cfg)     stable identifier of the model incl. version (part of modelKey)
+  //   detail(cfg)    addition to the name, e.g. the model
+  //   endpoint(cfg)  URL the texts are sent to (null = stay in the extension) -> host permission
+  //   origins        further host permissions (e.g. for model metadata)
+  //   remote         fixed text for the privacy note instead of the host from endpoint()
+  //   serial         only one process computes anyway -> no parallel batches
+  //   check          "Check model" (bg/model-check.js): "required" = mandatory before saving, "optional".
+  //                  The result provides version (-> modelKey), text length and traffic light starting values, see modelCheck()
   const PROVIDERS = {
     browser: {
-      name: "Im Browser",
-      title: "Im Browser (empfohlen)",
-      description: "Das Modell läuft direkt in der Extension – kein Server nötig, Texte verlassen den Rechner nicht.",
-      fields: [{ key: "browserModel", type: "model", catalog: "browser", label: "Modell", default: DEFAULT_MODEL }],
+      name: "In the browser",
+      title: "In the browser (recommended)",
+      description: "The model runs directly in the extension – no server needed, texts do not leave the computer.",
+      fields: [{ key: "browserModel", type: "model", catalog: "browser", label: "Model", default: DEFAULT_MODEL }],
       family: (cfg) => cfg.browserModel,
       model: (cfg) => `${cfg.browserModel}@${MODELS[cfg.browserModel]?.browser?.version ?? "?"}`,
       detail: (cfg) => (MODELS[cfg.browserModel] || MODELS.tmr).name,
@@ -42,12 +42,12 @@ globalThis.AIVSAI = (() => {
       serial: true
     },
     local: {
-      name: "Lokal",
-      title: "Lokaler Server",
-      description: "shim_server.py auf diesem Rechner – Texte verlassen den Rechner nicht.",
+      name: "Local",
+      title: "Local server",
+      description: "shim_server.py on this computer – texts do not leave the computer.",
       fields: [
-        { key: "localUrl", type: "url", label: "Server-URL", default: LOCAL_URL, placeholder: LOCAL_URL },
-        { key: "localModel", type: "model", catalog: "server", label: "Modell", default: "tmr" }
+        { key: "localUrl", type: "url", label: "Server URL", default: LOCAL_URL, placeholder: LOCAL_URL },
+        { key: "localModel", type: "model", catalog: "server", label: "Model", default: "tmr" }
       ],
       family: (cfg) => cfg.localModel,
       model: (cfg) => cfg.localModel,
@@ -57,18 +57,18 @@ globalThis.AIVSAI = (() => {
       check: "optional"
     },
     custom: {
-      name: "Eigener Server",
-      title: "Eigener Server / Cloud",
-      description: "Beliebiger HTTP-Endpunkt mit einfachem JSON-Vertrag, z.B. shim_server.py in der Cloud.",
+      name: "Custom server",
+      title: "Custom server / cloud",
+      description: "Any HTTP endpoint with a simple JSON contract, e.g. shim_server.py in the cloud.",
       fields: [
         {
-          key: "customUrl", type: "url", label: "Endpunkt-URL", default: "", required: true,
+          key: "customUrl", type: "url", label: "Endpoint URL", default: "", required: true,
           placeholder: "https://detector.example.com/v1/score"
         },
-        { key: "customApiKey", type: "password", label: "API-Key", note: "optional, als Bearer-Token", default: "", secret: true },
-        { key: "customModel", type: "text", label: "Modell", note: "optional, wird als „model“ mitgeschickt", default: "", placeholder: "tmr" }
+        { key: "customApiKey", type: "password", label: "API key", note: "optional, as bearer token", default: "", secret: true },
+        { key: "customModel", type: "text", label: "Model", note: "optional, is sent along as \"model\"", default: "", placeholder: "tmr" }
       ],
-      family: () => null, // unbekannt, was der Server rechnet
+      family: () => null, // unknown what the server computes
       model: (cfg) => cfg.customModel || cfg.customUrl,
       detail: (cfg) => cfg.customModel,
       endpoint: (cfg) => cfg.customUrl,
@@ -77,24 +77,24 @@ globalThis.AIVSAI = (() => {
     huggingface: {
       name: "Hugging Face",
       title: "Hugging Face Inference API",
-      description: "Textklassifikations-Modell vom Hugging Face Hub, gehostet von Hugging Face.",
+      description: "Text classification model from the Hugging Face Hub, hosted by Hugging Face.",
       fields: [
         {
-          key: "hfModel", type: "text", label: "Modell-ID", default: "openai-community/roberta-base-openai-detector",
+          key: "hfModel", type: "text", label: "Model ID", default: "openai-community/roberta-base-openai-detector",
           required: true, placeholder: "openai-community/roberta-base-openai-detector",
-          hint: "Muss als Textklassifikation über „HF Inference“ verfügbar sein (Modellseite → Deploy → Inference Providers)."
+          hint: "Must be available as text classification via \"HF Inference\" (model page → Deploy → Inference Providers)."
         },
         {
-          key: "hfToken", type: "password", label: "Access Token", default: "", secret: true, placeholder: "hf_…",
-          hint: "Wird nur lokal in diesem Browser gespeichert, nicht synchronisiert."
+          key: "hfToken", type: "password", label: "Access token", default: "", secret: true, placeholder: "hf_…",
+          hint: "Is only stored locally in this browser, not synced."
         },
-        { key: "hfAiLabel", type: "text", label: "Label der KI-Klasse", note: "optional", default: "", placeholder: "automatisch (AI, Fake, LABEL_1, …)" }
+        { key: "hfAiLabel", type: "text", label: "Label of the AI class", note: "optional", default: "", placeholder: "automatic (AI, Fake, LABEL_1, …)" }
       ],
       family: () => null,
       model: (cfg) => cfg.hfModel,
       detail: (cfg) => cfg.hfModel,
       endpoint: () => "https://router.huggingface.co/",
-      origins: ["https://huggingface.co/*"], // Modellinfo und config.json vom Hub
+      origins: ["https://huggingface.co/*"], // model info and config.json from the Hub
       remote: "Hugging Face (router.huggingface.co)",
       check: "required"
     }
@@ -105,91 +105,91 @@ globalThis.AIVSAI = (() => {
 
   const DEFAULTS = {
     enabled: true,
-    // "manual" = nur per Popup-Knopf, "sites" = nur Seiten aus `sites`, "all" = jede Seite
+    // "manual" = only via popup button, "sites" = only sites from `sites`, "all" = every site
     scanMode: "sites",
     sites: [],
-    // Sperrliste: hier nie automatisch scannen, auch nicht per "Seite jetzt scannen" (Banking, Mail, ...).
-    // Die manuelle Prüfung einzelner Stellen bleibt erlaubt - sie ist immer eine bewusste Einzelaktion.
-    // Mitgeliefert: generated/blocklist.js (scripts/build-blocklist.mjs), dazu eigene Einträge und Ausnahmen.
+    // Blocklist: never scan automatically here, not even via "Scan page now" (banking, mail, ...).
+    // Manually checking individual passages remains allowed - it is always a deliberate single action.
+    // Shipped: generated/blocklist.js (scripts/build-blocklist.mjs), plus own entries and exceptions.
     builtinBlocklist: true,
-    blockedSites: [], // eigene Einträge, gelten immer
-    unblockedSites: [], // Ausnahmen von der mitgelieferten Liste
-    // Seiten mit sichtbarem Passwort- oder Zahlungsfeld wie gesperrt behandeln (fängt ab, was keine Liste kennt)
+    blockedSites: [], // own entries, always apply
+    unblockedSites: [], // exceptions from the shipped list
+    // Treat sites with a visible password or payment field as blocked (catches what no list knows)
     sensitiveHeuristic: true,
-    // nur Absätze nahe am sichtbaren Bereich bewerten, Rest erst beim Scrollen (spart Cloud-Kosten)
+    // only score paragraphs near the visible area, the rest only on scrolling (saves cloud costs)
     lazyScan: true,
-    // Benachbarte kurze Absätze (unter reliableWords) im selben Container zusammen als ein Text bewerten
-    // (content.js, groupCandidates) - senkt Fehlalarme bei Absätzen, die einzeln zu kurz für eine sichere
-    // Aussage wären (TODO.md Punkt 2, training/EVAL_RESULTS.md "Textlänge").
+    // Score adjacent short paragraphs (below reliableWords) in the same container together as one text
+    // (content.js, groupCandidates) - lowers false alarms on paragraphs that would be too short on their own
+    // for a reliable verdict (TODO.md item 2, training/EVAL_RESULTS.md "Text length").
     groupShortParagraphs: true,
 
-    // Schlüssel aus PROVIDERS, dazu deren Felder (browserModel, localUrl, ...) mit ihren Defaults
+    // Key from PROVIDERS, plus their fields (browserModel, localUrl, ...) with their defaults
     provider: "browser",
     ...defaultsOf(providerFields(false)),
 
-    // Ampel: score < yellowFrom = grün, < redFrom = gelb, sonst rot (Startwerte des Default-Modells)
+    // Traffic light: score < yellowFrom = green, < redFrom = yellow, else red (starting values of the default model)
     ...MODELS[DEFAULT_MODEL].thresholds,
     showGreen: true,
     showBadge: true,
 
-    // Bewertungen so viele Tage speichern (nur Hash + Score, kein Text, keine URL); 0 = gar nicht
+    // Keep scores for this many days (only hash + score, no text, no URL); 0 = not at all
     scoreRetentionDays: 30,
 
-    // Feedback-Knöpfe im Ergebnis-Popover (gespeichert wird erst nach Einwilligung, siehe bg/feedback-store.js)
+    // Feedback buttons in the result popover (only stored after consent, see bg/feedback-store.js)
     feedbackButtons: true,
 
-    // Letztes Ergebnis von „Modell prüfen“ je Provider (bg/model-check.js, gespeichert von options.js):
+    // Last result of "Check model" per provider (bg/model-check.js, stored by options.js):
     // { sig, at, ok, info: {name?, version?, maxChars?, languages?, reliableWords?, shortRedFrom?, aiLabel?},
     //   thresholds, auroc, msPerText }
     modelChecks: {}
   };
 
-  // Secrets liegen in storage.local, damit sie nicht über das Browser-Konto synchronisiert werden
+  // Secrets live in storage.local so they are not synced via the browser account
   const SECRET_DEFAULTS = defaultsOf(providerFields(true));
 
-  // Änderungen an diesen Keys machen bisherige Scores ungültig -> Neu-Scan
+  // Changes to these keys invalidate previous scores -> rescan
   const PROVIDER_KEYS = ["provider", ...providerFields(false).map((f) => f.key)];
 
-  // Ampel-Startwerte je Modellfamilie (thresholds in models.js), "generic" für unbekannte Modelle
+  // Traffic light starting values per model family (thresholds in models.js), "generic" for unknown models
   const PRESETS = {
     ...Object.fromEntries(Object.entries(MODELS).map(([key, m]) => [key, m.thresholds])),
     generic: { yellowFrom: 0.6, redFrom: 0.9 }
   };
 
-  // Modelle, die ein Abschnitt aus models.js ("browser", "server") anbietet: [[key, model], ...]
+  // Models offered by a section of models.js ("browser", "server"): [[key, model], ...]
   const catalog = (section) => Object.entries(MODELS).filter(([, m]) => m[section]);
 
-  // Bewusst keine Wahrscheinlichkeit („wahrscheinlich KI“): Die Scores sind nicht kalibriert
-  // (TODO.md, Punkt 5), und ein Detektor liefert Hinweise, keine Beweise.
+  // Deliberately no probability ("probably AI"): the scores are not calibrated
+  // (TODO.md, item 5), and a detector provides hints, not proof.
   const LEVEL_TEXT = {
-    red: "Auffällig – ähnelt KI-Text",
-    yellow: "Unklar",
-    green: "Unauffällig",
-    uncertain: "Zu kurz für eine Aussage"
+    red: "Flagged – resembles AI text",
+    yellow: "Unclear",
+    green: "Not flagged",
+    uncertain: "Too short to tell"
   };
 
-  // Unter so vielen Wörtern kein Gelb/Rot, wenn das Modell nichts eigenes angibt - TMR und desklib brauchen
-  // beide ~120 Wörter für wenige Fehlalarme (training/EVAL_RESULTS.md, "Fehlalarme auf Wikipedia")
+  // Below this many words no yellow/red if the model does not specify its own - TMR and desklib both need
+  // ~120 words for few false alarms (training/EVAL_RESULTS.md, "False alarms on Wikipedia")
   const RELIABLE_WORDS = 120;
 
-  // Ab wie vielen Wörtern die Ampel einem hohen Score traut (models.js, reliableWords)
-  // Eigene Modelle: Angabe des Servers (/v1/info), sonst der Standard
+  // From how many words on the traffic light trusts a high score (models.js, reliableWords)
+  // Custom models: the server's value (/v1/info), otherwise the default
   function reliableWords(cfg) {
     return family(cfg)?.reliableWords ?? modelCheck(cfg)?.info?.reliableWords ?? RELIABLE_WORDS;
   }
 
-  // Rot-Schwelle für Texte unter reliableWords, null = kurze Texte werden nie rot (models.js, shortRedFrom).
-  // Nie lockerer als die eingestellte Rot-Schwelle.
+  // Red threshold for texts below reliableWords, null = short texts never turn red (models.js, shortRedFrom).
+  // Never looser than the configured red threshold.
   function shortRedFrom(cfg) {
     const short = family(cfg)?.shortRedFrom ?? modelCheck(cfg)?.info?.shortRedFrom;
     return short === undefined ? null : Math.max(short, cfg.redFrom);
   }
 
-  // words (optional): Länge des bewerteten Texts. Kurze Texte mit hohem Score werden "uncertain" statt
-  // gelb/rot - der größte Schaden ist Rot auf einem menschlichen Text, und kurze Texte trennt das Modell
-  // deutlich schlechter (training/EVAL_RESULTS.md, "Fehlalarme auf Wikipedia"). Ausnahme: Modelle, die
-  // bei kurzen Texten mit strengerer Schwelle so selten danebenliegen wie bei langen (shortRedFrom).
-  // Grün bleibt grün.
+  // words (optional): length of the scored text. Short texts with a high score become "uncertain" instead of
+  // yellow/red - the worst harm is red on a human text, and the model separates short texts
+  // much worse (training/EVAL_RESULTS.md, "False alarms on Wikipedia"). Exception: models that
+  // with a stricter threshold are as rarely wrong on short texts as on long ones (shortRedFrom).
+  // Green stays green.
   function level(p, cfg, words) {
     const base = p >= cfg.redFrom ? "red" : p >= cfg.yellowFrom ? "yellow" : "green";
     if (base === "green" || words === undefined || words >= reliableWords(cfg)) return base;
@@ -201,8 +201,8 @@ globalThis.AIVSAI = (() => {
     return sites.some((s) => host === s || host.endsWith(`.${s}`));
   }
 
-  // Mitgelieferte Liste als "\nd1\nd2\n...\n"-String: Suche nach Host und allen Eltern-Domains,
-  // ohne ein Set mit 10.000 Einträgen in jedem Tab aufzubauen. Ergebnis pro Host gemerkt.
+  // Shipped list as a "\nd1\nd2\n...\n" string: search by host and all parent domains,
+  // without building a set with 10,000 entries in every tab. Result remembered per host.
   const builtinCache = new Map();
   function builtinMatch(host) {
     if (!builtinCache.has(host)) {
@@ -216,18 +216,18 @@ globalThis.AIVSAI = (() => {
     return builtinCache.get(host);
   }
 
-  // Warum eine Seite gesperrt ist: "user" (eigener Eintrag), "builtin" (mitgelieferte Liste) oder null
+  // Why a site is blocked: "user" (own entry), "builtin" (shipped list) or null
   function blockReason(host, cfg) {
     if (siteMatches(host, cfg.blockedSites || [])) return "user";
     if (cfg.builtinBlocklist && builtinMatch(host) && !siteMatches(host, cfg.unblockedSites || [])) return "builtin";
     return null;
   }
 
-  // Einzige Stelle, die entscheidet, ob auf einer Seite gescannt werden darf:
-  //   "off"     = gar nicht (Extension aus)
-  //   "blocked" = Sperrliste: kein Scan der Seite, nur Einzelprüfung per Auswahl/Rechtsklick
-  //   "manual"  = nur auf ausdrücklichen Wunsch (Popup-Knopf, Tastenkürzel, Rechtsklick)
-  //   "auto"    = automatisch beim Laden
+  // The only place that decides whether a site may be scanned:
+  //   "off"     = not at all (extension off)
+  //   "blocked" = blocklist: no scan of the site, only single checks via selection/right-click
+  //   "manual"  = only on explicit request (popup button, keyboard shortcut, right-click)
+  //   "auto"    = automatically on load
   function scanPolicy(host, cfg) {
     if (!cfg.enabled) return "off";
     if (blockReason(host, cfg)) return "blocked";
@@ -239,55 +239,55 @@ globalThis.AIVSAI = (() => {
   const providerDef = (cfg) => PROVIDERS[cfg.provider];
   const family = (cfg) => MODELS[providerDef(cfg)?.family(cfg)] ?? null;
 
-  // Welches Modell eine Prüfung betrifft: die nicht geheimen Felder des Providers. Token/API-Key gehören
-  // nicht dazu - ein neuer Schlüssel ändert das Modell nicht.
+  // Which model a check concerns: the provider's non-secret fields. Token/API key are not part
+  // of it - a new key does not change the model.
   function checkSignature(cfg) {
     const def = providerDef(cfg);
     if (!def) return "";
     return JSON.stringify([cfg.provider, ...def.fields.filter((f) => !f.secret).map((f) => cfg[f.key] ?? "")]);
   }
 
-  // Bestandene Prüfung („Modell prüfen“) für die aktuellen Einstellungen, sonst null (nie geprüft,
-  // durchgefallen oder seitdem anderes Modell/andere URL eingetragen)
+  // Passed check ("Check model") for the current settings, otherwise null (never checked,
+  // failed or a different model/URL entered since)
   function modelCheck(cfg) {
     const check = cfg.modelChecks?.[cfg.provider];
     return check?.ok && check.sig === checkSignature(cfg) ? check : null;
   }
 
-  // Stabile Kennung des gerade gewählten Modells inkl. Version, z.B. "browser:tmr@b9aa251-q8" - für Cache,
-  // und später Kalibrierung, Feedback und Berichte (damit Scores ihrem Modell zugeordnet bleiben).
-  // Server und Hugging Face: Version aus „Modell prüfen“ (GET /v1/info bzw. Commit auf dem Hub).
+  // Stable identifier of the currently selected model incl. version, e.g. "browser:tmr@b9aa251-q8" - for cache,
+  // and later calibration, feedback and reports (so scores stay assigned to their model).
+  // Server and Hugging Face: version from "Check model" (GET /v1/info or commit on the Hub).
   function modelKey(cfg) {
     const version = modelCheck(cfg)?.info?.version;
     return `${cfg.provider}:${providerDef(cfg)?.model(cfg) ?? ""}${version ? `@${version}` : ""}`;
   }
 
-  // Sprachen, die das Modell kennt (ISO-639-1), oder null = unbekannt, dann wird alles bewertet.
-  // Eigene Modelle: Angabe aus „Modell prüfen“ (GET /v1/info).
+  // Languages the model knows (ISO-639-1), or null = unknown, then everything is scored.
+  // Custom models: value from "Check model" (GET /v1/info).
   function languages(cfg) {
     return family(cfg)?.languages ?? modelCheck(cfg)?.info?.languages ?? null;
   }
 
-  // Wie viel Text pro Absatz ans Modell geht - mehr als der Kontext des Modells bringt nichts.
-  // Unbekannte Modelle (eigener Server, Hugging Face): Angabe des Servers, sonst 2000 Zeichen, typisch
-  // für 512-Token-Encoder.
+  // How much text per paragraph goes to the model - more than the model's context is useless.
+  // Unknown models (custom server, Hugging Face): the server's value, otherwise 2000 characters, typical
+  // for 512-token encoders.
   function maxChars(cfg) {
     return family(cfg)?.maxChars ?? modelCheck(cfg)?.info?.maxChars ?? 2000;
   }
 
-  // Ampel-Preset der Modellfamilie (lokal und im Browser sind TMR bzw. desklib dasselbe Modell), für
-  // eigene Modelle der Vorschlag aus „Modell prüfen“
+  // Traffic light preset of the model family (local and in the browser, TMR and desklib are the same model), for
+  // custom models the suggestion from "Check model"
   function presetFor(cfg) {
     return family(cfg)?.thresholds ?? modelCheck(cfg)?.thresholds ?? PRESETS.generic;
   }
 
-  // Wie viele Batches ein Tab gleichzeitig schicken darf. Lokal/im Browser rechnet ohnehin nur ein
-  // Prozess - parallele Batches würden nur die Priorisierung (sichtbare Absätze zuerst) aushebeln.
+  // How many batches a tab may send at the same time. Local/in the browser only one
+  // process computes anyway - parallel batches would only undermine the prioritization (visible paragraphs first).
   function maxInFlight(cfg) {
     return providerDef(cfg)?.serial ? 1 : 2;
   }
 
-  // Wohin Texte das Gerät verlassen - null, wenn sie auf diesem Rechner bleiben
+  // Where texts leave the device to - null if they stay on this computer
   function remoteTarget(cfg) {
     const def = providerDef(cfg);
     if (!def) return null;
@@ -298,7 +298,7 @@ globalThis.AIVSAI = (() => {
       const { hostname, host } = new URL(url);
       return hostname === "127.0.0.1" || hostname === "localhost" ? null : host;
     } catch {
-      return "den eingetragenen Server";
+      return "the entered server";
     }
   }
 

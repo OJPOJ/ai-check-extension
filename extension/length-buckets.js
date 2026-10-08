@@ -1,12 +1,12 @@
-// Batches nach Länge aufteilen, bevor sie ins Modell gehen. Ein Batch wird auf den längsten Text
-// aufgefüllt: ein langer Absatz mit vier kurzen kostete desklib 15,3 s statt 4,9 s getrennt - bei
-// identischen Scores, weil die Füll-Tokens ohnehin ausmaskiert werden (training/EVAL_RESULTS.md,
-// "Auffüllen"). Gleiche Regel im Server: server/shim_server.py, length_buckets().
+// Split batches by length before they go into the model. A batch is padded to the longest text:
+// one long paragraph with four short ones cost desklib 15.3 s instead of 4.9 s separately - with
+// identical scores, because the padding tokens are masked out anyway (training/EVAL_RESULTS.md,
+// "Padding"). Same rule in the server: server/shim_server.py, length_buckets().
 
 /**
- * @param {number[]} lengths  Tokens pro Text
- * @returns {number[][]} Gruppen von Indizes; innerhalb einer Gruppe ist der längste Text höchstens
- *   `ratio`-mal so lang wie der kürzeste (plus `slack` Tokens, damit sehr kurze Texte zusammenbleiben)
+ * @param {number[]} lengths  tokens per text
+ * @returns {number[][]} groups of indices; within a group the longest text is at most
+ *   `ratio` times as long as the shortest (plus `slack` tokens, so that very short texts stay together)
  */
 export function lengthBuckets(lengths, { ratio = 1.25, slack = 16 } = {}) {
   const order = lengths.map((_, i) => i).sort((a, b) => lengths[a] - lengths[b]);

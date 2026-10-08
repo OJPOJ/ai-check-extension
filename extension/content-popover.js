@@ -1,5 +1,5 @@
-// Ergebnis-Popover für manuelle Prüfungen. Reine Darstellung: content.js entscheidet, was drinsteht.
-// Shadow DOM, damit das CSS der Seite nicht hineinwirkt und umgekehrt.
+// Result popover for manual checks. Presentation only: content.js decides what goes in it.
+// Shadow DOM, so that the page's CSS does not leak in and vice versa.
 globalThis.AIVSAIPopover = (() => {
   const CSS = `
     :host { all: initial; position: absolute; z-index: 2147483647; }
@@ -46,7 +46,7 @@ globalThis.AIVSAIPopover = (() => {
     shadow.innerHTML =
       `<style>${CSS}</style>` +
       `<div class="box" role="status" aria-live="polite">` +
-      `<button class="close" type="button" aria-label="Schließen" title="Schließen">×</button>` +
+      `<button class="close" type="button" aria-label="Close" title="Close">×</button>` +
       `<div class="body"></div></div>`;
     shadow.querySelector(".close").addEventListener("click", hide);
   }
@@ -58,19 +58,19 @@ globalThis.AIVSAIPopover = (() => {
     return el;
   }
 
-  // Jede neue Prüfung holt sich ein Token; Antworten älterer Prüfungen werden dann ignoriert.
+  // Every new check claims a token; responses of older checks are then ignored.
   function claim() {
     return ++token;
   }
 
   /**
-   * @param {{range?: Range, el?: Element}} anchor  darunter wird das Popover angezeigt
-   * @param {number} t  Token aus claim()
+   * @param {{range?: Range, el?: Element}} anchor  the popover is shown below it
+   * @param {number} t  token from claim()
    * @param {{title?: string, pill?: {text: string, level: string}, error?: string, notes?: string[],
    *   prompt?: string, buttons?: {text: string, onClick: () => void, primary?: boolean}[]}} view
    */
   function show(anchor, t, view) {
-    if (t !== token) return; // eine neuere Prüfung hat das Popover übernommen
+    if (t !== token) return; // a newer check has taken over the popover
     if (!host) create();
     const body = host.shadowRoot.querySelector(".body");
     body.replaceChildren();
@@ -99,7 +99,7 @@ globalThis.AIVSAIPopover = (() => {
     position(anchor);
   }
 
-  // Unter den geprüften Text, aber immer im sichtbaren Bereich - lange Absätze ragen oft darüber hinaus
+  // Below the checked text, but always in the visible area - long paragraphs often extend beyond it
   function position({ range, el } = {}) {
     const target = range || (el?.isConnected ? el : null);
     const rect = target?.getBoundingClientRect();

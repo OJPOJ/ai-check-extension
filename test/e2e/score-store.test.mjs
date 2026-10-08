@@ -1,5 +1,5 @@
-// Dauerhafter Score-Speicher: überlebt SW-Neustart, Aufbewahrungsdauer, "Nicht speichern",
-// Zuordnung über Seiten hinweg und beim Modellwechsel.
+// Persistent score store: survives SW restart, retention period, "Do not store",
+// mapping across sites and on model switch.
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import { launchExtension, longText, sleep, startBackend, storedScores, until } from "./helpers.mjs";
@@ -9,7 +9,7 @@ const pageA = `<html><body><p>${longText("SHARED")}</p><p>${longText("ONLYA")}</
 const pageB = `<html><body><p>${longText("SHARED")}</p></body></html>`;
 const sentWith = (backend, tag) => backend.texts.filter((t) => t.includes(tag)).length;
 
-describe("Score-Speicher", () => {
+describe("Score store", () => {
   let backend, ext, page;
   const info = () => ext.send({ type: "SCORE_STORE_INFO" });
 
@@ -23,12 +23,12 @@ describe("Score-Speicher", () => {
     await backend?.close();
   });
 
-  it("ist per Default 30 Tage eingestellt und anfangs leer", async () => {
+  it("is set to 30 days by default and initially empty", async () => {
     assert.equal(await ext.options.inputValue("#scoreRetentionDays"), "30");
     assert.equal((await info()).count, 0);
   });
 
-  it("speichert Bewertungen ohne Text und URL", async () => {
+  it("stores scores without text and URL", async () => {
     await ext.configure({ provider: "local", localUrl: backend.url, sites: ["a.test", "b.test"], lazyScan: false });
     page = await ext.open("http://a.test/");
     await until(async () => (await info()).count === 2);
@@ -41,10 +41,10 @@ describe("Score-Speicher", () => {
     }
   });
 
-  it("liefert nach SW-Neustart aus dem Speicher, ohne Backend-Anfrage", async () => {
+  it("serves from the store after SW restart, without a backend request", async () => {
     const cdp = await ext.ctx.newCDPSession(page);
     await cdp.send("ServiceWorker.enable");
-    await cdp.send("ServiceWorker.stopAllWorkers"); // Arbeitsspeicher-Cache ist damit weg
+    await cdp.send("ServiceWorker.stopAllWorkers"); // in-memory cache is gone as a result
     await sleep(500);
     const before = backend.requests;
     await page.reload();
@@ -52,7 +52,7 @@ describe("Score-Speicher", () => {
     assert.equal(backend.requests, before);
   });
 
-  it("ordnet denselben Absatz auf einer anderen Seite demselben Eintrag zu", async () => {
+  it("maps the same paragraph on another site to the same entry", async () => {
     const before = sentWith(backend, "SHARED");
     const other = await ext.open("http://b.test/");
     await other.waitForFunction(() => document.querySelector("[data-aivsai-level]"));
@@ -60,7 +60,7 @@ describe("Score-Speicher", () => {
     await other.close();
   });
 
-  it("bewertet nach Modellwechsel neu und nimmt beim Zurückwechseln den Speicher", async () => {
+  it("rescores after a model switch and uses the store when switching back", async () => {
     const start = sentWith(backend, "ONLYA");
     await ext.configure({ localModel: "desklib" });
     await until(() => sentWith(backend, "ONLYA") === start + 1);
@@ -73,7 +73,7 @@ describe("Score-Speicher", () => {
     assert.deepEqual([...models].sort(), ["local:desklib", "local:tmr"]);
   });
 
-  it("löscht beim Verkürzen der Aufbewahrung sofort, was zu alt ist", async () => {
+  it("deletes immediately what is too old when the retention is shortened", async () => {
     await ext.options.evaluate(
       (day) =>
         new Promise((resolve) => {
@@ -86,41 +86,41 @@ describe("Score-Speicher", () => {
         }),
       DAY
     );
-    // Formular zeigt sonst den Stand vor configure() - "Speichern" schreibt das ganze Formular
+    // Otherwise the form shows the state before configure() - "Save" writes the whole form
     await ext.options.reload();
     await ext.options.selectOption("#scoreRetentionDays", "7");
     await ext.options.click("#save");
     const keys = () => storedScores(ext.options).then((rows) => rows.map((r) => r.k));
-    await until(async () => !(await keys()).includes("old"), { message: "40 Tage alter Eintrag nicht gelöscht" });
+    await until(async () => !(await keys()).includes("old"), { message: "40-day-old entry not deleted" });
     assert.ok((await keys()).includes("recent"));
   });
 
-  it("zeigt Anzahl und Größe in den Einstellungen", async () => {
+  it("shows count and size in the settings", async () => {
     await ext.options.reload();
-    await ext.options.waitForFunction(() => /gespeichert/.test(document.querySelector("#storeStatus").textContent));
-    assert.match(await ext.options.textContent("#storeStatus"), /^\d+ Bewertungen gespeichert · ca\. \d+ KB$/);
+    await ext.options.waitForFunction(() => /stored/.test(document.querySelector("#storeStatus").textContent));
+    assert.match(await ext.options.textContent("#storeStatus"), /^\d+ scores stored · approx\. \d+ KB$/);
   });
 
-  it("leert bei „Nicht speichern“ alles und schreibt nichts Neues", async () => {
+  it("empties everything on “Do not store” and writes nothing new", async () => {
     await ext.options.selectOption("#scoreRetentionDays", "0");
     await ext.options.click("#save");
-    await until(async () => (await info()).count === 0, { message: "Speicher nicht geleert" });
+    await until(async () => (await info()).count === 0, { message: "store not emptied" });
     await page.evaluate(() => {
       const p = document.createElement("p");
       p.textContent = "Fresh paragraph that was never scored before ".repeat(8);
       document.body.append(p);
     });
-    await until(() => backend.texts.some((t) => t.startsWith("Fresh")), { message: "neuer Absatz nicht bewertet" });
+    await until(() => backend.texts.some((t) => t.startsWith("Fresh")), { message: "new paragraph not scored" });
     await sleep(300);
     assert.equal((await info()).count, 0);
   });
 
-  it("richtet das tägliche Aufräumen ein", async () => {
+  it("sets up the daily cleanup", async () => {
     const alarms = await ext.options.evaluate(() => chrome.alarms.getAll());
     assert.ok(alarms.some((a) => a.name === "prune-scores" && a.periodInMinutes === 1440));
   });
 
-  it("hat keine Konsolenfehler", () => {
+  it("has no console errors", () => {
     assert.deepEqual(ext.errors, []);
   });
 });
