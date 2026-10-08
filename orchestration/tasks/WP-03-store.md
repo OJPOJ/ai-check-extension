@@ -1,39 +1,39 @@
-# WP-03 · Store-Vorbereitung (TODO Punkt 4)
+# WP-03 · Store preparation (TODO item 4)
 
-## Ziel
-Alles, was ohne Nutzerdaten (Name/Adresse, Entwicklerkonto) für Chrome Web Store / Edge Add-ons
-vorbereitet werden kann.
+## Goal
+Everything that can be prepared for the Chrome Web Store / Edge Add-ons without user data (name/address,
+developer account).
 
-## Umfang
-1. **Icons:** schlichtes, klares Icon (Motiv z.B. Ampel/Lupe + „AI“, passend zu `extension/ui.css`),
-   SVG-Quelle unter `extension/icons/` plus PNG 16/32/48/128. PNGs per Skript erzeugen
-   (`scripts/build-icons.mjs`, z.B. SVG mit Playwright/Chromium rendern – Playwright ist devDependency),
-   npm-Script `build:icons`. In `manifest.json` `icons` und `action.default_icon` eintragen.
-   `npm run package` darf danach keine Icon-Warnung mehr zeigen (`scripts/package.mjs`).
-2. **„Über“/Lizenzen in der Extension:** von der Optionsseite erreichbar: Version, Lizenz (MIT),
-   CC-BY-SA-Hinweis für Sperrliste und Referenzset, Drittkomponenten (`THIRD_PARTY_NOTICES.md`),
-   Link zur Datenschutzerklärung. Neue Seite `extension/about.html` oder Abschnitt in `options.html`.
-   Sicherstellen, dass `scripts/package.mjs` neue Dateien mitpackt.
-3. **Store-Texte** in `store/` (neu):
-   - `store/LISTING.md`: Name, Kurzbeschreibung (≤ 132 Zeichen), ausführliche Beschreibung mit ehrlichen
-     Grenzen (nur Englisch, Fehlalarme möglich, Score ist kein Beweis), Kategorie. Deutsch und Englisch.
-   - `store/PERMISSIONS.md`: Begründung jeder Berechtigung aus `manifest.json` (tatsächlich lesen, u.a.
-     `<all_urls>` im Content-Script, optionale Host-Rechte `https://*/*`, `wasm-unsafe-eval`, `activeTab`,
-     Offscreen, Storage …) im Stil der Store-Formularfelder; Angaben zur Datennutzung (Website-Inhalte,
-     lokal verarbeitet); Remote-Code-Erklärung (transformers.js mitgeliefert, nur Modellgewichte werden
-     nachgeladen).
-   - `store/CHECKLIST.md`: was noch fehlt und vom Nutzer kommen muss (Kontakt in `privacy.html` Zeile 88,
-     Impressum, Hosting der Datenschutzerklärung z.B. GitHub Pages, Entwicklerkonten, Screenshots).
-4. **Screenshots/Werbegrafik (optional):** Skript, das mit Playwright die Extension auf
-   `test/harness.html` lädt und Screenshots 1280×800 erzeugt, dazu eine Werbekachel 440×280. Wenn zu
-   aufwendig: nur Plan in `CHECKLIST.md`.
+## Scope
+1. **Icons:** plain, clear icon (motif e.g. traffic light/magnifying glass + "AI", matching `extension/ui.css`),
+   SVG source under `extension/icons/` plus PNG 16/32/48/128. Generate the PNGs by script
+   (`scripts/build-icons.mjs`, e.g. render the SVG with Playwright/Chromium – Playwright is a devDependency),
+   npm script `build:icons`. Enter `icons` and `action.default_icon` in `manifest.json`.
+   `npm run package` must not show an icon warning afterwards (`scripts/package.mjs`).
+2. **"About"/licences in the extension:** reachable from the options page: version, licence (MIT),
+   CC BY-SA notice for blocklist and reference set, third-party components (`THIRD_PARTY_NOTICES.md`),
+   link to the privacy policy. New page `extension/about.html` or a section in `options.html`.
+   Make sure `scripts/package.mjs` packs new files as well.
+3. **Store texts** in `store/` (new):
+   - `store/LISTING.md`: name, short description (≤ 132 characters), detailed description with honest
+     limits (English only, false alarms possible, score is no proof), category. German and English.
+   - `store/PERMISSIONS.md`: justification of every permission from `manifest.json` (actually read it, among others
+     `<all_urls>` in the content script, optional host permissions `https://*/*`, `wasm-unsafe-eval`, `activeTab`,
+     offscreen, storage …) in the style of the store form fields; statements on data use (website content,
+     processed locally); remote-code declaration (transformers.js shipped, only model weights are
+     downloaded later).
+   - `store/CHECKLIST.md`: what is still missing and has to come from the user (contact in `privacy.html` line 88,
+     legal notice, hosting of the privacy policy e.g. GitHub Pages, developer accounts, screenshots).
+4. **Screenshots/promo graphic (optional):** script that loads the extension on
+   `test/harness.html` with Playwright and produces 1280×800 screenshots, plus a 440×280 promo tile. If too
+   much effort: only a plan in `CHECKLIST.md`.
 
-## Erlaubte Dateien
+## Allowed files
 `extension/manifest.json`, `extension/icons/**`, `extension/about.*`, `extension/options.html`,
 `extension/options.js`, `extension/ui.css`, `store/**`, `scripts/**`, `package.json`, `test/unit/**`
-(nur neue Tests). Nicht: `extension/content*`, `extension/config.js`, `extension/models.js`,
-`extension/privacy.html` (nur lesen), `training/**`.
+(new tests only). Not: `extension/content*`, `extension/config.js`, `extension/models.js`,
+`extension/privacy.html` (read only), `training/**`.
 
-## Abnahme
-- `npm test` grün, `npm run package` ohne Icon-Warnung.
-- Manifest valide (Extension lädt in den E2E-Tests weiterhin).
+## Acceptance
+- `npm test` green, `npm run package` without icon warning.
+- Manifest valid (the extension still loads in the E2E tests).

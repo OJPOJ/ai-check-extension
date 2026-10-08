@@ -1,39 +1,39 @@
-# WP-01 · Eval-Suite verbreitern (TODO Punkt 3)
+# WP-01 · Broaden the eval suite (TODO item 3)
 
-## Ziel
-Eine reproduzierbare, breitere Eval-Suite, auf die sich Schwellen, Default-Modell-Entscheidung,
-Kalibrierung (Punkt 5) und das BYOM-Referenzset (Punkt 1) stützen können. Bisher: 100 HC3-Beispiele
-(Reddit-ELI5 vs. ChatGPT 2023) plus Wikipedia-Fehlalarm-Messung (`training/EVAL_RESULTS.md`).
+## Goal
+A reproducible, broader eval suite that thresholds, the default-model decision,
+calibration (item 5) and the BYOM reference set (item 1) can rely on. So far: 100 HC3 examples
+(Reddit ELI5 vs. ChatGPT 2023) plus the Wikipedia false-alarm measurement (`training/EVAL_RESULTS.md`).
 
-## Umfang
-1. **Daten sammeln** (`training/build_eval_suite.py`): öffentlich verfügbare Datensätze, keine API-Keys.
-   - Mensch, mehrere Domänen, vor 2023 veröffentlicht: z.B. News, Wikipedia, Foren, wissenschaftliche
-     Abstracts, Rezensionen.
-   - KI aus möglichst aktuellen Modellen (GPT-4-Klasse und neuer, Claude, Gemini, Llama, Mistral …),
-     auch nachbearbeitet/paraphrasiert, falls verfügbar. Geeignete HF-Datensätze recherchieren
-     (Kandidaten: RAID, MAGE, M4/M4GT, …) – Lizenzen prüfen und dokumentieren.
-   - Englisch (die Extension bewertet nur Englisch). Absätze in realistischen Längen
-     (ca. 40–400 Wörter), Längen-Buckets wie in `extension/length-buckets.js`.
-   - Zielgröße: grob 1000–2000 Texte, balanciert nach Domäne × Quelle; fester Seed; Ausgabe als JSONL
-     (`text, label, domain, generator, source, words`) nach
+## Scope
+1. **Collect data** (`training/build_eval_suite.py`): publicly available datasets, no API keys.
+   - Human, several domains, published before 2023: e.g. news, Wikipedia, forums, scientific
+     abstracts, reviews.
+   - AI from models that are as recent as possible (GPT-4 class and newer, Claude, Gemini, Llama, Mistral …),
+     also post-edited/paraphrased, if available. Research suitable HF datasets
+     (candidates: RAID, MAGE, M4/M4GT, …) – check and document licences.
+   - English (the extension only scores English). Paragraphs in realistic lengths
+     (approx. 40–400 words), length buckets as in `extension/length-buckets.js`.
+   - Target size: roughly 1000–2000 texts, balanced by domain × source; fixed seed; output as JSONL
+     (`text, label, domain, generator, source, words`) to
      `C:/_programme/DS/aivsai/training/data/eval_suite.jsonl` (gitignored).
-     Downloads klein halten (Streaming/Teil-Splits), insgesamt < ~3 GB.
-2. **Bewerten** (`training/evaluate_suite.py`, bestehende Skripte wiederverwenden, z.B.
-   `evaluate_backends.py`, `evaluate_false_alarms.py`): TMR und desklib lokal (CPU). desklib ist langsam
-   (~1–5 s/Text) – Teilmenge ok, im Hintergrund laufen lassen. Rohscores als JSONL speichern (gitignored).
-3. **Auswerten:** pro Modell AUROC, Fehlalarmrate bei den aktuellen Schwellen (`extension/models.js`,
-   `extension/config.js` lesen, nicht ändern), aufgeschlüsselt nach Domäne, Generator und Längen-Bucket.
-   Außerdem: Welche Schwellen ergäben auf dieser Suite ~1 % Fehlalarme?
-4. **Dokumentieren:** neuer Abschnitt in `training/EVAL_RESULTS.md` (Datum, Datenquellen + Lizenzen,
-   Tabellen, Interpretation, Empfehlung zu Schwellen und Default-Modell). Kurz in `training/README.md`,
-   wie man die Suite baut und laufen lässt.
+     Keep downloads small (streaming/partial splits), < ~3 GB in total.
+2. **Score** (`training/evaluate_suite.py`, reuse existing scripts, e.g.
+   `evaluate_backends.py`, `evaluate_false_alarms.py`): TMR and desklib locally (CPU). desklib is slow
+   (~1–5 s/text) – a subset is ok, let it run in the background. Save raw scores as JSONL (gitignored).
+3. **Evaluate:** per model AUROC, false-alarm rate at the current thresholds (read `extension/models.js`,
+   `extension/config.js`, do not change them), broken down by domain, generator and length bucket.
+   Also: which thresholds would yield ~1% false alarms on this suite?
+4. **Document:** new section in `training/EVAL_RESULTS.md` (date, data sources + licences,
+   tables, interpretation, recommendation on thresholds and default model). Briefly in `training/README.md`,
+   how to build and run the suite.
 
-## Erlaubte Dateien
-`training/**` (neue Skripte, `EVAL_RESULTS.md`, `README.md`, `requirements.txt`). Keine Extension-Dateien.
+## Allowed files
+`training/**` (new scripts, `EVAL_RESULTS.md`, `README.md`, `requirements.txt`). No extension files.
 
-## Abnahme
-- Skripte laufen mit `C:/_programme/DS/aivsai/training/.venv/Scripts/python.exe` durch (fehlende Pakete
-  in die venv installieren und in `requirements.txt` eintragen).
-- Ergebnis-Abschnitt mit echten Zahlen. Falls desklib auf der ganzen Suite zu lange dauert: Teilmenge,
-  im Bericht angeben.
-- Bericht enthält konkrete Schwellen-Empfehlung pro Modell und ob desklib Default werden sollte.
+## Acceptance
+- Scripts run through with `C:/_programme/DS/aivsai/training/.venv/Scripts/python.exe` (install missing
+  packages into the venv and add them to `requirements.txt`).
+- Results section with real numbers. If desklib takes too long on the whole suite: a subset,
+  stated in the report.
+- Report contains a concrete threshold recommendation per model and whether desklib should become the default.

@@ -1,50 +1,50 @@
-# WP-09 · fakespot als drittes Modell einbinden (TODO Punkt 2)
+# WP-09 · Integrate fakespot as third model (TODO item 2)
 
-## Ausgangslage
+## Starting point
 `training/MODEL_SEARCH.md` (WP-06): `fakespot-ai/roberta-base-ai-text-detection-v1` (Apache-2.0,
-RoBERTa-base, ~125 MB int8, ~45 ms/Text). Auf der Eval-Suite (PyTorch-Original) AUROC 0,964, ≥ 120 Wörter
-bei ~1 % Fehlalarmen 90 % erkannt. Fürs Browser-ONNX gibt es `MedAliFarhat/ai-text-detector-onnx`
-(Apache-2.0, int8, laut Karte für transformers.js) – von einem Dritten, **nicht** gegen das Original geprüft.
-Die Scores ballen sich nahe 1: Fehlalarme ≥ 120 Wörter 3,5 % bei 0.99, 0,9 % bei 0.999, 0,2 % bei 0.9995.
+RoBERTa-base, ~125 MB int8, ~45 ms/text). On the eval suite (PyTorch original) AUROC 0.964, ≥ 120 words
+at ~1% false alarms 90% detected. For the browser ONNX there is `MedAliFarhat/ai-text-detector-onnx`
+(Apache-2.0, int8, for transformers.js according to the card) – from a third party, **not** checked against the original.
+The scores cluster near 1: false alarms ≥ 120 words 3.5% at 0.99, 0.9% at 0.999, 0.2% at 0.9995.
 
-## Umfang
-1. **ONNX-Abgleich** (`training/`, neues Skript z.B. `compare_onnx.py`): Das Dritt-ONNX (Revision
-   pinnen) mit onnxruntime auf der ganzen Eval-Suite
-   (`C:/_programme/DS/aivsai/training/data/eval_suite.jsonl`) laufen lassen, gleiche Tokenisierung/
-   Kürzung wie die Extension (maxChars/maxTokens wie TMR: 2000 Zeichen, 512 Tokens – `content.js`
-   `clipText`, `offscreen.js`). Vergleich zu den PyTorch-Rohscores
-   (`training/data/eval_scores_fakespot-ai_roberta-base-ai-text-detection-v1_suite.jsonl`): Korrelation,
-   max./mittlere Abweichung, und vor allem: ändert sich die Ampel (FA/Erkennung wie angezeigt) an den
-   Kandidaten-Schwellen? Prüfen, dass das ONNX wirklich dieselben Gewichte/Labels hat (`id2label`,
-   welche Klasse ist KI – `offscreen.js` sucht `ai|machine|generated`, sonst Index 1!).
-   Wenn das Dritt-ONNX deutlich abweicht oder zweifelhaft ist: Alternativen bewerten (eigener Export per
-   `optimum` + Quantisierung zum Vergleich; Hosting-Frage im Bericht, nicht selbst hochladen).
-2. **Schwellen kreuzvalidieren** mit den Scores, die die Extension tatsächlich sähe (ONNX), Methode wie
-   `training/crossval_thresholds.py` (WP-07): `redFrom` (≥ 120 Wörter), `shortRedFrom` (< 120), dazu
-   ein sinnvolles `yellowFrom`. Prüfe, ob die Arbeit auf Logit-Basis stabiler wäre; die Extension
-   speichert Wahrscheinlichkeiten – nur umstellen, wenn es klar nötig ist, und dann als ENTSCHEIDUNG
-   begründen (bevorzugt: Wahrscheinlichkeiten behalten).
-3. **Einbinden** als dritter Eintrag in `extension/models.js` (Schlüssel z.B. `fakespot`, Titel
-   „Ausgewogen – fakespot“), aufgebaut wie `tmr` (fertiges ONNX, `repo`, gepinnte `revision`, `version`,
+## Scope
+1. **ONNX comparison** (`training/`, new script e.g. `compare_onnx.py`): run the third-party ONNX (pin the
+   revision) with onnxruntime on the whole eval suite
+   (`C:/_programme/DS/aivsai/training/data/eval_suite.jsonl`), same tokenisation/
+   truncation as the extension (maxChars/maxTokens as for TMR: 2000 characters, 512 tokens – `content.js`
+   `clipText`, `offscreen.js`). Comparison with the PyTorch raw scores
+   (`training/data/eval_scores_fakespot-ai_roberta-base-ai-text-detection-v1_suite.jsonl`): correlation,
+   max./mean deviation, and above all: does the traffic light change (FA/detection as displayed) at the
+   candidate thresholds? Check that the ONNX really has the same weights/labels (`id2label`,
+   which class is AI – `offscreen.js` looks for `ai|machine|generated`, otherwise index 1!).
+   If the third-party ONNX deviates considerably or is doubtful: assess alternatives (own export via
+   `optimum` + quantisation for comparison; hosting question in the report, do not upload yourself).
+2. **Cross-validate thresholds** with the scores the extension would actually see (ONNX), method as in
+   `training/crossval_thresholds.py` (WP-07): `redFrom` (≥ 120 words), `shortRedFrom` (< 120), plus
+   a sensible `yellowFrom`. Check whether working on a logit basis would be more stable; the extension
+   stores probabilities – only switch if it is clearly necessary, and then justify it as a DECISION
+   (preferred: keep probabilities).
+3. **Integrate** as the third entry in `extension/models.js` (key e.g. `fakespot`, title
+   "Balanced – fakespot"), structured like `tmr` (ready-made ONNX, `repo`, pinned `revision`, `version`,
    `marker`, `download`, `info`, `summary`, `thresholds`, `reliableWords`, `shortRedFrom`, `languages`).
-   Sicherstellen, dass `offscreen.js` Modell, Tokenizer und KI-Label korrekt lädt (ggf. minimal anpassen).
-   Server-Abschnitt (`server`) nur, wenn `server/shim_server.py` ohne großen Aufwand mitkann – sonst weglassen.
-   Kein neuer Standard: desklib bleibt Default.
-4. **Lizenz:** Eintrag in `extension/THIRD_PARTY_NOTICES.md` (Modell + ONNX-Umwandlung).
-5. **Tests:** Unit-Tests für den neuen Katalogeintrag (`test/unit/config.test.mjs`,
-   `test/unit/providers.test.mjs` nach Bedarf). Ein echter Browser-Test mit Download ist nicht nötig, aber
-   einmal manuell/Playwright prüfen, dass das Modell im Offscreen-Dokument lädt und plausible Scores liefert,
-   wenn machbar (Download 125 MB ok).
-6. **Dokumentation:** Abschnitt in `training/MODEL_SEARCH.md` („ONNX-Abgleich und Einbindung“).
+   Make sure `offscreen.js` loads model, tokenizer and AI label correctly (adjust minimally if needed).
+   Server section (`server`) only if `server/shim_server.py` can come along without much effort – otherwise leave it out.
+   No new default: desklib stays the default.
+4. **Licence:** entry in `extension/THIRD_PARTY_NOTICES.md` (model + ONNX conversion).
+5. **Tests:** unit tests for the new catalogue entry (`test/unit/config.test.mjs`,
+   `test/unit/providers.test.mjs` as needed). A real browser test with download is not necessary, but
+   check once manually/with Playwright that the model loads in the offscreen document and delivers plausible scores,
+   if feasible (125 MB download ok).
+6. **Documentation:** section in `training/MODEL_SEARCH.md` ("ONNX comparison and integration").
 
-## Erlaubte Dateien
+## Allowed files
 `extension/models.js`, `extension/offscreen.js`, `extension/THIRD_PARTY_NOTICES.md`,
-`server/shim_server.py` (optional), `training/**` außer `training/build_reference_set.py`,
-`test/unit/config.test.mjs`, `test/unit/providers.test.mjs`. Nicht: `content.js`, `config.js`,
+`server/shim_server.py` (optional), `training/**` except `training/build_reference_set.py`,
+`test/unit/config.test.mjs`, `test/unit/providers.test.mjs`. Not: `content.js`, `config.js`,
 `about.html`, `reference-set.js`.
 
-## Abnahme
-- ONNX-Abgleich mit Zahlen; Einbindung nur, wenn das ONNX die Ampel nicht nennenswert verändert –
-  sonst Einbindung weglassen und klar berichten.
-- Kreuzvalidierte Schwellen mit Spanne, wie angezeigt.
-- `npm test` grün.
+## Acceptance
+- ONNX comparison with numbers; integration only if the ONNX does not change the traffic light appreciably –
+  otherwise leave out the integration and report clearly.
+- Cross-validated thresholds with range, as displayed.
+- `npm test` green.
