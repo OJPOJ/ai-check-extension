@@ -1,14 +1,14 @@
-// WP-08: misst Textauswahl, Gruppierung und Spracherkennung der Extension auf echten Seiten aus dem
-// Internet - mit Fake-Backend wie in den E2E-Tests (test/e2e/helpers.mjs), es geht nicht um Scores
-// (die sind mit dem Fake-Backend ohnehin nicht aussagekräftig), sondern um: wie viele Absätze findet
-// der Auto-Scan, wie oft greift die Gruppierung kurzer Absätze (content.js, groupCandidates), und wird
-// die Sprache pro Absatz richtig erkannt (lang-detect.js)?
+// WP-08: measures text selection, grouping and language detection of the extension on real pages from the
+// internet - with a fake backend as in the E2E tests (test/e2e/helpers.mjs), it is not about scores
+// (which are not meaningful with the fake backend anyway), but about: how many paragraphs does
+// the auto-scan find, how often does the grouping of short paragraphs kick in (content.js, groupCandidates), and is
+// the language detected correctly per paragraph (lang-detect.js)?
 //
 // npm run measure:pages [-- --limit N] [-- --headed]
 //
-// Schreibt:
-//   test/REAL_PAGES.md          - Tabelle + Zusammenfassung + Empfehlungen (committed)
-//   scripts/measure-pages.out.json - Rohdaten aller Seiten (nicht committed, nur zur Nachprüfung)
+// Writes:
+//   test/REAL_PAGES.md          - table + summary + recommendations (committed)
+//   scripts/measure-pages.out.json - raw data of all pages (not committed, only for verification)
 import fs from "node:fs";
 import path from "node:path";
 import { launchExtension, ROOT, sleep, startBackend, until } from "../test/e2e/helpers.mjs";
@@ -17,19 +17,19 @@ const URLS_FILE = path.join(ROOT, "scripts", "measure-pages.urls.txt");
 const OUT_JSON = path.join(ROOT, "scripts", "measure-pages.out.json");
 const OUT_MD = path.join(ROOT, "test", "REAL_PAGES.md");
 
-// reliableWords/maxChars des in dieser Messung verwendeten Modells (config.js/models.js, desklib) - hier
-// fest verdrahtet, damit Node-seitige Auswertung und die Gruppierungs-Simulation (im Seitenkontext,
-// siehe simulateGrouping) ohne den Extension-Kontext rechnen können.
+// reliableWords/maxChars of the model used in this measurement (config.js/models.js, desklib) - hard-wired
+// here so that the Node-side evaluation and the grouping simulation (in the page context,
+// see simulateGrouping) can compute without the extension context.
 const RELIABLE_WORDS = 120;
 const MAX_CHARS = 1500;
 
 const args = process.argv.slice(2);
 const limitArg = args.indexOf("--limit");
 const LIMIT = limitArg >= 0 ? Number(args[limitArg + 1]) : Infinity;
-const PAGE_TIMEOUT_MS = 90_000; // harte Obergrenze pro Seite, falls sie hängen bleibt (Consent-Loop o.ä.)
-const SCAN_WAIT_MS = 40_000; // wie lange auf "nichts mehr pending/deferred" gewartet wird, bevor als unvollständig vermerkt wird
+const PAGE_TIMEOUT_MS = 90_000; // hard upper limit per page in case it hangs (consent loop or similar)
+const SCAN_WAIT_MS = 40_000; // how long to wait for "nothing pending/deferred anymore" before noting it as incomplete
 
-const CATEGORY_LABEL = { news: "Nachrichtenartikel", blog: "Blog", howto: "Anleitung", doc: "Dokumentation", wiki: "Wikipedia" };
+const CATEGORY_LABEL = { news: "News article", blog: "Blog", howto: "How-to", doc: "Documentation", wiki: "Wikipedia" };
 
 function parseUrls(text) {
   return text
@@ -43,9 +43,9 @@ function parseUrls(text) {
 }
 
 /**
- * Im Seitenkontext ausgeführt (page.evaluate): liest die data-aivsai-*-Hooks, die content.js an jedem
- * bewerteten/übersprungenen Absatz hinterlässt (siehe extension/content.js, style()/unstyle()), plus die
- * eigene (nicht gruppierte) Wortzahl jedes Absatzes für den Vorher/Nachher-Vergleich der Gruppierung.
+ * Executed in the page context (page.evaluate): reads the data-aivsai-* hooks that content.js leaves on every
+ * scored/skipped paragraph (see extension/content.js, style()/unstyle()), plus the
+ * own (ungrouped) word count of each paragraph for the before/after comparison of the grouping.
  */
 function readMarkedParagraphs() {
   const strip = (el) => {
@@ -74,10 +74,10 @@ function readMarkedParagraphs() {
   });
 }
 
-// Aus den Einzel-Absätzen (Dokumentreihenfolge, siehe readMarkedParagraphs) die Gruppen rekonstruieren:
-// content.js setzt data-aivsai-grouped=N an allen N Absätzen einer Gruppe, und Gruppen sind im
-// content.js-eigenen `found` immer zusammenhängend (groupCandidates bricht die Kette bei allem
-// Dazwischenliegenden) - deshalb reicht ein Lauf über die (bereits gefilterten) bewerteten Absätze.
+// Reconstruct the groups from the individual paragraphs (document order, see readMarkedParagraphs):
+// content.js sets data-aivsai-grouped=N on all N paragraphs of a group, and groups are always contiguous
+// in content.js's own `found` (groupCandidates breaks the chain at anything in
+// between) - so one pass over the (already filtered) scored paragraphs is enough.
 function reconstructGroups(scoredParagraphs) {
   const groups = [];
   for (let i = 0; i < scoredParagraphs.length; ) {
@@ -89,12 +89,12 @@ function reconstructGroups(scoredParagraphs) {
 }
 
 /**
- * Im Seitenkontext ausgeführt (page.evaluate): spielt content.js' groupCandidates/hasBreakBetween mit
- * echten DOM-Daten der Seite nach, aber mit austauschbarer Eltern-Regel und `maxChars` - um die
- * Empfehlungen aus der ersten Runde (Vorfahr bis Tiefe N statt exakt gleicher Elternknoten, höheres
- * maxChars für Gruppen) an echten Seiten nachzuzählen statt zu vermuten. `actual` bildet die reale Regel
- * nach (exakt gleicher Elternknoten = Tiefe 1) - dient als Gegenprobe zu reconstructGroups().
- * Rückgabe je Variante: { groups, multi, short, itemsInMulti }.
+ * Executed in the page context (page.evaluate): replays content.js' groupCandidates/hasBreakBetween with
+ * real DOM data of the page, but with an exchangeable parent rule and `maxChars` - to recount the
+ * recommendations from the first round (ancestor up to depth N instead of exactly the same parent node, higher
+ * maxChars for groups) on real pages instead of guessing. `actual` replicates the real rule
+ * (exactly the same parent node = depth 1) - serves as a cross-check for reconstructGroups().
+ * Returns per variant: { groups, multi, short, itemsInMulti }.
  */
 function simulateGrouping() {
   const RELIABLE = 120;
@@ -117,8 +117,8 @@ function simulateGrouping() {
     }
   }
 
-  // Tiefe des gemeinsamen Vorfahren von elA/elB, von jedem der beiden aus gezählt (0 = einer ist der
-  // Vorfahre des anderen, 1 = gleicher Elternknoten, ...)
+  // Depth of the common ancestor of elA/elB, counted from each of the two (0 = one is the
+  // ancestor of the other, 1 = same parent node, ...)
   function ancestorDepths(elA, elB) {
     const chain = [];
     for (let n = elA; n; n = n.parentElement) chain.push(n);
@@ -140,9 +140,9 @@ function simulateGrouping() {
   };
   const wc = (t) => t.split(/\s+/).filter(Boolean).length;
 
-  // found wie in content.js collectCandidates (Phase 1), aus den bereits bewerteten/übersprungenen
-  // Absätzen rekonstruiert - Sprache: übersprungene Absätze kennen ihre erkannte fremde Sprache über den
-  // Hook, bewertete waren per Definition mit der konfigurierten Sprache ("en") kompatibel.
+  // found as in content.js collectCandidates (phase 1), reconstructed from the already scored/skipped
+  // paragraphs - language: skipped paragraphs know their detected foreign language via the
+  // hook, scored ones were by definition compatible with the configured language ("en").
   const found = [...document.querySelectorAll("[data-aivsai-level], [data-aivsai-skipped]")].map((el) => {
     const text = strip(el);
     const skippedLang = el.dataset.aivsaiSkipped || "";
@@ -172,7 +172,7 @@ function simulateGrouping() {
       groups.push(items);
       open = short ? { items, chars: f.text.length, lastEntry: f } : null;
     }
-    // nur reguläre (nicht fremdsprachige) Gruppen sind Bewertungseinheiten - wie im echten Scan
+    // only regular (non-foreign-language) groups are scoring units - as in the real scan
     return groups.filter((items) => items[0].lang === "en").map((items) => ({ size: items.length, words: items.reduce((n, it) => n + it.words, 0) }));
   }
 
@@ -213,23 +213,23 @@ async function measurePage(ext, entry) {
         const resp = await page.goto(entry.url, { waitUntil: "domcontentloaded", timeout: 40_000 });
         if (!resp || !resp.ok()) result.httpStatus = resp?.status() ?? null;
         await page.waitForLoadState("load", { timeout: 15_000 }).catch(() => {});
-        // Nachladende Inhalte (SPA-Rubriken, Consent-Skripte) und den Debounce von content.js
-        // (DEBOUNCE_MS 600ms) abwarten, bevor gepollt wird.
+        // Wait for lazily loaded content (SPA sections, consent scripts) and the debounce of content.js
+        // (DEBOUNCE_MS 600ms) before polling.
         await sleep(2000);
         await until(() => page.evaluate(() => !document.querySelector(".aivsai-pending, .aivsai-deferred")), {
           timeout: SCAN_WAIT_MS,
-          message: "Scan wurde nicht fertig (noch pending/deferred)"
+          message: "Scan did not finish (still pending/deferred)"
         }).catch((e) => {
           result.incomplete = e.message;
         });
         await sleep(300);
       })(),
       sleep(PAGE_TIMEOUT_MS).then(() => {
-        throw new Error(`Seiten-Timeout nach ${PAGE_TIMEOUT_MS}ms`);
+        throw new Error(`Page timeout after ${PAGE_TIMEOUT_MS}ms`);
       })
     ]);
 
-    // Tab in den Vordergrund (wie helpers.mjs tabId), dann Stats vom Content-Script abfragen
+    // Bring the tab to the foreground (like helpers.mjs tabId), then query stats from the content script
     await page.bringToFront();
     const tabId = await ext.options.evaluate(
       async () => (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0].id
@@ -238,20 +238,20 @@ async function measurePage(ext, entry) {
       ([id, msg]) => chrome.tabs.sendMessage(id, msg),
       [tabId, { type: "GET_STATS" }]
     );
-    // Falls nach SCAN_WAIT_MS noch etwas offen war: festhalten, ob und wie viel den gemessenen Zahlen fehlt
+    // If something was still open after SCAN_WAIT_MS: record whether and how much is missing from the measured numbers
     if (result.incomplete && result.stats) {
-      result.incomplete = `${result.incomplete} - beim Auslesen noch ${result.stats.pending} pending, ${result.stats.deferred} deferred (Zahlen ggf. unvollständig)`;
+      result.incomplete = `${result.incomplete} - at read time still ${result.stats.pending} pending, ${result.stats.deferred} deferred (numbers possibly incomplete)`;
     }
 
-    // Groben Hinweis auf einen Consent-/Cookie-Dialog, der den Inhalt verdeckt (nicht wegklicken,
-    // nur vermerken - siehe Auftrag)
+    // Rough hint of a consent/cookie dialog covering the content (do not click it away,
+    // only note it - see brief)
     result.cookieNote = await page.evaluate(() => {
       const dialog = document.querySelector(
         "[role='dialog'], [role='alertdialog'], #cmpwrapper, #sp_message_container, .cookie-banner, [id*='consent' i], [class*='consent' i], [id*='cookie' i]"
       );
       if (!dialog) return null;
       const r = dialog.getBoundingClientRect();
-      return r.width * r.height > innerWidth * innerHeight * 0.25 ? "möglicher großflächiger Consent-Dialog erkannt" : null;
+      return r.width * r.height > innerWidth * innerHeight * 0.25 ? "possible large-area consent dialog detected" : null;
     });
 
     result.paragraphs = await page.evaluate(readMarkedParagraphs);
@@ -289,15 +289,15 @@ function summarize(results) {
   const langWrong = []; // { url, lang, kind, excerpt, detected? }
   for (const r of ok) {
     if (r.lang === "en") {
-      for (const p of skipped(r)) langWrong.push({ url: r.url, lang: r.lang, kind: "englisch übersprungen", detected: p.skipped, excerpt: p.excerpt });
+      for (const p of skipped(r)) langWrong.push({ url: r.url, lang: r.lang, kind: "English skipped", detected: p.skipped, excerpt: p.excerpt });
     } else if (["de", "fr", "es"].includes(r.lang)) {
-      for (const p of scored(r)) langWrong.push({ url: r.url, lang: r.lang, kind: `${r.lang} bewertet statt übersprungen`, excerpt: p.excerpt });
+      for (const p of scored(r)) langWrong.push({ url: r.url, lang: r.lang, kind: `${r.lang} scored instead of skipped`, excerpt: p.excerpt });
     }
   }
 
-  // Nach Kategorie (news/blog/howto/doc/wiki) getrennt, damit Wikipedia die Gesamtzahl nicht dominiert
-  // (Nachbesserung nach Orchestrator-Review: 550/680 Absätze kamen in der ersten Fassung aus 3
-  // Wikipedia-Artikeln).
+  // Split by category (news/blog/howto/doc/wiki) so that Wikipedia does not dominate the total
+  // (rework after orchestrator review: 550/680 paragraphs came from 3
+  // Wikipedia articles in the first version).
   const byCategory = {};
   for (const r of ok) {
     const c = (byCategory[r.category] ??= { pages: 0, preTotal: 0, preShort: 0, postTotal: 0, postShort: 0 });
@@ -312,9 +312,9 @@ function summarize(results) {
     }
   }
 
-  // Gruppierungs-Simulation über alle Seiten aufsummiert, zusätzlich separat nur für Kategorie "news"
-  // (das war der konkrete Kritikpunkt: die Gruppierung zielt auf Nachrichtenartikel mit vielen kurzen
-  // Absätzen, dafür gab es in der ersten Fassung kaum Daten).
+  // Grouping simulation summed over all pages, additionally separately for category "news" only
+  // (that was the specific criticism: the grouping targets news articles with many short
+  // paragraphs, for which the first version had hardly any data).
   const sumSim = (rs) => {
     const out = {};
     for (const r of rs) {
@@ -350,7 +350,7 @@ function summarize(results) {
 }
 
 function fmtPct(x) {
-  return x === null || Number.isNaN(x) ? "–" : `${Math.round(x * 100)} %`;
+  return x === null || Number.isNaN(x) ? "–" : `${Math.round(x * 100)}%`;
 }
 
 function simVariantRow(label, s) {
@@ -362,31 +362,31 @@ function toMarkdown(results, summary) {
   const ok = results.filter((r) => r.ok);
   const failed = results.filter((r) => !r.ok);
   const lines = [];
-  lines.push("# Echte Seiten: Textauswahl, Gruppierung und Sprache (WP-08)");
+  lines.push("# Real pages: text selection, grouping and language (WP-08)");
   lines.push("");
   lines.push(
-    `Gemessen am ${new Date().toISOString().slice(0, 10)} mit \`scripts/measure-pages.mjs\` gegen ein ` +
-      "Fake-Backend (wie in den E2E-Tests, `test/e2e/helpers.mjs`) - es geht um Textauswahl, Gruppierung " +
-      "(`extension/content.js`, `groupCandidates`) und Spracherkennung (`extension/lang-detect.js`), " +
-      "**nicht** um Scores. Konfiguration: `provider: local`, `localModel: desklib` (Produktions-Default, " +
-      "`maxChars` 1500/`reliableWords` 120), `scanMode: all`, `lazyScan: false` (ganze Seite auf einmal), " +
-      "`groupShortParagraphs: true` (Default). URLs sind bewusst einzelne Artikel statt Startseiten " +
-      "(Nachbesserung nach Orchestrator-Review: Startseiten bestehen fast nur aus Teaser-Links < 40 Wörtern " +
-      "und sagen wenig über Gruppierung aus; die erste Fassung hatte zudem 550/680 bewertete Absätze aus nur " +
-      "3 Wikipedia-Artikeln - Wikipedia ist jetzt auf 3 Artikel gedeckelt, dafür 14 einzelne englische " +
-      "Nachrichtenartikel aus 6 Häusern)."
+    `Measured on ${new Date().toISOString().slice(0, 10)} with \`scripts/measure-pages.mjs\` against a ` +
+      "fake backend (as in the E2E tests, `test/e2e/helpers.mjs`) - it is about text selection, grouping " +
+      "(`extension/content.js`, `groupCandidates`) and language detection (`extension/lang-detect.js`), " +
+      "**not** about scores. Configuration: `provider: local`, `localModel: desklib` (production default, " +
+      "`maxChars` 1500/`reliableWords` 120), `scanMode: all`, `lazyScan: false` (whole page at once), " +
+      "`groupShortParagraphs: true` (default). URLs are deliberately single articles instead of home pages " +
+      "(rework after orchestrator review: home pages consist almost only of teaser links < 40 words " +
+      "and say little about grouping; the first version also had 550/680 scored paragraphs from just " +
+      "3 Wikipedia articles - Wikipedia is now capped at 3 articles, plus 14 single English " +
+      "news articles from 6 publishers)."
   );
   lines.push("");
   lines.push(
-    `**${summary.measured} von ${summary.totalUrls}** Seiten erfolgreich gemessen, ${summary.failed} übersprungen ` +
-      "(siehe „Nicht geladene Seiten“ unten)."
+    `**${summary.measured} of ${summary.totalUrls}** pages measured successfully, ${summary.failed} skipped ` +
+      "(see \"Pages not loaded\" below)."
   );
   lines.push("");
 
-  lines.push("## Tabelle pro Seite");
+  lines.push("## Table per page");
   lines.push("");
   lines.push(
-    "| Seite | Sprache | Kategorie | Kandidaten | bewertet | übersprungen | Gruppen (>1) | Ø-Größe | <120 Wörter vorher | <120 Wörter nachher | Hinweise |"
+    "| Page | Language | Category | Candidates | scored | skipped | Groups (>1) | Avg. size | <120 words before | <120 words after | Notes |"
   );
   lines.push("|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|");
   for (const r of ok) {
@@ -399,9 +399,9 @@ function toMarkdown(results, summary) {
     const notes = [];
     if (r.incomplete) notes.push(r.incomplete);
     if (r.cookieNote) notes.push(r.cookieNote);
-    if (r.stats?.blocked) notes.push(`gesperrt (${r.stats.blockReason})`);
-    if (r.stats?.error) notes.push(`Fehler: ${r.stats.error}`);
-    if (!r.paragraphs.length) notes.push("keine Kandidaten gefunden");
+    if (r.stats?.blocked) notes.push(`blocked (${r.stats.blockReason})`);
+    if (r.stats?.error) notes.push(`Error: ${r.stats.error}`);
+    if (!r.paragraphs.length) notes.push("no candidates found");
     const name = r.url.replace(/^https?:\/\//, "");
     lines.push(
       `| [${name}](${r.url}) | ${r.lang} | ${CATEGORY_LABEL[r.category] || r.category} | ${r.paragraphs.length} | ${scoredP.length} | ${skippedP.length} | ` +
@@ -410,33 +410,33 @@ function toMarkdown(results, summary) {
   }
   lines.push("");
 
-  lines.push("## Nicht geladene Seiten");
+  lines.push("## Pages not loaded");
   lines.push("");
   if (!failed.length) {
-    lines.push("Keine - alle Seiten der Liste konnten geladen werden.");
+    lines.push("None - all pages in the list could be loaded.");
   } else {
-    lines.push("| Seite | Sprache | Fehler |");
+    lines.push("| Page | Language | Error |");
     lines.push("|---|---|---|");
     for (const r of failed) lines.push(`| ${r.url} | ${r.lang} | ${r.error} |`);
   }
   lines.push("");
 
-  lines.push("## Zusammenfassung");
+  lines.push("## Summary");
   lines.push("");
-  lines.push(`- Absätze insgesamt (bewertet, über alle Seiten): ${summary.preTotal}`);
+  lines.push(`- Paragraphs in total (scored, across all pages): ${summary.preTotal}`);
   lines.push(
-    `- Anteil unter ${RELIABLE_WORDS} Wörtern **vor** Gruppierung (einzelner Absatz): **${fmtPct(summary.preShortShare)}**`
+    `- Share under ${RELIABLE_WORDS} words **before** grouping (single paragraph): **${fmtPct(summary.preShortShare)}**`
   );
   lines.push(
-    `- Anteil unter ${RELIABLE_WORDS} Wörtern **nach** Gruppierung (Gruppe bzw. Einzelabsatz, ${summary.postTotal} ` +
-      `Bewertungseinheiten): **${fmtPct(summary.postShortShare)}**`
+    `- Share under ${RELIABLE_WORDS} words **after** grouping (group or single paragraph, ${summary.postTotal} ` +
+      `scoring units): **${fmtPct(summary.postShortShare)}**`
   );
-  lines.push(`- Gruppen mit mehr als einem Absatz: ${summary.groupsMulti} von ${summary.postTotal} Bewertungseinheiten`);
+  lines.push(`- Groups with more than one paragraph: ${summary.groupsMulti} of ${summary.postTotal} scoring units`);
   lines.push("");
 
-  lines.push("### Nach Seitentyp getrennt");
+  lines.push("### Split by page type");
   lines.push("");
-  lines.push("| Kategorie | Seiten | Absätze vorher | <120 Wörter vorher | Einheiten nachher | <120 Wörter nachher |");
+  lines.push("| Category | Pages | Paragraphs before | <120 words before | Units after | <120 words after |");
   lines.push("|---|---:|---:|---:|---:|---:|");
   for (const [cat, c] of Object.entries(summary.byCategory)) {
     lines.push(
@@ -446,7 +446,7 @@ function toMarkdown(results, summary) {
   }
   lines.push("");
 
-  lines.push("## Spracherkennung");
+  lines.push("## Language detection");
   lines.push("");
   const byLang = {};
   for (const r of ok) {
@@ -455,74 +455,74 @@ function toMarkdown(results, summary) {
     byLang[r.lang].scored += r.paragraphs.filter((p) => p.level).length;
     byLang[r.lang].skipped += r.paragraphs.filter((p) => p.skipped).length;
   }
-  lines.push("| Sprache | Seiten | bewertet (= als Englisch behandelt) | übersprungen (fremd erkannt) |");
+  lines.push("| Language | Pages | scored (= treated as English) | skipped (detected as foreign) |");
   lines.push("|---|---:|---:|---:|");
   for (const [lang, v] of Object.entries(byLang)) {
     lines.push(`| ${lang} | ${v.pages} | ${v.scored} | ${v.skipped} |`);
   }
   lines.push("");
   lines.push(
-    "Erwartung: bei `en` sollte „übersprungen“ ≈ 0 sein, bei `de`/`fr`/`es` sollte „bewertet“ ≈ 0 sein " +
-      "(die ganze Seite übersprungen). `mixed`-Seiten haben bewusst beides."
+    "Expectation: for `en`, \"skipped\" should be ≈ 0, for `de`/`fr`/`es`, \"scored\" should be ≈ 0 " +
+      "(the whole page skipped). `mixed` pages deliberately have both."
   );
   lines.push("");
 
   if (summary.langWrong.length) {
-    lines.push("### Auffällige Fälle (gekürzt)");
+    lines.push("### Notable cases (truncated)");
     lines.push("");
-    lines.push("| Seite | Sprache | Art | Auszug |");
+    lines.push("| Page | Language | Kind | Excerpt |");
     lines.push("|---|---|---|---|");
     for (const w of summary.langWrong.slice(0, 40)) {
       lines.push(`| ${w.url} | ${w.lang} | ${w.kind}${w.detected ? ` (${w.detected})` : ""} | ${w.excerpt.replace(/\|/g, "\\|")} |`);
     }
-    if (summary.langWrong.length > 40) lines.push(`\n_… ${summary.langWrong.length - 40} weitere, siehe measure-pages.out.json_`);
+    if (summary.langWrong.length > 40) lines.push(`\n_… ${summary.langWrong.length - 40} more, see measure-pages.out.json_`);
     lines.push("");
   }
 
-  lines.push("## Gruppierungsregel: gezählte Wirkung einer Lockerung");
+  lines.push("## Grouping rule: counted effect of a relaxation");
   lines.push("");
   lines.push(
-    "Simuliert `groupCandidates` (content.js) mit echten Seitendaten nach, einmal mit der tatsächlichen " +
-      "Regel (`actual` - exakt gleicher Elternknoten, entspricht Tiefe 1) und mit zwei Varianten: " +
-      "gemeinsamer Vorfahr bis Tiefe 2/3 statt exakt gleicher Elternknoten (`depth2`/`depth3`), doppeltes " +
-      "`maxChars` (`maxChars2x`, 3000 statt 1500 Zeichen) und beides kombiniert. `actual` sollte die " +
-      "tatsächlich gemessenen Gruppen (Tabelle oben) reproduzieren - dient als Gegenprobe der Simulation."
+    "Replays `groupCandidates` (content.js) with real page data, once with the actual " +
+      "rule (`actual` - exactly the same parent node, corresponds to depth 1) and with two variants: " +
+      "common ancestor up to depth 2/3 instead of exactly the same parent node (`depth2`/`depth3`), doubled " +
+      "`maxChars` (`maxChars2x`, 3000 instead of 1500 characters) and both combined. `actual` should " +
+      "reproduce the actually measured groups (table above) - serves as a cross-check of the simulation."
   );
   lines.push("");
-  lines.push("### Alle Seiten");
+  lines.push("### All pages");
   lines.push("");
-  lines.push("| Variante | Bewertungseinheiten | davon Gruppen >1 | <120 Wörter | Absätze in einer Gruppe |");
+  lines.push("| Variant | Scoring units | of which groups >1 | <120 words | Paragraphs in a group |");
   lines.push("|---|---:|---:|---:|---:|");
   for (const [k, label] of [
-    ["actual", "tatsächliche Regel"],
-    ["depth2", "Vorfahr bis Tiefe 2"],
-    ["depth3", "Vorfahr bis Tiefe 3"],
+    ["actual", "actual rule"],
+    ["depth2", "ancestor up to depth 2"],
+    ["depth3", "ancestor up to depth 3"],
     ["maxChars2x", "maxChars ×2"],
-    ["depth2_maxChars2x", "Tiefe 2 + maxChars ×2"]
+    ["depth2_maxChars2x", "depth 2 + maxChars ×2"]
   ]) {
     lines.push(simVariantRow(label, summary.groupingSimAll[k]));
   }
   lines.push("");
-  lines.push("### Nur Nachrichtenartikel (Kategorie „news“)");
+  lines.push("### News articles only (category \"news\")");
   lines.push("");
-  lines.push("| Variante | Bewertungseinheiten | davon Gruppen >1 | <120 Wörter | Absätze in einer Gruppe |");
+  lines.push("| Variant | Scoring units | of which groups >1 | <120 words | Paragraphs in a group |");
   lines.push("|---|---:|---:|---:|---:|");
   for (const [k, label] of [
-    ["actual", "tatsächliche Regel"],
-    ["depth2", "Vorfahr bis Tiefe 2"],
-    ["depth3", "Vorfahr bis Tiefe 3"],
+    ["actual", "actual rule"],
+    ["depth2", "ancestor up to depth 2"],
+    ["depth3", "ancestor up to depth 3"],
     ["maxChars2x", "maxChars ×2"],
-    ["depth2_maxChars2x", "Tiefe 2 + maxChars ×2"]
+    ["depth2_maxChars2x", "depth 2 + maxChars ×2"]
   ]) {
     lines.push(simVariantRow(label, summary.groupingSimNews[k]));
   }
   lines.push("");
 
-  lines.push("## Empfehlungen (nicht umgesetzt, nur Vorschlag)");
+  lines.push("## Recommendations (not implemented, suggestion only)");
   lines.push("");
   lines.push(
-    "Siehe Abschnitt „Gruppierungsregel: gezählte Wirkung einer Lockerung“ oben sowie den Abschlussbericht " +
-      "des Agenten an den Orchestrator für die Einordnung der Zahlen."
+    "See section \"Grouping rule: counted effect of a relaxation\" above as well as the agent's final report " +
+      "to the orchestrator for putting the numbers into context."
   );
   lines.push("");
 
@@ -531,7 +531,7 @@ function toMarkdown(results, summary) {
 
 async function main() {
   const entries = parseUrls(fs.readFileSync(URLS_FILE, "utf8")).slice(0, LIMIT);
-  console.log(`${entries.length} Seiten in der Liste.`);
+  console.log(`${entries.length} pages in the list.`);
 
   const backend = await startBackend();
   const ext = await launchExtension({ pages: {}, viewport: { width: 1280, height: 1400 } });
@@ -552,9 +552,9 @@ async function main() {
       results.push(r);
       console.log(
         r.ok
-          ? `ok (${r.paragraphs.length} Kandidaten, ${r.paragraphs.filter((p) => p.level).length} bewertet, ` +
-              `${r.paragraphs.filter((p) => p.skipped).length} übersprungen)`
-          : `FEHLER: ${r.error}`
+          ? `ok (${r.paragraphs.length} candidates, ${r.paragraphs.filter((p) => p.level).length} scored, ` +
+              `${r.paragraphs.filter((p) => p.skipped).length} skipped)`
+          : `ERROR: ${r.error}`
       );
     }
   } finally {
@@ -567,13 +567,13 @@ async function main() {
   fs.writeFileSync(OUT_MD, toMarkdown(results, summary));
 
   console.log("");
-  console.log(`Gemessen: ${summary.measured}/${summary.totalUrls}, fehlgeschlagen: ${summary.failed}`);
-  console.log(`<120 Wörter vorher: ${fmtPct(summary.preShortShare)}, nachher: ${fmtPct(summary.postShortShare)}`);
+  console.log(`Measured: ${summary.measured}/${summary.totalUrls}, failed: ${summary.failed}`);
+  console.log(`<120 words before: ${fmtPct(summary.preShortShare)}, after: ${fmtPct(summary.postShortShare)}`);
   console.log(`JSON: ${OUT_JSON}`);
   console.log(`Markdown: ${OUT_MD}`);
 
   if (summary.failed > entries.length - 25 && entries.length >= 25) {
-    console.warn(`WARNUNG: weniger als 25 Seiten erfolgreich gemessen (${summary.measured}).`);
+    console.warn(`WARNING: fewer than 25 pages measured successfully (${summary.measured}).`);
   }
 }
 

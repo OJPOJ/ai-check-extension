@@ -1,7 +1,7 @@
 {
   "name": "aivsai",
   "private": true,
-  "description": "Build- und Test-Helfer für die Browser-Extension (build: vendor = transformers.js + ONNX-Runtime nach extension/vendor/, build:blocklist = Sperrliste nach extension/generated/; package: Zip nach dist/; test: E2E mit Playwright)",
+  "description": "Build and test helpers for the browser extension (build: vendor = transformers.js + ONNX Runtime into extension/vendor/, build:blocklist = blocklist into extension/generated/; package: zip into dist/; test: E2E with Playwright)",
   "scripts": {
     "vendor": "node scripts/vendor.mjs",
     "build:blocklist": "node scripts/build-blocklist.mjs",
