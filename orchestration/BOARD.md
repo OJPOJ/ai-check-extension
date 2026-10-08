@@ -1,7 +1,7 @@
 # Board
 
 As of: 2026-10-08. Status: `open` · `running` · `review` · `merged` · `blocked (user)`.
-Completed WPs (WP-01 to WP-11) are in the git history; their results live in `training/EVAL_RESULTS.md`,
+Completed WPs (WP-01 to WP-12) are in the git history; their results live in `training/EVAL_RESULTS.md`,
 `training/MODEL_SEARCH.md` and `test/REAL_PAGES.md`.
 
 | WP | Topic | TODO ref | Branch | Status | Files (exclusive) |
