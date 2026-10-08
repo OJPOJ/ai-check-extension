@@ -1,13 +1,13 @@
-// Kopiert transformers.js und die passende ONNX-Runtime-WASM in extension/vendor/.
-// Manifest V3 verbietet nachgeladenen Code - Bibliothek und WASM müssen in der Extension liegen,
-// nur die Modellgewichte (Daten) werden zur Laufzeit von Hugging Face geladen.
+// Copies transformers.js and the matching ONNX Runtime WASM into extension/vendor/.
+// Manifest V3 forbids remotely loaded code - library and WASM must live inside the extension,
+// only the model weights (data) are loaded from Hugging Face at runtime.
 import fs from "fs";
 import path from "path";
 const root = path.dirname(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, "$1")));
 const out = path.join(root, "extension", "vendor");
 const nm = path.join(root, "node_modules");
 const tfDir = path.join(nm, "@huggingface", "transformers");
-// transformers.js pinnt eine eigene onnxruntime-web-Version - verschachtelte Kopie bevorzugen
+// transformers.js pins its own onnxruntime-web version - prefer the nested copy
 const ortDir = [path.join(tfDir, "node_modules", "onnxruntime-web"), path.join(nm, "onnxruntime-web")].find((d) =>
   fs.existsSync(d)
 );
@@ -21,7 +21,7 @@ const files = [
 
 fs.mkdirSync(out, { recursive: true });
 for (const [src, name] of files) {
-  if (!fs.existsSync(src)) throw new Error(`fehlt: ${src}`);
+  if (!fs.existsSync(src)) throw new Error(`missing: ${src}`);
   fs.copyFileSync(src, path.join(out, name));
   console.log(`${name.padEnd(36)} ${(fs.statSync(src).size / 1e6).toFixed(1)} MB`);
 }

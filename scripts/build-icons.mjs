@@ -1,5 +1,5 @@
-// Rendert extension/icons/icon.svg per Chromium (Playwright, bereits devDependency für die E2E-Tests)
-// zu PNGs in den vom Store bzw. der Toolbar gebrauchten Größen. npm run build:icons.
+// Renders extension/icons/icon.svg via Chromium (Playwright, already a devDependency for the E2E tests)
+// to PNGs in the sizes needed by the store and the toolbar. npm run build:icons.
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";

@@ -1,30 +1,30 @@
 """
-Lokaler Shim-Server: spricht dasselbe Wire-Format wie laya-serve
-(POST /v1/systemone), routet aber je nach "model"-Feld zu verschiedenen
-Backends:
+Local shim server: speaks the same wire format as laya-serve
+(POST /v1/systemone), but routes to different backends depending on the
+"model" field:
 
-  - "english" / "multilingual" / "typed-decisions"  -> Proxy zu laya-serve
-    (siehe README.md, muss separat via run_server.ps1 laufen)
-  - "tmr"                                            -> lokal geladenes
-    Oxidane/tmr-ai-text-detector (RoBERTa-base, 125M, kein Training noetig)
-  - "desklib"                                        -> lokal geladenes
-    desklib/ai-text-detector-v1.01 (DeBERTa-v3-large, 430M, eigene Pooling-Klasse)
-  - "fakespot"                                        -> lokal geladenes
-    fakespot-ai/roberta-base-ai-text-detection-v1 (RoBERTa-base, 125M, wie TMR aufgebaut)
+  - "english" / "multilingual" / "typed-decisions"  -> proxy to laya-serve
+    (see README.md, must run separately via run_server.ps1)
+  - "tmr"                                            -> locally loaded
+    Oxidane/tmr-ai-text-detector (RoBERTa-base, 125M, no training needed)
+  - "desklib"                                        -> locally loaded
+    desklib/ai-text-detector-v1.01 (DeBERTa-v3-large, 430M, custom pooling class)
+  - "fakespot"                                        -> locally loaded
+    fakespot-ai/roberta-base-ai-text-detection-v1 (RoBERTa-base, 125M, built like TMR)
 
-Zusaetzlich gibt es den schlanken Vertrag, den die Extension fuer die Provider
-"Lokal" und "Eigener Server" verwendet (Details: README.md, "Vertrag"):
+In addition there is the slim contract that the extension uses for the providers
+"Local" and "Custom server" (details: README.md, "Contract"):
 
     POST /v1/score  {"texts": ["...", ...], "model": "tmr", "lang": "en"}  ->  {"scores": [0.93, ...]}
     GET  /v1/info?model=tmr  ->  {"name", "version", "maxChars", "languages", "suggestedThresholds"}
 
-scores = P(KI) in [0,1] pro Text, gleiche Reihenfolge; "model" und "lang" optional.
+scores = P(AI) in [0,1] per text, same order; "model" and "lang" optional.
 
-Fuer Betrieb ausserhalb von localhost (z.B. Cloud-VM) per Env konfigurierbar:
-    AIVSAI_HOST     (Default 127.0.0.1)
-    AIVSAI_PORT     (Default 8787)
-    AIVSAI_API_KEY  (optional; wenn gesetzt, muss /v1/score den Header
-                     "Authorization: Bearer <key>" mitschicken)
+For operation outside localhost (e.g. cloud VM) configurable via env:
+    AIVSAI_HOST     (default 127.0.0.1)
+    AIVSAI_PORT     (default 8787)
+    AIVSAI_API_KEY  (optional; if set, /v1/score must send the header
+                     "Authorization: Bearer <key>")
 
 Start:
     uv venv .venv --python 3.12
@@ -49,8 +49,8 @@ LAYA_MODELS = {"english", "multilingual", "typed-decisions"}
 TMR_MODEL_ID = "Oxidane/tmr-ai-text-detector"
 DESKLIB_MODEL_ID = "desklib/ai-text-detector-v1.01"
 FAKESPOT_MODEL_ID = "fakespot-ai/roberta-base-ai-text-detection-v1"
-# Fest gepinnt, damit sich Scores nicht durch ein Upstream-Update unbemerkt aendern. Die Revision geht
-# ueber /v1/info in den Modellschluessel der Extension ein - neue Revision = alte Scores ungueltig.
+# Pinned, so scores do not change unnoticed through an upstream update. The revision goes
+# via /v1/info into the extension's model key - new revision = old scores invalid.
 TMR_REVISION = "0ceddea903015ef99cbaa040a4d8a216aed9c683"
 DESKLIB_REVISION = "5fdea974cd4287c61674951ec78803aa274e2fb7"
 FAKESPOT_REVISION = "f9cdb14d1f8b105f597d80fa7b56f20c6ea0e9db"
@@ -96,9 +96,9 @@ def load_fakespot():
 
 
 def length_buckets(lengths: list[int], ratio: float = 1.25, slack: int = 16) -> list[list[int]]:
-    """Indizes nach Länge gruppieren (wie extension/length-buckets.js). Ein Batch wird auf den längsten
-    Text aufgefüllt - ein langer mit vier kurzen kostete desklib 15,3 s statt 4,9 s getrennt, bei
-    identischen Scores (training/EVAL_RESULTS.md, "Auffüllen")."""
+    """Group indices by length (like extension/length-buckets.js). A batch is padded to the longest
+    text - one long text with four short ones cost desklib 15.3 s instead of 4.9 s separately, with
+    identical scores (training/EVAL_RESULTS.md, "Padding")."""
     groups: list[list[int]] = []
     for i in sorted(range(len(lengths)), key=lambda i: lengths[i]):
         if groups and lengths[i] <= lengths[groups[-1][0]] * ratio + slack:
@@ -109,7 +109,7 @@ def length_buckets(lengths: list[int], ratio: float = 1.25, slack: int = 16) -> 
 
 
 def score_bucketed(texts: list[str], tokenizer, max_length: int, run) -> list[float]:
-    """run(enc) -> Scores für einen aufgefüllten Teil-Batch; Reihenfolge wie `texts`."""
+    """run(enc) -> scores for a padded sub-batch; same order as `texts`."""
     lengths = [len(ids) for ids in tokenizer(texts, truncation=True, max_length=max_length)["input_ids"]]
     scores = [0.0] * len(texts)
     with torch.no_grad():
@@ -138,8 +138,8 @@ def score_fakespot_texts(texts: list[str]) -> list[float]:
 
 
 class DesklibAIDetectionModel(PreTrainedModel):
-    """Eigene Architektur aus dem Model Card (Mean-Pooling + Sigmoid-Kopf),
-    kein AutoModelForSequenceClassification - deshalb eigene Klasse noetig."""
+    """Custom architecture from the model card (mean pooling + sigmoid head),
+    not AutoModelForSequenceClassification - hence a custom class is needed."""
 
     config_class = AutoConfig
 
@@ -151,7 +151,7 @@ class DesklibAIDetectionModel(PreTrainedModel):
 
     @property
     def all_tied_weights_keys(self):
-        # Kompatibilitaets-Fix fuer transformers>=5, siehe training/evaluate_backends.py
+        # Compatibility fix for transformers>=5, see training/evaluate_backends.py
         return {}
 
     def forward(self, input_ids, attention_mask=None):
@@ -175,8 +175,8 @@ def load_desklib():
 
 def score_desklib_texts(texts: list[str]) -> list[float]:
     load_desklib()
-    # Nie fest auf 768 Tokens auffüllen, nur innerhalb ähnlich langer Gruppen: Das Mean-Pooling maskiert
-    # Füll-Tokens ohnehin aus, die Scores bleiben gleich, die Rechenzeit sinkt stark.
+    # Never pad to a fixed 768 tokens, only within groups of similar length: mean pooling masks out
+    # padding tokens anyway, the scores stay the same, the compute time drops sharply.
     return score_bucketed(
         texts,
         _desklib_tokenizer,
@@ -189,7 +189,7 @@ def score_desklib_texts(texts: list[str]) -> list[float]:
 
 LOCAL_SCORERS = {"tmr": score_tmr_texts, "desklib": score_desklib_texts, "fakespot": score_fakespot_texts}
 
-# Antwort von /v1/info - Textlaenge und Ampel wie in extension/models.js (dort die Begruendung)
+# Response of /v1/info - text length and traffic light as in extension/models.js (rationale there)
 MODEL_INFO = {
     "tmr": {
         "name": "TMR AI Text Detector",
@@ -221,9 +221,9 @@ MODEL_INFO = {
 
 
 def extract_candidate_texts(state, questions) -> dict[str, str]:
-    """Bildet question-id -> Text ab, fuer state = {"candidates": [...]}, das
-    Format, das extension/background.js verwendet, sowie das einfachere
-    state = "text..." Format aus manuellen Einzel-Tests (siehe server/README.md)."""
+    """Maps question-id -> text, for state = {"candidates": [...]}, the
+    format used by extension/background.js, as well as the simpler
+    state = "text..." format from manual single tests (see server/README.md)."""
     texts = {}
     if isinstance(state, dict) and isinstance(state.get("candidates"), list):
         candidates = state["candidates"]
@@ -298,7 +298,7 @@ async def systemone(request: Request):
 class ScoreRequest(BaseModel):
     texts: list[str] = Field(min_length=1, max_length=MAX_TEXTS_PER_REQUEST)
     model: str = "tmr"
-    lang: str | None = None  # Sprache der Seite, falls bekannt; TMR/desklib koennen nur Englisch
+    lang: str | None = None  # language of the page, if known; TMR/desklib only handle English
 
 
 def check_auth(authorization: str | None) -> None:
@@ -320,7 +320,7 @@ def info(model: str = "tmr", authorization: str | None = Header(default=None)):
 
 @app.post("/v1/score")
 def score(req: ScoreRequest, authorization: str | None = Header(default=None)):
-    # sync def -> FastAPI fuehrt das im Threadpool aus, Inferenz blockiert den Event-Loop nicht
+    # sync def -> FastAPI runs this in the thread pool, inference does not block the event loop
     check_auth(authorization)
     check_model(req.model)
     texts = [t[:MAX_CHARS_PER_TEXT] for t in req.texts]

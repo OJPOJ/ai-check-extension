@@ -1,186 +1,184 @@
 # AI Content Flag
 
-**Browser-Extension, die Textabsätze auf Webseiten auf KI-Merkmale prüft – direkt in deinem
-Browser, ohne dass deine Texte deinen Rechner verlassen.**
+**Browser extension that checks paragraphs of text on web pages for signs of AI – right in your
+browser, without your texts ever leaving your computer.**
 
-Längere Absätze werden mit einem KI-Text-Klassifikator bewertet und als Ampel markiert:
+Longer paragraphs are scored with an AI-text classifier and marked with a traffic light:
 
-| Markierung | Bedeutung |
+| Marker | Meaning |
 |---|---|
-| 🟢 grün, dünner Rahmen | unauffällig – geprüft, nicht als KI erkannt |
-| 🟡 gelb, gestrichelt | unklar |
-| 🔴 rot, kräftiger Rahmen | auffällig – ähnelt KI-Text |
-| ⚪ grau, „unsicher“ | zu kurz für ein verlässliches Urteil |
+| 🟢 green, thin border | not flagged – checked, not detected as AI |
+| 🟡 yellow, dashed | unclear |
+| 🔴 red, heavy border | flagged – resembles AI text |
+| ⚪ gray, "uncertain" | too short for a reliable verdict |
 
-Dazu ein KI-Score von 0–100. Die Rahmen unterscheiden sich auch ohne Farbwahrnehmung.
+Plus an AI score from 0–100. The borders are distinguishable even without color perception.
 
-![Markierte Absätze auf einer Beispielseite](store/screenshots/1-scan.png)
+![Marked paragraphs on a sample page](store/screenshots/1-scan.png)
 
 > [!IMPORTANT]
-> **Ein Hinweis, kein Beweis.** Der Score ist keine Wahrscheinlichkeit. Auch von Menschen
-> geschriebene Texte werden manchmal rot markiert – besonders kurze, übersetzte oder stark
-> redigierte. Bitte unterstelle niemandem allein wegen dieser Markierung KI-Nutzung.
+> **A hint, not proof.** The score is not a probability. Texts written by humans are also
+> sometimes marked red – especially short, translated or heavily edited ones. Please do not
+> accuse anyone of using AI based on this marker alone.
 
 ---
 
-## 🔒 Datenschutz
+## 🔒 Privacy
 
-Die Extension wurde von Anfang an so gebaut, dass du nichts preisgeben musst:
+The extension was built from the start so that you do not have to give anything away:
 
-- **Läuft lokal.** Das Modell arbeitet standardmäßig direkt im Browser (WebAssembly). Gelesene
-  Texte werden nirgendwohin geschickt. Die einzige Verbindung nach außen ist der **einmalige
-  Download des Modells** von Hugging Face – dabei werden keine Seiteninhalte übertragen.
-- **Kein Tracking.** Keine Nutzungsstatistik, keine Werbung, keine Analyse-Dienste, kein Konto,
-  keine Weitergabe an Dritte.
-- **Nur, wo du es erlaubst.** Standardmäßig wird nur auf Seiten gescannt, die du selbst
-  freigibst. Ohne Freigabe liest die Extension dort keinen Text.
-- **Sensible Seiten sind tabu.** Online-Banking, Webmail, Zahlungsdienste und Behördenportale
-  (rund 14.000 Domains) werden nie automatisch gescannt. Die Liste ist fest eingebaut und wird
-  nicht aus dem Netz nachgeladen – niemand erfährt, welche Seiten du besuchst. Zusätzlich
-  pausiert die Extension auf jeder Seite mit Passwort-, Kreditkarten- oder Einmalcode-Feld (der
-  Inhalt solcher Felder wird nie gelesen).
-- **Nur das Nötigste wird gespeichert – und nur bei dir.** Bereits bewertete Absätze merkt sich
-  die Extension als Fingerabdruck (Hash) mit Score – **ohne Text und ohne Adresse**, standardmäßig
-  30 Tage, jederzeit löschbar oder ganz abschaltbar.
-- **Feedback nur mit Einwilligung.** Wenn du angibst, woher ein Text stammt, wird das erst nach
-  deiner ausdrücklichen Zustimmung gespeichert – lokal, ohne Adresse, und nie übertragen.
-- **Ein Schalter für alles:** `Alt+Shift+A` stoppt jede Verarbeitung.
-- **Quelloffen.** Jede Zeile Code ist hier im Repository nachprüfbar.
+- **Runs locally.** By default the model works directly in the browser (WebAssembly). Texts you
+  read are not sent anywhere. The only outgoing connection is the **one-time download of the
+  model** from Hugging Face – no page content is transmitted in the process.
+- **No tracking.** No usage statistics, no ads, no analytics services, no account,
+  no sharing with third parties.
+- **Only where you allow it.** By default, only pages that you approve yourself are scanned.
+  Without approval, the extension does not read any text there.
+- **Sensitive sites are off limits.** Online banking, webmail, payment services and government
+  portals (around 14,000 domains) are never scanned automatically. The list is built in and is
+  not reloaded from the network – nobody learns which sites you visit. In addition, the
+  extension pauses on every page with a password, credit card or one-time code field (the
+  content of such fields is never read).
+- **Only the bare minimum is stored – and only on your machine.** The extension remembers
+  paragraphs it has already scored as a fingerprint (hash) with score – **without text and
+  without address**, for 30 days by default, deletable at any time or completely switchable off.
+- **Feedback only with consent.** If you state where a text comes from, this is only stored
+  after your explicit consent – locally, without address, and never transmitted.
+- **One switch for everything:** `Alt+Shift+A` stops all processing.
+- **Open source.** Every line of code can be verified here in the repository.
 
-**Optional** kannst du statt des Browser-Modells einen eigenen Server, einen Cloud-Dienst oder
-die Hugging Face Inference API nutzen. Nur dann gehen Absätze (bis 2000 Zeichen) an diesen
-Dienst – die Einstellungen zeigen das deutlich an, bevor etwas gesendet wird.
+**Optionally**, instead of the browser model you can use your own server, a cloud service or
+the Hugging Face Inference API. Only then are paragraphs (up to 2000 characters) sent to that
+service – the settings show this clearly before anything is sent.
 
-Vollständige Datenschutzerklärung: [`extension/privacy.html`](extension/privacy.html) (auch in
-den Einstellungen der Extension verlinkt).
+Full privacy policy: [`extension/privacy.html`](extension/privacy.html) (also linked in
+the extension's settings).
 
 ---
 
 ## 📦 Installation
 
-Die Extension wird nur hier über GitHub angeboten, nicht über den Chrome Web Store. Sie läuft in
-**Chrome, Edge, Brave und anderen Chromium-Browsern**.
+The extension is offered only here via GitHub, not via the Chrome Web Store. It runs in
+**Chrome, Edge, Brave and other Chromium browsers**.
 
-1. **Herunterladen:** Unter [Releases](https://github.com/OJPOJ/ai-check-extension/releases/latest)
-   die Datei `ai-content-flag-<version>.zip` herunterladen.
-2. **Entpacken** in einen Ordner, den du behältst (z. B. `Dokumente\AI Content Flag`).
-   Nicht löschen – der Browser lädt die Extension aus diesem Ordner.
-3. **Erweiterungsseite öffnen:** `chrome://extensions` (Edge: `edge://extensions`) in die
-   Adresszeile eingeben.
-4. **Entwicklermodus** einschalten (Schalter oben rechts, in Edge links unten).
-5. **„Entpackte Erweiterung laden“** klicken und den entpackten Ordner auswählen (den Ordner, in
-   dem die Datei `manifest.json` liegt).
-6. Optional: über das Puzzle-Symbol in der Symbolleiste die Extension **anheften**.
+1. **Download:** Under [Releases](https://github.com/OJPOJ/ai-check-extension/releases/latest)
+   download the file `ai-content-flag-<version>.zip`.
+2. **Unzip** into a folder you will keep (e.g. `Documents\AI Content Flag`).
+   Do not delete it – the browser loads the extension from this folder.
+3. **Open the extensions page:** enter `chrome://extensions` (Edge: `edge://extensions`) in the
+   address bar.
+4. Turn on **Developer mode** (switch at the top right, in Edge at the bottom left).
+5. Click **"Load unpacked"** and select the unzipped folder (the folder that contains the
+   file `manifest.json`).
+6. Optional: **pin** the extension via the puzzle icon in the toolbar.
 
-Danach öffnet sich eine Begrüßungsseite und die Einstellungen.
+Afterwards a welcome page and the settings open.
 
 > [!NOTE]
-> Weil die Extension nicht aus einem Store kommt, zeigt der Browser das Wort „Entwicklermodus“
-> an und aktualisiert sie **nicht automatisch**. Das ist bei Installationen von GitHub normal.
+> Because the extension does not come from a store, the browser shows the words "Developer mode"
+> and does **not update it automatically**. This is normal for installations from GitHub.
 
-### Modell herunterladen (einmalig)
+### Download the model (one time)
 
-In den Einstellungen ein Modell wählen und auf **„Herunterladen“** klicken. Es wird einmal von
-Hugging Face geladen (kein Konto, kein Token nötig) und bleibt danach im Browser gespeichert.
+In the settings, choose a model and click **"Download"**. It is loaded once from
+Hugging Face (no account, no token needed) and then stays stored in the browser.
 
-| Modell | Download | Wofür |
+| Model | Download | What for |
 |---|---|---|
-| **Genau** (desklib) – Standard | 1,7 GB, im Browser auf ~475 MB verkleinert | beste Treffsicherheit, wenigste Fehlalarme, ~1 s pro Absatz |
-| **Ausgewogen** (fakespot) | 125 MB | guter Kompromiss |
-| **Schnell** (TMR) | 126 MB | sehr schnell, aber deutlich mehr Fehlalarme |
+| **Accurate** (desklib) – default | 1.7 GB, reduced to ~475 MB in the browser | best accuracy, fewest false alarms, ~1 s per paragraph |
+| **Balanced** (fakespot) | 125 MB | good compromise |
+| **Fast** (TMR) | 126 MB | very fast, but significantly more false alarms |
 
-Tipp: Bei langsamer Verbindung oder wenig Speicherplatz mit „Ausgewogen“ beginnen.
+Tip: With a slow connection or little disk space, start with "Balanced".
 
-### Aktualisieren
+### Updating
 
-1. Neue Zip-Datei von den [Releases](https://github.com/OJPOJ/ai-check-extension/releases)
-   herunterladen.
-2. Den Inhalt des **bisherigen Ordners** durch den neuen ersetzen (gleicher Ordner!).
-3. Unter `chrome://extensions` bei AI Content Flag auf den Neu-laden-Pfeil ↻ klicken.
+1. Download the new zip file from the [Releases](https://github.com/OJPOJ/ai-check-extension/releases).
+2. Replace the contents of the **previous folder** with the new ones (same folder!).
+3. Under `chrome://extensions`, click the reload arrow ↻ on AI Content Flag.
 
-Einstellungen, heruntergeladenes Modell und gespeicherte Bewertungen bleiben erhalten, solange
-der Ordner derselbe bleibt. Wer die Extension entfernt und aus einem anderen Ordner neu lädt,
-fängt von vorn an.
+Settings, the downloaded model and stored scores are kept as long as
+the folder stays the same. Anyone who removes the extension and reloads it from a different folder
+starts from scratch.
 
 ---
 
-## 🚀 Benutzung
+## 🚀 Usage
 
-**Seite freigeben:** Auf einer Webseite das Extension-Symbol anklicken und den
-Schalter „Diese Seite automatisch scannen“ einschalten. Ab dann wird die Seite beim Besuch geprüft. Alternativ einmalig
-„Diese Seite jetzt scannen“.
+**Approve a page:** On a web page, click the extension icon and turn on the
+switch "Scan this page automatically". From then on the page is checked when you visit it. Alternatively,
+"Scan page now" once.
 
-**Einzelne Stelle prüfen:** Text markieren → Rechtsklick → „Markierten Text auf KI prüfen“
-(oder `Alt+Shift+C`). Ohne Markierung: Rechtsklick auf einen Absatz → „Diesen Absatz auf KI
-prüfen“. Das funktioniert überall, auch auf nicht freigegebenen Seiten.
+**Check a single passage:** Select text → right-click → "Check selected text for AI"
+(or `Alt+Shift+C`). Without a selection: right-click a paragraph → "Check this paragraph for
+AI". This works everywhere, even on pages that have not been approved.
 
-**Details ansehen:** Auf das Score-Schild eines markierten Absatzes klicken.
+**View details:** Click the score badge of a marked paragraph.
 
-**Tastenkürzel**
+**Keyboard shortcuts**
 
-| Kürzel | Aktion |
+| Shortcut | Action |
 |---|---|
-| `Alt+Shift+A` | Extension an / aus |
-| `Alt+Shift+S` | aktuelle Seite jetzt scannen |
-| `Alt+Shift+C` | markierten Text prüfen |
+| `Alt+Shift+A` | extension on / off |
+| `Alt+Shift+S` | scan the current page now |
+| `Alt+Shift+C` | check selected text |
 
-Änderbar unter `chrome://extensions/shortcuts`.
+Changeable under `chrome://extensions/shortcuts`.
 
-**Scan-Modus** (in den Einstellungen): *nur auf Knopfdruck*, *auf ausgewählten Seiten*
-(Standard) oder *auf allen Seiten*. Die Sperrliste für sensible Seiten gilt in jedem Modus;
-eigene Einträge und Ausnahmen lassen sich in den Einstellungen oder per „Hier nie scannen“ im
-Popup festlegen.
-
----
-
-## ⚠️ Grenzen
-
-- **Nur Englisch.** Die Modelle sind ausschließlich auf englischen Texten trainiert. Absätze in
-  anderen Sprachen werden erkannt und bewusst **nicht bewertet** (die Anzahl steht im Popup).
-  Per Rechtsklick lassen sie sich trotzdem prüfen, das Ergebnis ist dann immer „unsicher“.
-- **Fehlalarme kommen vor.** Mit dem Standardmodell wurde in Tests etwa 1 von 100 menschlichen
-  Absätzen fälschlich rot markiert, mit „Schnell“ deutlich mehr.
-- **Kurze Texte** unter ca. 120 Wörtern werden meist als „unsicher“ statt farbig markiert, weil
-  das Modell dort zu oft irrt.
-- **Nicht erreicht** werden Inhalte in iframes und im Shadow DOM.
-- Neuere oder gezielt umformulierte KI-Texte können unerkannt bleiben.
+**Scan mode** (in the settings): *only on button press*, *on selected sites*
+(default) or *on all sites*. The blocklist for sensitive sites applies in every mode;
+your own entries and exceptions can be set in the settings or via "Never scan here" in the
+popup.
 
 ---
 
-## ❓ Häufige Fragen
+## ⚠️ Limitations
 
-**Warum nicht im Chrome Web Store?**
-Die Extension wird bewusst direkt als Open-Source-Projekt verteilt. Der Code, den du
-installierst, ist genau der Code in diesem Repository.
+- **English only.** The models are trained exclusively on English texts. Paragraphs in
+  other languages are detected and deliberately **not scored** (the count is shown in the popup).
+  They can still be checked via right-click, but the result is then always "uncertain".
+- **False alarms happen.** With the default model, in tests about 1 in 100 human
+  paragraphs was wrongly marked red, with "Fast" significantly more.
+- **Short texts** under about 120 words are usually marked "uncertain" instead of in color, because
+  the model is wrong too often there.
+- **Not reached** are contents in iframes and in the Shadow DOM.
+- Newer or deliberately reworded AI texts can go undetected.
 
-**Ist der Entwicklermodus gefährlich?**
-Er erlaubt nur, Extensions aus einem Ordner zu laden. Installiere auf diese Weise nur Extensions
-aus Quellen, denen du vertraust – bei diesem Projekt kannst du den Quellcode selbst prüfen.
+---
 
-**Wie werde ich die Extension und alle Daten wieder los?**
-Unter `chrome://extensions` auf „Entfernen“ klicken. Der Browser löscht dabei alle lokal
-gespeicherten Daten der Extension, inklusive Modell. Danach kannst du den Ordner löschen.
+## ❓ FAQ
 
-**Kann ich ein eigenes Modell oder einen eigenen Server verwenden?**
-Ja – siehe [`DEVELOPMENT.md`](DEVELOPMENT.md) und [`server/README.md`](server/README.md).
+**Why not in the Chrome Web Store?**
+The extension is deliberately distributed directly as an open-source project. The code you
+install is exactly the code in this repository.
+
+**Is Developer mode dangerous?**
+It only allows loading extensions from a folder. Install extensions this way only
+from sources you trust – with this project you can check the source code yourself.
+
+**How do I get rid of the extension and all data again?**
+Click "Remove" under `chrome://extensions`. The browser deletes all locally
+stored data of the extension, including the model. Afterwards you can delete the folder.
+
+**Can I use my own model or my own server?**
+Yes – see [`DEVELOPMENT.md`](DEVELOPMENT.md) and [`server/README.md`](server/README.md).
 
 ---
 
 ## 💬 Feedback
 
-Fehlalarme oder Probleme bitte als [Issue](https://github.com/OJPOJ/ai-check-extension/issues)
-melden.
+Please report false alarms or problems as an [issue](https://github.com/OJPOJ/ai-check-extension/issues).
 
 ---
 
-## 🛠️ Für Entwickler
+## 🛠️ For developers
 
-Build, Tests, Architektur und Messergebnisse: [`DEVELOPMENT.md`](DEVELOPMENT.md).
-Offene Punkte: [`TODO.md`](TODO.md).
+Build, tests, architecture and measurement results: [`DEVELOPMENT.md`](DEVELOPMENT.md).
+Open items: [`TODO.md`](TODO.md).
 
-## Lizenz
+## License
 
-Der Code steht unter der [MIT-Lizenz](LICENSE). Ausgenommen sind die mitgelieferte Sperrliste
-(`extension/generated/blocklist.js`) und das Referenzset (`extension/bg/reference-set.js`), die
-unter CC BY-SA 4.0 stehen. Quellen und Lizenzen aller Drittkomponenten:
+The code is under the [MIT license](LICENSE). Excluded are the bundled blocklist
+(`extension/generated/blocklist.js`) and the reference set (`extension/bg/reference-set.js`), which
+are under CC BY-SA 4.0. Sources and licenses of all third-party components:
 [`extension/THIRD_PARTY_NOTICES.md`](extension/THIRD_PARTY_NOTICES.md).

@@ -1,19 +1,19 @@
-"""Baut das desklib-"Skelett" für die Extension: den ONNX-Rechengraphen ohne Gewichte plus eine
-Bauanleitung (recipe.json), nach der die Extension die Original-Gewichte (model.safetensors von
-Hugging Face) beim Herunterladen selbst quantisiert. So verteilen wir keine desklib-Gewichte selbst.
+"""Builds the desklib "skeleton" for the extension: the ONNX compute graph without weights plus a
+build recipe (recipe.json), according to which the extension quantizes the original weights (model.safetensors from
+Hugging Face) itself during download. This way we do not distribute any desklib weights ourselves.
 
-Ergebnis in extension/models/desklib/:
-  model_quantized.onnx  Graph; alle Gewichte liegen extern in "model_quantized.onnx_data"
-  recipe.json           pro Original-Tensor: wie er umgerechnet wird und wohin (Offset) er kommt
-  config.json           Modell-Config für transformers.js
+Result in extension/models/desklib/:
+  model_quantized.onnx  graph; all weights are external in "model_quantized.onnx_data"
+  recipe.json           per original tensor: how it is converted and where (offset) it goes
+  config.json           model config for transformers.js
 
-Quantisierung (entspricht der Messung in README "Genaues Modell"):
-  - MatMul-Gewichte: MatMulNBits, 8 Bit symmetrisch, Blockgröße 32 (nur Gewichte, Aktivierungen bleiben fp32).
-    Das übliche dynamische int8 (auch der Aktivierungen) macht DeBERTa unbrauchbar (AUROC 0.998 -> 0.973).
-  - Wort-Embeddings (128100 x 1024): zeilenweise int8 mit einer Skala pro Zeile.
-  - Rest (Biases, LayerNorm, relative Positionen, Klassifikator): fp32 unverändert.
+Quantization (corresponds to the measurement in README "Accurate model"):
+  - MatMul weights: MatMulNBits, 8-bit symmetric, block size 32 (weights only, activations stay fp32).
+    The usual dynamic int8 (of the activations too) makes DeBERTa unusable (AUROC 0.998 -> 0.973).
+  - Word embeddings (128100 x 1024): row-wise int8 with one scale per row.
+  - Rest (biases, LayerNorm, relative positions, classifier): fp32 unchanged.
 
-Aufruf (Python-Umgebung aus server/ plus onnx, onnxruntime, onnxscript):
+Usage (Python environment from server/ plus onnx, onnxruntime, onnxscript):
     python scripts/build_desklib_skeleton.py
 """
 import hashlib
@@ -67,8 +67,8 @@ def export_fp32(path):
 
 
 def fold_identities(m):
-    """share_att_key: der Export hängt Identity-Knoten vor geteilte Gewichte - dann überspringt der
-    Quantisierer diese MatMuls. Identity auf Initializern daher auf den Initializer umbiegen."""
+    """share_att_key: the export puts Identity nodes in front of shared weights - then the
+    quantizer skips these MatMuls. So redirect Identity on initializers to the initializer."""
     g = m.graph
     inits = {i.name for i in g.initializer}
     alias = {n.output[0]: n.input[0] for n in g.node if n.op_type == "Identity" and n.input[0] in inits}
@@ -81,7 +81,7 @@ def fold_identities(m):
 
 
 def quantize_embedding(m, name):
-    """Gather(fp32-Tabelle) -> Gather(int8) * Gather(Skala); dequantisiert nur die benutzten Zeilen."""
+    """Gather(fp32 table) -> Gather(int8) * Gather(scale); dequantizes only the rows used."""
     g = m.graph
     init = next(i for i in g.initializer if i.name == name)
     rows, cols = init.dims
@@ -119,7 +119,7 @@ def main():
         m = onnx.load(str(fp32_path))
 
     fold_identities(m)
-    # Herkunft jedes fp32-Initializers bestimmen, solange die Werte noch unquantisiert vorliegen.
+    # Determine the origin of each fp32 initializer while the values are still unquantized.
     origin = {}
     for init in m.graph.initializer:
         a = numpy_helper.to_array(init)
@@ -128,20 +128,20 @@ def main():
         if (k := by_digest.get(digest(a))) is not None:
             origin[init.name] = (k, False)
         elif a.ndim == 2 and (k := by_digest.get(digest(a.T))) is not None:
-            origin[init.name] = (k, True)  # MatMul-Gewicht = transponiertes Linear-Gewicht
+            origin[init.name] = (k, True)  # MatMul weight = transposed Linear weight
 
     q = MatMulNBitsQuantizer(m, bits=8, block_size=BLOCK, is_symmetric=True)
     q.process()
     m = q.model.model
     quantize_embedding(m, next(n for n, (k, _) in origin.items() if k == EMBED_KEY))
 
-    # Rezept: jeder Original-Tensor erzeugt ein oder zwei externe Tensoren an festen Offsets.
+    # Recipe: each original tensor produces one or two external tensors at fixed offsets.
     recipe = {}
     offset = 0
 
     def place(init, nbytes):
         nonlocal offset
-        offset = (offset + 63) // 64 * 64  # ausrichten
+        offset = (offset + 63) // 64 * 64  # align
         init.ClearField("raw_data")
         init.data_location = TensorProto.EXTERNAL
         del init.external_data[:]
@@ -156,7 +156,7 @@ def main():
         if name.endswith("_Q8") and name[:-3] in origin:
             key, transposed = origin[name[:-3]]
             assert transposed, name
-            rows, cols = weights[key].shape  # Linear-Gewicht [N, K] -> MatMulNBits-Zeilen = N
+            rows, cols = weights[key].shape  # Linear weight [N, K] -> MatMulNBits rows = N
             recipe[key] = {"kind": "nbits8", "rows": rows, "cols": cols,
                            "q": place(init, rows * cols), "scales": place(inits[name[:-3] + "_scales"], rows * cols // BLOCK * 4)}
         elif name.endswith("_q") and origin.get(name[:-2], ("",))[0] == EMBED_KEY:
@@ -165,12 +165,12 @@ def main():
                                  "q": place(init, rows * cols), "scales": place(inits[name[:-2] + "_scale"], rows * 4)}
         elif name in origin:
             key, transposed = origin[name]
-            assert not transposed, f"{name}: transponierte Kopie nicht vorgesehen"
+            assert not transposed, f"{name}: transposed copy not provided for"
             recipe.setdefault(key, {"kind": "copy", "targets": []})["targets"].append(place(init, weights[key].nbytes))
 
     used = {n for n in origin} | {n + "_scales" for n in origin} | {n[:-3] for n in inits if n.endswith("_Q8")}
     left = [i for i in m.graph.initializer if i.data_location != TensorProto.EXTERNAL and len(i.raw_data) > 100_000]
-    assert not left, f"Große Initializer ohne Rezept: {[i.name for i in left]}"
+    assert not left, f"Large initializers without a recipe:{[i.name for i in left]}"
 
     onnx.save(m, str(OUT / "model_quantized.onnx"))
     (OUT / "recipe.json").write_text(json.dumps({
@@ -182,11 +182,11 @@ def main():
     cfg.update({"architectures": ["DebertaV2ForSequenceClassification"], "id2label": {"0": "ai"}, "label2id": {"ai": 0},
                 "transformers.js_config": {"use_external_data_format": {"model_quantized.onnx": 1}}})
     (OUT / "config.json").write_text(json.dumps(cfg, indent=2))
-    print(f"Skelett {os.path.getsize(OUT / 'model_quantized.onnx') / 1e6:.1f} MB, "
-          f"Daten {offset / 1e6:.1f} MB aus {len(recipe)} von {len(weights)} Original-Tensoren")
+    print(f"Skeleton {os.path.getsize(OUT / 'model_quantized.onnx') / 1e6:.1f} MB, "
+          f"data {offset / 1e6:.1f} MB from {len(recipe)} of {len(weights)} original tensors")
     missing = set(weights) - set(recipe)
     if missing:
-        print("Nicht verwendet (erwartet: nur Pooler o. Ä.):", sorted(missing)[:10])
+        print("Not used (expected: only pooler or similar):", sorted(missing)[:10])
 
 
 if __name__ == "__main__":
