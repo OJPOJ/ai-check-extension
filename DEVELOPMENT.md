@@ -29,8 +29,13 @@ than expected – then no half-empty list is shipped.
 `manifest.json`), ready to upload to the Web Store or to hand out. Contents: the files tracked in Git
 under `extension/` plus `extension/vendor/` (runs `npm run vendor` first) –
 local, uncommitted files are not included. The blocklist is *not* regenerated in the process
-(warning if it is older than 30 days). Release procedure: `npm run build`, check the diff of the
-blocklist, commit, `npm run package`.
+(warning if it is older than 30 days).
+
+**Release:** `npm run build`, check the diff of the blocklist, raise `version` in
+`extension/manifest.json`, commit, merge to `main`. The workflow `.github/workflows/release.yml`
+runs the tests and `npm run package` on every push and pull request; on `main` it tags a version
+that has no tag yet and creates the GitHub release with the zip. No zip is uploaded by hand. If
+`extension/` changes on `main` without a new version, the run only shows a warning.
 Icons: source `extension/icons/icon.svg`, PNGs (16/32/48/128, in Git) via `npm run build:icons`.
 Store screenshots: `npm run screenshots` → `store/screenshots/` (harness with fake scores, UI demo only).
 Text selection, grouping and language on real pages: `npm run measure:pages` (URL list in

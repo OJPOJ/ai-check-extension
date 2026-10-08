@@ -72,15 +72,15 @@ As displayed: TMR 4.7% false alarms (without WikiHow 1.6%), desklib 1.2% with `r
 
 ## 4. Publication
 
-For now distribution is only via GitHub releases (zip from `npm run package`, instructions in `README.md`),
-not via Chrome Web Store / Edge Add-ons.
+For now distribution is only via GitHub releases (zip built and released by
+`.github/workflows/release.yml` when the manifest version is raised on `main`, instructions in
+`README.md`), not via Chrome Web Store / Edge Add-ons.
 
 Done: icons, "About / licenses", store texts and justification of the permissions (`store/`), README
 for users, contact in `privacy.html` (reference to GitHub issues –
 the developers receive no data, so they are not controllers within the meaning of the GDPR).
 Open (for a later store listing details in `store/CHECKLIST.md`):
 
-- **Create the first GitHub release** with the zip (the README links to `releases/latest`).
 - **Legal notice (Impressum):** deliberately none (hobby project without a donation link). If that changes or a
   cease-and-desist letter arrives: set up a legal notice with a c/o address.
 - **Only for the store:** host the privacy policy publicly (e.g. GitHub Pages); the store

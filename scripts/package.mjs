@@ -87,6 +87,8 @@ for (const [p, from] of refs) {
 
 // --- Notes for the Web Store ------------------------------------------------------------------
 if (!manifest.icons?.["128"]) warnings.push("Store: no 128 px icon in the manifest (\"icons\")");
+const descLen = [...(manifest.description ?? "")].length;
+if (descLen > 132) warnings.push(`Store: manifest description has ${descLen} characters (Chrome allows 132)`);
 
 const blocklistSrc = fs.readFileSync(path.join(extDir, "generated", "blocklist.js"), "utf8");
 const generated = blocklistSrc.match(/generated:\s*"(\d{4}-\d{2}-\d{2})"/)?.[1];
