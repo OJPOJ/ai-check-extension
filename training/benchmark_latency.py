@@ -1,11 +1,11 @@
 """
-Misst Ladezeit, Latenz und Speicherverbrauch der Backends - relevant fuer die
-Frage "laeuft das im Hintergrund mit, ohne den Rechner spuerbar zu bremsen?".
+Measures load time, latency and memory usage of the backends - relevant for the
+question "does it run along in the background without noticeably slowing down the machine?".
 
-Simuliert die Batch-Groessen aus extension/content.js (BATCH_SIZE=25,
-MAX_CHARS=500) auf CPU (das, was bei Nutzenden ohne dedizierte GPU laeuft).
+Simulates the batch sizes from extension/content.js (BATCH_SIZE=25,
+MAX_CHARS=500) on CPU (what runs for users without a dedicated GPU).
 
-Nutzung:
+Usage:
     .venv/Scripts/python.exe benchmark_latency.py --backend tmr
     .venv/Scripts/python.exe benchmark_latency.py --backend desklib
     .venv/Scripts/python.exe benchmark_latency.py --backend laya
@@ -39,20 +39,20 @@ def bench_local(name, load_fn, score_fn):
     mem_after_load = rss_mb()
 
     print(f"\n=== {name} ===")
-    print(f"Ladezeit (kalt): {load_s:.2f}s")
-    print(f"RSS vor Laden: {mem_before:.0f} MB -> nach Laden: {mem_after_load:.0f} MB (+{mem_after_load - mem_before:.0f} MB)")
+    print(f"Load time (cold): {load_s:.2f}s")
+    print(f"RSS before loading: {mem_before:.0f} MB -> after loading: {mem_after_load:.0f} MB (+{mem_after_load - mem_before:.0f} MB)")
 
     for bs in BATCH_SIZES:
         texts = [SAMPLE_TEXT] * bs
-        # Warmup (erste Inferenz ist oft langsamer, z.B. durch Kernel-Autotuning)
+        # Warmup (first inference is often slower, e.g. due to kernel autotuning)
         score_fn(texts[:1])
         t0 = time.perf_counter()
         score_fn(texts)
         dt = time.perf_counter() - t0
-        print(f"Batch={bs:>3}: {dt*1000:6.0f}ms total, {dt/bs*1000:6.0f}ms/Text")
+        print(f"Batch={bs:>3}: {dt*1000:6.0f}ms total, {dt/bs*1000:6.0f}ms/text")
 
     mem_peak = rss_mb()
-    print(f"RSS nach allen Batches: {mem_peak:.0f} MB")
+    print(f"RSS after all batches: {mem_peak:.0f} MB")
 
 
 def bench_tmr():
@@ -130,19 +130,19 @@ def bench_laya():
         resp = requests.post(f"{server_url}/v1/systemone", json={"model": "english", "state": state, "questions": questions}, timeout=90)
         resp.raise_for_status()
 
-    print("\n=== laya (ModernBERT-large, 421M, im Docker-Container - eigener Prozess, eigener RAM) ===")
-    print("Hinweis: RSS hier ist nur der Python-Client, nicht der Server. Docker-Container-Last separat mit 'docker stats laya' pruefen.")
+    print("\n=== laya (ModernBERT-large, 421M, in the Docker container - separate process, separate RAM) ===")
+    print("Note: RSS here is only the Python client, not the server. Check the Docker container load separately with 'docker stats laya'.")
     for bs in BATCH_SIZES:
         texts = [SAMPLE_TEXT] * bs
         score(texts[:1])  # warmup
         t0 = time.perf_counter()
         score(texts)
         dt = time.perf_counter() - t0
-        print(f"Batch={bs:>3}: {dt*1000:6.0f}ms total, {dt/bs*1000:6.0f}ms/Text")
+        print(f"Batch={bs:>3}: {dt*1000:6.0f}ms total, {dt/bs*1000:6.0f}ms/text")
 
 
 def bench_hf(model_id, max_length=512, label=None):
-    """WP-06: generische Latenzmessung fuer einen Kandidaten (AutoModelForSequenceClassification)."""
+    """WP-06: generic latency measurement for a candidate (AutoModelForSequenceClassification)."""
     import torch
     from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
@@ -163,8 +163,8 @@ def bench_hf(model_id, max_length=512, label=None):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--backend", default="tmr", help="laya | tmr | desklib | hf:<repo> (WP-06-Kandidat)")
-    parser.add_argument("--max-length", type=int, default=512, help="nur fuer hf:<repo>")
+    parser.add_argument("--backend", default="tmr", help="laya | tmr | desklib | hf:<repo> (WP-06 candidate)")
+    parser.add_argument("--max-length", type=int, default=512, help="only for hf:<repo>")
     args = parser.parse_args()
 
     if args.backend == "laya":
@@ -175,9 +175,9 @@ def main():
         bench_desklib()
     elif args.backend.startswith("hf:"):
         repo = args.backend[len("hf:") :]
-        bench_hf(repo, max_length=args.max_length, label=f"{repo} (WP-06-Kandidat)")
+        bench_hf(repo, max_length=args.max_length, label=f"{repo} (WP-06 candidate)")
     else:
-        parser.error("--backend muss laya, tmr, desklib oder hf:<repo> sein")
+        parser.error("--backend must be laya, tmr, desklib or hf:<repo>")
 
 
 if __name__ == "__main__":

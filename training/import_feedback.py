@@ -1,21 +1,21 @@
 """
-Liest einen Feedback-Export der Extension (Einstellungen -> Feedback -> Exportieren, JSONL) und
-schreibt daraus
+Reads a feedback export of the extension (Settings -> Feedback -> Export, JSONL) and
+writes from it
 
-    <out>/feedback_eval.jsonl   {"text", "is_ai", "basis", "model", "p"} - Testmaterial aus echtem Surfen
-    <out>/feedback_train.jsonl  Laya-Schema wie prepare_dataset.py (state/questions/gold)
+    <out>/feedback_eval.jsonl   {"text", "is_ai", "basis", "model", "p"} - test material from real browsing
+    <out>/feedback_train.jsonl  Laya schema as in prepare_dataset.py (state/questions/gold)
 
-und gibt aus, wie oft das jeweilige Modell danebenlag.
+and prints how often the respective model was wrong.
 
-Wie sicher ein Label ist, hängt davon ab, WOHER die Person es weiß (Feld `basis`). Menschen erkennen
-KI-Text am Stil kaum besser als per Zufall - "guess" (nur Eindruck) geht deshalb standardmäßig weder
-ins Training noch in die Auswertung ein (--include-guess nimmt es mit, z.B. zum Vergleich).
+How certain a label is depends on WHERE the person knows it from (field `basis`). Humans recognise
+AI text by style hardly better than by chance - "guess" (impression only) therefore goes neither
+into training nor into the evaluation by default (--include-guess includes it, e.g. for comparison).
 
-Empfohlene Verwendung: vor allem als Eval-Set und für die Kalibrierung (Roadmap 3). Fürs Training
-nur als kleiner Zusatz zu generierten Daten (siehe README.md, "Feedback als Datenquelle") - einzelne
-Nutzer:innen liefern wenige, einseitige Beispiele (meist Fehlalarme auf den eigenen Lieblingsseiten).
+Recommended use: mainly as an eval set and for calibration (roadmap 3). For training
+only as a small addition to generated data (see README.md, "Feedback as a data source") - individual
+users deliver few, one-sided examples (mostly false alarms on their own favourite sites).
 
-Nutzung:
+Usage:
     python import_feedback.py aivsai-feedback-2026-09-25.jsonl --out-dir data
 """
 
@@ -26,12 +26,12 @@ from pathlib import Path
 
 from prepare_dataset import AI_GENERATED_INSTRUCTIONS
 
-# Wahrscheinlichkeit, dass das Label stimmt - wird zum weichen Trainingslabel
+# Probability that the label is correct - becomes the soft training label
 BASIS_CONFIDENCE = {
-    "own": 0.95,  # selbst geschrieben bzw. selbst mit KI erzeugt, Autor:in bekannt
-    "date": 0.90,  # vor 2023 veröffentlicht - KI-Text war da noch selten, aber Datumsangaben lügen manchmal
-    "marked": 0.90,  # als KI gekennzeichnet
-    "guess": 0.60,  # nur Eindruck
+    "own": 0.95,  # written themselves or generated with AI themselves, author known
+    "date": 0.90,  # published before 2023 - AI text was still rare then, but dates sometimes lie
+    "marked": 0.90,  # labelled as AI
+    "guess": 0.60,  # impression only
 }
 
 
@@ -46,12 +46,12 @@ def to_laya_row(text: str, is_ai: bool, confidence: float) -> dict:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("exports", nargs="+", type=Path, help="JSONL-Exporte der Extension (mehrere werden zusammengeführt)")
+    ap.add_argument("exports", nargs="+", type=Path, help="JSONL exports of the extension (several are merged)")
     ap.add_argument("--out-dir", type=Path, default=Path("data"))
-    ap.add_argument("--include-guess", action="store_true", help="auch 'nur Eindruck' verwenden")
+    ap.add_argument("--include-guess", action="store_true", help="also use 'impression only'")
     args = ap.parse_args()
 
-    # gleicher Text aus mehreren Exporten: der neueste Eintrag gewinnt
+    # same text from several exports: the newest entry wins
     rows: dict[str, dict] = {}
     for path in args.exports:
         for line in path.read_text(encoding="utf-8").splitlines():
@@ -70,7 +70,7 @@ def main() -> None:
             ev.write(json.dumps({"text": r["text"], "is_ai": is_ai, "basis": r["basis"], "model": r["model"], "p": r["p"]}, ensure_ascii=False) + "\n")
             tr.write(json.dumps(to_laya_row(r["text"], is_ai, BASIS_CONFIDENCE[r["basis"]]), ensure_ascii=False) + "\n")
 
-    print(f"{len(rows)} Einträge, verwendet {len(used)} ({len(rows) - len(used)} 'nur Eindruck' ausgelassen)")
+    print(f"{len(rows)} entries, used {len(used)} ({len(rows) - len(used)} 'impression only' left out)")
     by_model: dict[str, list[dict]] = defaultdict(list)
     for r in used:
         if r["p"] is not None:
@@ -80,7 +80,7 @@ def main() -> None:
         ais = [r for r in rs if r["label"] == "ai"]
         fp = sum(r["p"] >= 0.5 for r in humans)
         fn = sum(r["p"] < 0.5 for r in ais)
-        print(f"  {model}: {len(humans)} Mensch (davon {fp} als KI >= 50 %), {len(ais)} KI (davon {fn} < 50 %)")
+        print(f"  {model}: {len(humans)} human ({fp} of them as AI >= 50%), {len(ais)} AI ({fn} of them < 50%)")
     print(f"-> {args.out_dir / 'feedback_eval.jsonl'}, {args.out_dir / 'feedback_train.jsonl'}")
 
 

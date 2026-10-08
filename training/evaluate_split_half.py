@@ -1,13 +1,13 @@
 """
-Taugt die Stabilität innerhalb eines Absatzes als Konfidenz? Kurze Absätze (40..119 Wörter) mit hohem
-Score werden an der Satzgrenze nahe der Mitte geteilt, beide Hälften einzeln bewertet. Idee: Bei echtem
-KI-Text liegen beide Hälften hoch, bei einem Fehlalarm auf menschlichem Text eher nur eine.
-Vergleich mit der längenabhängigen Rot-Schwelle bei gleicher Fehlalarmrate.
-Ergebnisse: EVAL_RESULTS.md, "Konfidenz für kurze Absätze".
+Is stability within a paragraph useful as a confidence measure? Short paragraphs (40..119 words) with a high
+score are split at the sentence boundary near the middle, both halves scored individually. Idea: for real
+AI text both halves are high, for a false alarm on human text rather only one.
+Comparison with the length-dependent red threshold at the same false alarm rate.
+Results: EVAL_RESULTS.md, "Confidence for short paragraphs".
 
-Eingabe: Dump von evaluate_false_alarms.py (--dump), Ausgabe: JSONL mit Score der Hälften.
+Input: dump from evaluate_false_alarms.py (--dump), output: JSONL with the score of the halves.
 
-Nutzung (aus diesem Ordner):
+Usage (from this folder):
     .venv/Scripts/python.exe evaluate_false_alarms.py desklib 150 --fine --dump fa_desklib.jsonl
     .venv/Scripts/python.exe evaluate_split_half.py fa_desklib.jsonl halves_desklib.jsonl
 """
@@ -18,12 +18,12 @@ import re
 
 import evaluate_backends as eb
 
-MIN_SCORE = 0.87  # nur was heute gelb/rot bzw. „unsicher“ wäre
+MIN_SCORE = 0.87  # only what would be yellow/red or "unclear" today
 SHORT = (40, 119)
 
 
 def split_half(text: str) -> tuple[str, str]:
-    """Teilt an der Satzgrenze, die der Mitte am nächsten liegt; ohne Satzgrenze an der Wortmitte."""
+    """Splits at the sentence boundary closest to the middle; without a sentence boundary at the word midpoint."""
     cuts = [m.end() for m in re.finditer(r"[.!?][\"')\]]?\s+", text)]
     mid = len(text) / 2
     if cuts:
@@ -47,7 +47,7 @@ def main() -> None:
     with open(args.out, "w", encoding="utf-8") as f:
         for i, r in enumerate(rows):
             f.write(json.dumps({**r, "a": scores[2 * i], "b": scores[2 * i + 1]}) + "\n")
-    print(f"{len(rows)} Absätze -> {args.out}")
+    print(f"{len(rows)} paragraphs -> {args.out}")
 
 
 if __name__ == "__main__":
