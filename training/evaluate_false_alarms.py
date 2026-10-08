@@ -1,19 +1,19 @@
 """
-Wie oft wird menschlicher Sachtext rot bzw. gelb markiert - und wie viel KI-Text erkennt die Ampel dann
-noch? Grundlage für die Default-Schwellen und die Stufe „zu kurz / unsicher“ (TODO.md, Punkt 2).
+How often is human factual text marked red or yellow - and how much AI text does the traffic light still
+detect then? Basis for the default thresholds and the "too short / unclear" level (TODO.md, item 2).
 
-Mensch: Absätze aus WikiText-2 (Wikipedia „Good“/„Featured“ Articles, vor 2016 veröffentlicht, also sicher
-ohne LLM). Zum Vergleich menschliche HC3-Antworten (überwiegend Reddit ELI5). KI: ChatGPT-Antworten aus
-HC3. Alle Texte wie im Auto-Scan auf maxChars gekürzt (TMR 2000, desklib 1500), aufgeteilt nach Wortzahl.
+Human: paragraphs from WikiText-2 (Wikipedia "Good"/"Featured" Articles, published before 2016, hence certainly
+without LLMs). For comparison human HC3 answers (mostly Reddit ELI5). AI: ChatGPT answers from
+HC3. All texts cut to maxChars as in the auto-scan (TMR 2000, desklib 1500), split by word count.
 
-Einschränkungen: nur Englisch, nur ChatGPT 2023; beide Modelle kennen HC3 womöglich aus dem Training
-(Erkennungsraten eher zu optimistisch). Die Fehlalarm-Raten auf Wikipedia hängen davon nicht ab.
-Ergebnisse: EVAL_RESULTS.md, "Fehlalarme auf Wikipedia".
+Limitations: English only, ChatGPT 2023 only; both models may know HC3 from training
+(detection rates rather too optimistic). The false alarm rates on Wikipedia do not depend on that.
+Results: EVAL_RESULTS.md, "False alarms on Wikipedia".
 
-Nutzung (aus diesem Ordner):
+Usage (from this folder):
     python evaluate_false_alarms.py tmr 300
     python evaluate_false_alarms.py desklib 60
-    python evaluate_false_alarms.py desklib 150 --fine   # 20-Wort-Schritte unter 120 (Grenze „unsicher“)
+    python evaluate_false_alarms.py desklib 150 --fine   # 20-word steps below 120 (boundary "unclear")
 """
 import argparse
 import json
@@ -24,10 +24,10 @@ import evaluate_backends as eb
 from prepare_dataset import iter_hc3_pairs
 
 MAX_CHARS = {"tmr": 2000, "desklib": 1500}
-# Wortzahl-Bereiche; 40 = Mindestlänge des Auto-Scans (content.js, MIN_WORDS)
+# Word count ranges; 40 = minimum length of the auto-scan (content.js, MIN_WORDS)
 BUCKETS = [(40, 79), (80, 119), (120, 149), (150, 10_000)]
 FINE_BUCKETS = [(40, 59), (60, 79), (80, 99), (100, 119), (120, 149), (150, 10_000)]
-RED = [0.87, 0.9, 0.95, 0.97, 0.98, 0.99]  # 0.87 = desklib-Preset
+RED = [0.87, 0.9, 0.95, 0.97, 0.98, 0.99]  # 0.87 = desklib preset
 YELLOW = [0.5, 0.6, 0.8]
 
 
@@ -41,7 +41,7 @@ def bucket_of(text: str):
 
 
 def clip(text: str, max_chars: int) -> str:
-    """Wie clipText() in content.js: am letzten Satzende, sonst am letzten Leerzeichen."""
+    """Like clipText() in content.js: at the last sentence end, otherwise at the last space."""
     if len(text) <= max_chars:
         return text
     cut = text[:max_chars]
@@ -53,7 +53,7 @@ def clip(text: str, max_chars: int) -> str:
 
 
 def untokenize(text: str) -> str:
-    """WikiText ist tokenisiert ("in 1998 @,@ the" , "word , word") - zurück zu normalem Text."""
+    """WikiText is tokenised ("in 1998 @,@ the" , "word , word") - back to normal text."""
     text = re.sub(r" @(.)@ ", r"\1", text)
     text = re.sub(r"\s+([.,!?;:)\]'%])", r"\1", text)
     text = re.sub(r"([(\[$])\s+", r"\1", text)
@@ -89,9 +89,9 @@ def share(scores, thresh) -> str:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("backend", choices=["tmr", "desklib"])
-    ap.add_argument("per_bucket", type=int, help="Texte pro Quelle und Längenbereich")
-    ap.add_argument("--fine", action="store_true", help="feinere Längenbereiche unter 120 Wörtern")
-    ap.add_argument("--dump", help="Einzelwerte als JSONL (Quelle, Wörter, Zeichen, Score, Text) für eigene Auswertungen")
+    ap.add_argument("per_bucket", type=int, help="texts per source and length range")
+    ap.add_argument("--fine", action="store_true", help="finer length ranges below 120 words")
+    ap.add_argument("--dump", help="individual values as JSONL (source, words, characters, score, text) for custom evaluations")
     args = ap.parse_args()
     if args.fine:
         BUCKETS[:] = FINE_BUCKETS
@@ -101,13 +101,13 @@ def main() -> None:
 
     hc3 = [(re.sub(r"\s+([.,!?;:)\]'])", r"\1", t).strip(), ai) for t, ai in iter_hc3_pairs()]
     sources = {
-        "Wikipedia (Mensch)": sample_by_bucket(wikipedia_paragraphs(), args.per_bucket),
-        "HC3 (Mensch)": sample_by_bucket((t for t, ai in hc3 if not ai), args.per_bucket),
-        "HC3 ChatGPT (KI)": sample_by_bucket((t for t, ai in hc3 if ai), args.per_bucket),
+        "Wikipedia (human)": sample_by_bucket(wikipedia_paragraphs(), args.per_bucket),
+        "HC3 (human)": sample_by_bucket((t for t, ai in hc3 if not ai), args.per_bucket),
+        "HC3 ChatGPT (AI)": sample_by_bucket((t for t, ai in hc3 if ai), args.per_bucket),
     }
 
-    print(f"\n{args.backend}: Anteil mit Score >= Schwelle (Mensch = Fehlalarm, KI = erkannt)")
-    header = f"{'Quelle':20} {'Wörter':>9} {'n':>4} " + " ".join(f"{'>=' + str(t):>7}" for t in YELLOW + RED)
+    print(f"\n{args.backend}: share with score >= threshold (human = false alarm, AI = detected)")
+    header = f"{'Source':20} {'Words':>9} {'n':>4} " + " ".join(f"{'>=' + str(t):>7}" for t in YELLOW + RED)
     print(header)
     rows = []
     for name, buckets in sources.items():

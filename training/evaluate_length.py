@@ -1,17 +1,17 @@
 """
-Lohnt sich mehr Text pro Bewertung - und helfen Chunks mit Überlappung? Gleiche HC3-Texte
-(>= MIN_LEN Zeichen, Mensch/KI balanciert), vier Varianten:
+Is more text per score worthwhile - and do chunks with overlap help? Same HC3 texts
+(>= MIN_LEN characters, human/AI balanced), four variants:
 
-    A  erste 500 Zeichen (bis 2026-09-25 Auto-Scan in content.js)
-    B  erste 1500 Zeichen am Stück
-    C  500er-Chunks mit 100 Zeichen Überlappung über die ersten 1500, Mittelwert
-    D  500er-Chunks ohne Überlappung, Mittelwert
+    A  first 500 characters (auto-scan in content.js until 2026-09-25)
+    B  first 1500 characters in one piece
+    C  500-char chunks with 100 characters overlap over the first 1500, mean
+    D  500-char chunks without overlap, mean
 
---normalize entfernt das HC3/ELI5-Artefakt (Leerzeichen vor Satzzeichen, nur in menschlichen
-Texten), damit längere Texte nicht bloß mehr von dieser Abkürzung enthalten.
-Ergebnisse: EVAL_RESULTS.md, "Textlänge".
+--normalize removes the HC3/ELI5 artefact (space before punctuation, only in human
+texts), so that longer texts do not merely contain more of this shortcut.
+Results: EVAL_RESULTS.md, "Text length".
 
-Nutzung (aus diesem Ordner):
+Usage (from this folder):
     .venv/Scripts/python.exe evaluate_length.py tmr 200 --normalize
     .venv/Scripts/python.exe evaluate_length.py desklib 40
 """
@@ -57,10 +57,10 @@ def scorer(backend: str):
 
 
 VARIANTS = {
-    "A 500 Zeichen": lambda t: [t[:500]],
-    "B 1500 am Stück": lambda t: [t[:1500]],
-    "C Chunks 500, Überlappung 100": lambda t: chunks(t, stride=400),
-    "D Chunks 500 ohne Überlappung": lambda t: chunks(t, stride=500),
+    "A 500 characters": lambda t: [t[:500]],
+    "B 1500 in one piece": lambda t: [t[:1500]],
+    "C chunks 500, overlap 100": lambda t: chunks(t, stride=400),
+    "D chunks 500 without overlap": lambda t: chunks(t, stride=500),
 }
 
 
@@ -81,8 +81,8 @@ def main() -> None:
     labels = [ai for _, ai in sample]
     score = scorer(args.backend)
 
-    print(f"\n{args.backend}, n={len(texts)}, Texte >= {MIN_LEN} Zeichen, normalize={args.normalize}")
-    print(f"{'Variante':32} {'AUROC':>6} {'Acc*':>6} {'Pässe/Text':>10} {'s/Text':>7}")
+    print(f"\n{args.backend}, n={len(texts)}, texts >= {MIN_LEN} characters, normalize={args.normalize}")
+    print(f"{'Variant':32} {'AUROC':>6} {'Acc*':>6} {'Passes/text':>11} {'s/text':>7}")
     for name, make in VARIANTS.items():
         parts = [make(t) for t in texts]
         flat = [c for p in parts for c in p]
@@ -93,8 +93,8 @@ def main() -> None:
         for p in parts:
             agg.append(sum(s[i : i + len(p)]) / len(p))
             i += len(p)
-        print(f"{name:32} {auroc(labels, agg):6.3f} {best_accuracy(labels, agg):6.3f} {len(flat) / len(texts):10.1f} {secs:7.2f}")
-    print("* Accuracy bei der besten Schwelle")
+        print(f"{name:32} {auroc(labels, agg):6.3f} {best_accuracy(labels, agg):6.3f} {len(flat) / len(texts):11.1f} {secs:7.2f}")
+    print("* Accuracy at the best threshold")
 
 
 if __name__ == "__main__":
