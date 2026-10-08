@@ -186,6 +186,7 @@ Deutschland` - correctly detected, not an error. No change to `lang-detect.js` s
   or extend the script with a simple bot-page detection (e.g. check `document.title` against known
   Cloudflare/consent titles), so that such pages do not silently flow into the
   statistics as "0 candidates".
+---
 
 # WP-10: Making very short paragraphs groupable (re-measurement)
 
@@ -205,6 +206,19 @@ Cloudflare bot check page as in WP-08, see there - to be treated like "not loade
 ## BBC: the actual target case (before/after)
 
 | Page | Candidates before | scored before | Note before | Candidates after | scored after | Groups (>1) after | Avg. size after | <120 words after |
+|---|---:|---:|---|---:|---:|---:|---:|---:|
+| [c60m334grx9vo](https://www.bbc.com/news/articles/c60m334grx9vo) | 1 | 1 | whole article as 1 candidate (416 words) | 12 | 12 | 2 | 6.0 | 0% |
+| [cjn5ddzekwnro](https://www.bbc.com/news/articles/cjn5ddzekwnro) | 1 | 1 | whole article as 1 candidate (842 words) | 29 | 29 | 7 | 4.1 | 86% |
+| [cq4g55r76d9lo](https://www.bbc.com/news/articles/cq4g55r76d9lo) | 1 | 1 | only 1 paragraph happened to reach 40 words, rest invisible | 18 | 18 | 3 | 6.0 | 0% |
+
+Before, the content of two articles disappeared completely into a single, opaque score
+(416 and 842 words of mixed text with no way to narrow down a flagged passage); for the third,
+almost the whole article was invisible to the pipeline. After, all three break up into 12-29 individually
+addressable scoring units, most of them as groups of several paragraphs -
+exactly the effect named as the "real lever" in `test/REAL_PAGES.md` (WP-08). `cjn5ddzekwnro`
+nevertheless stays rather granular after grouping, with 86% under 120 words (many subheadings
+break the chain, see `groupCandidates`/`hasBreakBetween`) - worse than one ideal large group,
+but incomparably better than the previous whole-page scoring.
 ## Table per page
 
 | Page | Language | Category | Candidates | scored | skipped | Groups (>1) | Avg. size | <120 words before | <120 words after | Notes |

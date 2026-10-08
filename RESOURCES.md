@@ -119,7 +119,7 @@ Details per source:
 No list is complete → complemented by the heuristic on the page (password/credit card field →
 do not scan automatically).
 
-## Open questions
+## Open questions / not verified
 
 - Exact training data schema for Laya fine-tuning (column names etc.) not clearly documented publicly — must be checked when opening the Kaggle notebook.
 - Several `laya-serve` implementations from different maintainers are in circulation — which one is currently best maintained must be checked before deciding (stars/issues/last commit).
