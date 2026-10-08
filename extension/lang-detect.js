@@ -1,12 +1,12 @@
-// Spracherkennung pro Absatz: Die mitgelieferten Modelle kennen nur Englisch - deutscher Fachtext bekam
-// im Harness 78 % (Fehlalarm). Das `lang`-Attribut der Seite reicht nicht: fehlt oft, steht auf
-// Vorlagen-Standard ("en") oder gilt für die Seite, nicht für den einzelnen Absatz.
-// Klassisches Skript wie config.js (Content-Scripts laden es davor), Ergebnis in globalThis.AIVSAI_LANG.
+// Language detection per paragraph: the shipped models only know English - German technical text got
+// 78% in the harness (false alarm). The page's `lang` attribute is not enough: often missing, set to
+// the template default ("en") or applies to the page, not to the individual paragraph.
+// Classic script like config.js (content scripts load it before), result in globalThis.AIVSAI_LANG.
 //
-// detectAsync(): Chromes eingebaute Erkennung (CLD3), siehe unten. detect(): Fallback ohne Browser-API.
-// Verfahren: Anteil häufiger Funktionswörter je Sprache. Englische Prosa besteht zu ~40 % aus diesen
-// Wörtern, fremdsprachige kaum - das trennt schon bei 20 Wörtern zuverlässig, auch bei Fachtext mit
-// englischen Begriffen. Andere Schriften (Kyrillisch, CJK, ...) über den Unicode-Bereich.
+// detectAsync(): Chrome's built-in detection (CLD3), see below. detect(): fallback without a browser API.
+// Method: share of frequent function words per language. English prose consists of ~40% of these
+// words, foreign-language text hardly - that separates reliably at just 20 words, even for technical text with
+// English terms. Other scripts (Cyrillic, CJK, ...) via the Unicode range.
 globalThis.AIVSAI_LANG = (() => {
   const STOPWORDS = {
     en: "the of and to in is that it for was on are as with his they be at this have from or by not but what all were when we there can an your which their if do will each about how up out them she many some so these would other into has more her two like him see time could no make than been who its now people my over down only way did get may our also after should because most us through where much before any those while however",
@@ -19,7 +19,7 @@ globalThis.AIVSAI_LANG = (() => {
   };
   const SETS = Object.fromEntries(Object.entries(STOPWORDS).map(([lang, words]) => [lang, new Set(words.split(" "))]));
 
-  // Nicht-lateinische Schriften: Anteil der Buchstaben entscheidet
+  // Non-Latin scripts: the share of letters decides
   const SCRIPTS = [
     ["ru", /\p{Script=Cyrillic}/u],
     ["el", /\p{Script=Greek}/u],
@@ -30,19 +30,19 @@ globalThis.AIVSAI_LANG = (() => {
     ["zh", /\p{Script=Han}/u]
   ];
 
-  const MIN_WORDS = 12; // darunter keine Aussage
-  const MIN_SHARE = 0.12; // so viele Funktionswörter braucht es mindestens für eine Sprache
+  const MIN_WORDS = 12; // below this no verdict
+  const MIN_SHARE = 0.12; // this many function words are needed at minimum for a language
 
   /**
    * @param {string} text
-   * @returns {string} ISO-639-1-Code ("en", "de", ...) oder "" = unklar (zu kurz, gemischt, unbekannte Sprache)
+   * @returns {string} ISO 639-1 code ("en", "de", ...) or "" = unclear (too short, mixed, unknown language)
    */
   function detect(text) {
     const letters = text.match(/\p{L}/gu) || [];
     if (letters.length < 20) return "";
     const latin = letters.filter((c) => /\p{Script=Latin}/u.test(c)).length;
     if (latin < letters.length / 2) {
-      // Japanisch vor Chinesisch: japanischer Text enthält fast immer auch Kanji
+      // Japanese before Chinese: Japanese text almost always contains Kanji too
       const counts = SCRIPTS.map(([lang, re]) => [lang, letters.filter((c) => re.test(c)).length]);
       const ja = counts.find(([l]) => l === "ja");
       if (ja[1] > letters.length * 0.1) return "ja";
@@ -66,29 +66,29 @@ globalThis.AIVSAI_LANG = (() => {
         second = hits;
       }
     }
-    // eindeutig genug: genug Funktionswörter und klar vor der nächsten Sprache (viele Wörter wie "in",
-    // "die", "de" gibt es in mehreren Sprachen)
+    // unambiguous enough: enough function words and clearly ahead of the next language (many words like "in",
+    // "die", "de" exist in several languages)
     if (bestHits < words.length * MIN_SHARE || bestHits < second * 1.5) return "";
     return best;
   }
 
-  // Sprachname für Hinweise, z.B. "Deutsch"
+  // Language name for notes, e.g. "German"
   function name(lang) {
     try {
-      return new Intl.DisplayNames(["de"], { type: "language" }).of(lang) || lang;
+      return new Intl.DisplayNames(["en"], { type: "language" }).of(lang) || lang;
     } catch {
       return lang;
     }
   }
 
   /**
-   * Bevorzugt: die eingebaute Erkennung der Extension-API i18n.detectLanguage - Chrome, Edge, Brave, Opera
-   * & Co. nutzen CLD3 (kleines neuronales Modell), Firefox CLD2. >100 Sprachen, kein Download, auch in
-   * Content-Scripts, liefert pro Text die Anteile der Sprachen und ob das Ergebnis verlässlich ist.
-   * Reihenfolge: Ist die Funktionswort-Heuristik eindeutig, gilt sie - CLD3 irrt bei ungewöhnlichem Text
-   * auch „verlässlich“ (sich wiederholender englischer Text: Luxemburgisch). CLD3 füllt die Lücken:
-   * Sprachen ohne Funktionswort-Liste, unklare Fälle. Fehlt die API (Tests in Node): nur die Heuristik.
-   * @returns {Promise<string>} wie detect()
+   * Preferred: the built-in detection of the extension API i18n.detectLanguage - Chrome, Edge, Brave, Opera
+   * & co. use CLD3 (small neural model), Firefox CLD2. >100 languages, no download, also in
+   * content scripts, returns the language shares per text and whether the result is reliable.
+   * Order: if the function-word heuristic is unambiguous, it wins - CLD3 errs on unusual text
+   * even "reliably" (repetitive English text: Luxembourgish). CLD3 fills the gaps:
+   * languages without a function-word list, unclear cases. If the API is missing (tests in Node): heuristic only.
+   * @returns {Promise<string>} like detect()
    */
   async function detectAsync(text) {
     const guess = detect(text);
@@ -96,11 +96,11 @@ globalThis.AIVSAI_LANG = (() => {
     try {
       const i18n = globalThis.browser?.i18n ?? globalThis.chrome?.i18n; // Firefox: browser.*, Chromium: chrome.*
       const result = await i18n?.detectLanguage?.(text);
-      // gemischte Absätze: die Sprache mit dem größten Anteil zählt
+      // mixed paragraphs: the language with the largest share counts
       const top = result?.languages?.reduce((a, b) => (b.percentage > a.percentage ? b : a), result.languages[0]);
       if (result?.isReliable && top && top.language !== "und") return top.language.toLowerCase().split("-")[0];
     } catch {
-      // verwaistes Content-Script nach Extension-Reload o.ä.
+      // orphaned content script after extension reload or similar
     }
     return "";
   }

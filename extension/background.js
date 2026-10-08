@@ -1,11 +1,11 @@
-// Service Worker (ES-Modul): verdrahtet Browser-Events und Nachrichten mit den Bausteinen in bg/.
-//   bg/providers.js        Backends zu den Providern aus config.js (Browser-Modell, Server, Hugging Face)
-//   bg/scoring.js          Konfiguration, Score-Cache, Verbindungstest, Status
-//   bg/model-check.js      „Modell prüfen“: eigenes Modell gegen das Referenzset testen
-//   bg/score-store.js      dauerhafter Score-Speicher (IndexedDB) mit Aufbewahrungsdauer
-//   bg/feedback-store.js   Feedback-Sammlung mit Text (nur nach Einwilligung, nur lokal)
-//   bg/badge.js            Icon-Badge pro Tab
-//   bg/offscreen-client.js Brücke zum Offscreen-Dokument mit dem Browser-Modell
+// Service worker (ES module): wires browser events and messages to the building blocks in bg/.
+//   bg/providers.js        backends for the providers from config.js (browser model, server, Hugging Face)
+//   bg/scoring.js          configuration, score cache, connection test, status
+//   bg/model-check.js      "Check model": test a custom model against the reference set
+//   bg/score-store.js      persistent score store (IndexedDB) with retention period
+//   bg/feedback-store.js   feedback collection with text (only after consent, local only)
+//   bg/badge.js            icon badge per tab
+//   bg/offscreen-client.js bridge to the offscreen document with the browser model
 import "./generated/blocklist.js";
 import "./models.js";
 import "./config.js";
@@ -16,11 +16,11 @@ import { callOffscreen } from "./bg/offscreen-client.js";
 import { clearStore, getConfig, health, pruneStore, scoreBatch, storeInfo, testProvider } from "./bg/scoring.js";
 
 function sendToTab(tabId, msg, frameId = 0) {
-  // kein Content-Script: chrome://-Seiten, Web Store, Tabs von vor der Installation
+  // no content script: chrome:// pages, Web Store, tabs from before the installation
   chrome.tabs.sendMessage(tabId, msg, { frameId }, () => void chrome.runtime.lastError);
 }
 
-// Tabs, deren Scan am fehlenden Modell gescheitert ist, sollen nach dem Download neu scannen
+// Tabs whose scan failed because of the missing model should rescan after the download
 async function notifyTabs(msg) {
   for (const tab of await chrome.tabs.query({})) {
     if (tab.id !== undefined) sendToTab(tab.id, msg);
@@ -33,13 +33,13 @@ async function toggleEnabled() {
 }
 
 // ---------------------------------------------------------------------------
-// Kontextmenü: markierten Text bzw. Absatz unter dem Mauszeiger manuell prüfen -
-// unabhängig vom Scan-Modus, solange die Extension eingeschaltet ist
+// Context menu: manually check selected text or the paragraph under the mouse pointer -
+// independent of the scan mode as long as the extension is switched on
 // ---------------------------------------------------------------------------
 
 const MENU_ITEMS = {
-  "check-selection": { title: "Markierten Text auf KI prüfen", contexts: ["selection"], message: "CHECK_SELECTION" },
-  "check-element": { title: "Diesen Absatz auf KI prüfen", contexts: ["page", "link"], message: "CHECK_ELEMENT" }
+  "check-selection": { title: "Check selected text for AI", contexts: ["selection"], message: "CHECK_SELECTION" },
+  "check-element": { title: "Check this paragraph for AI", contexts: ["page", "link"], message: "CHECK_ELEMENT" }
 };
 
 async function createMenus() {
@@ -62,10 +62,10 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 });
 
 // ---------------------------------------------------------------------------
-// Lebenszyklus, Einstellungen, Tastenkürzel
+// Lifecycle, settings, keyboard shortcuts
 // ---------------------------------------------------------------------------
 
-// Abgelaufene Bewertungen einmal täglich löschen (und bei jedem Browserstart)
+// Delete expired scores once a day (and on every browser start)
 const PRUNE_ALARM = "prune-scores";
 
 function schedulePrune() {
@@ -73,30 +73,30 @@ function schedulePrune() {
 }
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === PRUNE_ALARM) pruneStore().catch((err) => console.warn("Aufräumen fehlgeschlagen", err));
+  if (alarm.name === PRUNE_ALARM) pruneStore().catch((err) => console.warn("Cleanup failed", err));
 });
 
 chrome.runtime.onInstalled.addListener(({ reason }) => {
   updateBadge();
   createMenus();
   schedulePrune();
-  // Erstinstallation: Begrüßung (was die Farben bedeuten und was nicht, Download-Größe), von dort weiter
-  // zu den Einstellungen, wo das Modell heruntergeladen wird
+  // First install: welcome page (what the colors mean and what they do not, download size), from there on
+  // to the settings, where the model is downloaded
   if (reason === "install") {
-    // Modell gleich festhalten: pinLegacyModel erkennt Installationen von vor v0.6 daran, dass es fehlt
+    // Record the model right away: pinLegacyModel recognizes installations from before v0.6 by it missing
     chrome.storage.sync.set({ browserModel: AIVSAI.DEFAULTS.browserModel });
     chrome.tabs.create({ url: chrome.runtime.getURL("welcome.html") });
   }
   if (reason === "update") {
     pinLegacyModel()
       .then(migrateThresholds)
-      .catch((err) => console.warn("Einstellungen nicht angepasst", err));
+      .catch((err) => console.warn("Settings not adjusted", err));
   }
 });
 
-// Bis v0.5 war TMR das Standardmodell. Wer nie ein Modell gewählt hat, behält es samt Ampel-Werten -
-// sonst stünde nach dem Update desklib da, das erst 1,7 GB herunterladen müsste. Neuere Installationen
-// speichern browserModel schon beim Installieren und bleiben unberührt.
+// Up to v0.5 TMR was the default model. Anyone who never chose a model keeps it along with the traffic light values -
+// otherwise the update would leave desklib, which would first have to download 1.7 GB. Newer installations
+// store browserModel already on install and stay untouched.
 async function pinLegacyModel() {
   const stored = await chrome.storage.sync.get(["browserModel", "yellowFrom", "redFrom"]);
   if ("browserModel" in stored) return;
@@ -105,9 +105,9 @@ async function pinLegacyModel() {
   await chrome.storage.sync.set(pin);
 }
 
-// Bis v0.5 waren 0.6/0.9 die Startwerte für TMR - damit war die Mehrheit kurzer menschlicher Sachtexte rot
-// (training/EVAL_RESULTS.md, "Fehlalarme auf Wikipedia"). Wer sie gespeichert, aber nie geändert hat,
-// bekommt die neuen aus models.js; eigene Werte bleiben.
+// Up to v0.5, 0.6/0.9 were the starting values for TMR - which made the majority of short human expository texts red
+// (training/EVAL_RESULTS.md, "False alarms on Wikipedia"). Anyone who stored them but never changed them
+// gets the new ones from models.js; custom values stay.
 async function migrateThresholds() {
   const stored = await chrome.storage.sync.get(["yellowFrom", "redFrom"]);
   const preset = AIVSAI.presetFor(await getConfig());
@@ -115,7 +115,7 @@ async function migrateThresholds() {
   if (stored.yellowFrom === 0.6 && stored.redFrom === 0.9 && preset === tmr) {
     await chrome.storage.sync.set(tmr);
   }
-  // desklib-Startwert bis v0.5: redFrom 0.87 (training/EVAL_RESULTS.md, "Schwellen absichern")
+  // desklib starting value up to v0.5: redFrom 0.87 (training/EVAL_RESULTS.md, "Securing the thresholds")
   const desklib = AIVSAI.MODELS.desklib.thresholds;
   if (stored.yellowFrom === 0.5 && stored.redFrom === 0.87 && preset === desklib) {
     await chrome.storage.sync.set(desklib);
@@ -132,8 +132,8 @@ chrome.storage.onChanged.addListener((changes, area) => {
     updateBadge();
     setMenusVisible(changes.enabled.newValue ?? AIVSAI.DEFAULTS.enabled);
   }
-  // kürzere Aufbewahrung bzw. "nicht speichern" sofort umsetzen, nicht erst beim nächsten Alarm
-  if ("scoreRetentionDays" in changes) pruneStore().catch((err) => console.warn("Aufräumen fehlgeschlagen", err));
+  // apply shorter retention or "do not store" immediately, not only at the next alarm
+  if ("scoreRetentionDays" in changes) pruneStore().catch((err) => console.warn("Cleanup failed", err));
 });
 
 const COMMAND_MESSAGES = { "scan-page": "SCAN_NOW", "check-selection": "CHECK_SELECTION" };
@@ -151,17 +151,17 @@ chrome.commands.onCommand.addListener(async (command) => {
 });
 
 // ---------------------------------------------------------------------------
-// Nachrichten von Content-Scripts, Popup, Einstellungen und Offscreen-Dokument
+// Messages from content scripts, popup, settings and offscreen document
 // ---------------------------------------------------------------------------
 
 const OFFSCREEN_COMMANDS = { MODEL_STATUS: "status", MODEL_DOWNLOAD: "download", MODEL_DELETE: "delete" };
 
-// Handler liefern eine Antwort (auch als Promise) oder undefined für "keine Antwort"
+// Handlers return a response (also as a promise) or undefined for "no response"
 const HANDLERS = {
   SCORE_BATCH: async (msg, sender) => {
-    // Zweite Absicherung zur Sperrliste (die erste ist content.js): von dort nur Einzelprüfungen
+    // Second safeguard for the blocklist (the first is content.js): only single checks come from there
     if (!msg.manual && (await isBlocked(sender))) {
-      return { ok: false, scores: {}, error: "Seite steht auf der Sperrliste" };
+      return { ok: false, scores: {}, error: "Site is on the blocklist" };
     }
     return scoreBatch(msg.items);
   },
@@ -170,11 +170,11 @@ const HANDLERS = {
   },
   HEALTH: () => health(),
   TEST_PROVIDER: () => testProvider(),
-  // Einstellungen aus dem (noch nicht gespeicherten) Formular - nur von Extension-Seiten, enthält URLs und Tokens
+  // Settings from the (not yet saved) form - only from extension pages, contains URLs and tokens
   CHECK_MODEL: (msg, sender) => fromExtensionPage(sender) && withError(checkModel(msg.cfg)),
   SCORE_STORE_INFO: () => storeInfo().catch((err) => ({ ok: false, error: String(err?.message || err) })),
   SCORE_STORE_CLEAR: () => clearStore().catch((err) => ({ ok: false, error: String(err?.message || err) })),
-  // Download startet nur; Ende kommt als MODEL_DONE vom Offscreen-Dokument
+  // Download only starts; the end comes as MODEL_DONE from the offscreen document
   MODEL_STATUS: (msg) => modelCommand(msg),
   MODEL_DOWNLOAD: (msg) => modelCommand(msg),
   MODEL_DELETE: (msg) => modelCommand(msg),
@@ -184,12 +184,12 @@ const HANDLERS = {
   FEEDBACK_SAVE: (msg) => withError(saveFeedback(msg.entry)),
   FEEDBACK_DELETE: (msg) => withError(feedback.remove(msg.id).then(feedbackInfo)),
   FEEDBACK_INFO: () => withError(feedbackInfo()),
-  // Nur die Angabe zurück, nicht den Text - den kennt der Absender ja
+  // Return only the answer, not the text - the sender knows that anyway
   FEEDBACK_GET: (msg) =>
     withError(
       feedback.get(msg.text).then((row) => ({ ok: true, entry: row && { id: row.id, label: row.label, basis: row.basis, at: row.at } }))
     ),
-  // Export und Widerruf nur aus den Einstellungen, nie aus einem Content-Script
+  // Export and withdrawal only from the settings, never from a content script
   FEEDBACK_EXPORT: (msg, sender) =>
     fromExtensionPage(sender) && withError(feedback.all().then((rows) => ({ ok: true, rows }))),
   FEEDBACK_CLEAR: (msg, sender) =>
@@ -202,7 +202,7 @@ async function isBlocked(sender) {
   try {
     host = new URL(sender.url).hostname;
   } catch {
-    return false; // Extension-Seiten
+    return false; // extension pages
   }
   return AIVSAI.scanPolicy(host, await getConfig()) === "blocked";
 }
@@ -211,12 +211,12 @@ const fromExtensionPage = (sender) => !!sender.url?.startsWith(chrome.runtime.ge
 
 const withError = (promise) => promise.catch((err) => ({ ok: false, error: String(err?.message || err) }));
 
-// Zweite Absicherung zur Einwilligungsabfrage im Content-Script
+// Second safeguard for the consent prompt in the content script
 const FEEDBACK_CONSENT = "feedbackConsentAt";
 
 async function saveFeedback(entry) {
   const { [FEEDBACK_CONSENT]: consentAt } = await chrome.storage.local.get(FEEDBACK_CONSENT);
-  if (!consentAt) return { ok: false, error: "Keine Einwilligung zum Speichern" };
+  if (!consentAt) return { ok: false, error: "No consent to store" };
   const id = await feedback.put(entry);
   return { ...(await feedbackInfo()), id };
 }

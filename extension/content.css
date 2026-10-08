@@ -1,6 +1,6 @@
-/* Rein visuelle Marker - kein Einfluss auf Layout oder Text-Selektion; anklickbar ist nur das Badge.
-   Die Stufen unterscheiden sich auch ohne Farbwahrnehmung: grün dünn/durchgezogen,
-   gelb gestrichelt, rot kräftig mit Glow, grau gestrichelt = unsicher - plus KI-Score bzw. "unsicher" im Badge. */
+/* Purely visual markers - no influence on layout or text selection; only the badge is clickable.
+   The levels also differ without color perception: green thin/solid,
+   yellow dashed, red strong with glow, gray dashed = uncertain - plus AI score or "uncertain" in the badge. */
 
 .aivsai-pending {
   outline: 2px dotted rgba(148, 163, 184, 0.8) !important;
@@ -30,7 +30,7 @@
   animation: aivsai-pulse 2.4s ease-in-out infinite;
 }
 
-/* Zu kurz oder fremde Sprache: hoher Score, aber keine Aussage - bewusst neutral, keine Warnfarbe */
+/* Too short or foreign language: high score, but no verdict - deliberately neutral, no warning color */
 .aivsai-uncertain {
   outline: 2px dashed rgba(107, 114, 128, 0.7) !important;
   outline-offset: 3px !important;
@@ -69,7 +69,7 @@
   white-space: nowrap !important;
   color: #fff !important;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
-  /* anklickbar: öffnet Details + Feedback (content.js, badgeHit) - das einzige Bedienelement am Absatz */
+  /* clickable: opens details + feedback (content.js, badgeHit) - the only control on the paragraph */
   pointer-events: auto !important;
   cursor: pointer !important;
 }
@@ -79,8 +79,8 @@
 .aivsai-red.aivsai-badge::after { background: #dc2626 !important; }
 .aivsai-uncertain.aivsai-badge::after { background: #6b7280 !important; }
 
-/* Manuell geprüfter markierter Text (CSS Custom Highlight API, kein Eingriff ins DOM).
-   Auch hier ohne Farbwahrnehmung unterscheidbar: gepunktet / durchgezogen / gestrichelt / wellig. */
+/* Manually checked marked text (CSS Custom Highlight API, no change to the DOM).
+   Distinguishable here too without color perception: dotted / solid / dashed / wavy. */
 ::highlight(aivsai-pending) {
   background-color: rgba(148, 163, 184, 0.3);
   text-decoration: underline dotted rgba(100, 116, 139, 0.9);

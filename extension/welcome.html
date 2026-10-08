@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>AI Content Flag – Willkommen</title>
+<title>AI Content Flag – Welcome</title>
 <link rel="stylesheet" href="ui.css" />
 <style>
   body { background: var(--surface); }
@@ -33,58 +33,58 @@
 <body>
 <main>
   <h1>AI Content Flag</h1>
-  <p class="lead">Markiert längere Textabsätze danach, wie sehr sie KI-generiertem Text ähneln. Bevor es losgeht,
-    das Wichtigste in zwei Minuten.</p>
+  <p class="lead">Marks longer paragraphs of text by how much they resemble AI-generated text. Before you start,
+    the essentials in two minutes.</p>
 
   <section class="card">
-    <h2>Was die Farben bedeuten</h2>
+    <h2>What the colors mean</h2>
     <div class="levels">
-      <div class="level"><span class="pill red">KI-Score 97</span>
-        <div><b>Auffällig</b> – der Absatz ähnelt stark dem, was das Modell als KI-Text gelernt hat.</div></div>
-      <div class="level"><span class="pill yellow">KI-Score 75</span>
-        <div><b>Unklar</b> – einige Merkmale, keine klare Tendenz.</div></div>
-      <div class="level"><span class="pill green">KI-Score 12</span>
-        <div><b>Unauffällig</b> – nichts Typisches gefunden.</div></div>
-      <div class="level"><span class="pill uncertain">unsicher</span>
-        <div><b>Zu kurz für eine Aussage</b> – hoher Score, aber bei so wenig Text liegt das Modell zu oft
-          daneben.</div></div>
+      <div class="level"><span class="pill red">AI score 97</span>
+        <div><b>Flagged</b> – the paragraph strongly resembles what the model learned as AI text.</div></div>
+      <div class="level"><span class="pill yellow">AI score 75</span>
+        <div><b>Unclear</b> – some features, no clear tendency.</div></div>
+      <div class="level"><span class="pill green">AI score 12</span>
+        <div><b>Not flagged</b> – nothing typical found.</div></div>
+      <div class="level"><span class="pill uncertain">uncertain</span>
+        <div><b>Too short to tell</b> – high score, but with so little text the model is wrong too
+          often.</div></div>
     </div>
 
     <div class="warn not">
-      <b>Was die Farben nicht bedeuten:</b>
+      <b>What the colors do not mean:</b>
       <ul>
-        <li><b>Kein Beweis.</b> Auch menschliche Texte werden rot markiert – besonders sachliche, formelhafte
-          oder sehr glatt redigierte (z.B. Lexikon-Artikel, Pressemitteilungen, Anleitungen).</li>
-        <li><b>Keine Wahrscheinlichkeit.</b> „KI-Score 97“ heißt nicht „zu 97 % von einer KI“. Die Zahl ist ein
-          Rohwert des Modells und nicht kalibriert.</li>
-        <li><b>Kein Urteil über Menschen.</b> Bitte niemandem allein auf dieser Grundlage KI-Nutzung vorwerfen –
-          etwa in Schule, Studium oder Beruf.</li>
+        <li><b>Not proof.</b> Human texts get marked red too – especially factual, formulaic
+          or very smoothly edited ones (e.g. encyclopedia articles, press releases, how-tos).</li>
+        <li><b>Not a probability.</b> "AI score 97" does not mean "97% by an AI". The number is a
+          raw value of the model and not calibrated.</li>
+        <li><b>Not a judgment about people.</b> Please do not accuse anyone of using AI on this basis alone –
+          for example at school, university or work.</li>
       </ul>
     </div>
   </section>
 
   <section class="card">
-    <h2>Grenzen</h2>
+    <h2>Limits</h2>
     <ul>
-      <li><b>Nur Englisch.</b> Die mitgelieferten Modelle kennen nur englischen Text. Absätze in anderen Sprachen
-        werden deshalb nicht bewertet; per Rechtsklick lassen sie sich trotzdem prüfen, das Ergebnis ist dann
-        aber nicht aussagekräftig.</li>
-      <li><b>Kurze Texte</b> (Kommentare, Bildunterschriften, Listen) werden nicht automatisch bewertet.</li>
-      <li><b>Überarbeiteter KI-Text</b> und neuere Modelle werden schlechter erkannt.</li>
+      <li><b>English only.</b> The shipped models only know English text. Paragraphs in other languages
+        are therefore not scored; they can still be checked via right-click, but the result is then
+        not meaningful.</li>
+      <li><b>Short texts</b> (comments, captions, lists) are not scored automatically.</li>
+      <li><b>Revised AI text</b> and newer models are detected less well.</li>
     </ul>
   </section>
 
   <section class="card">
-    <h2>Modell herunterladen</h2>
-    <p>Die Bewertung läuft direkt in deinem Browser, Texte verlassen den Rechner nicht. Dafür wird einmalig ein
-      Modell von Hugging Face geladen – bei mobilem Internet oder begrenztem Datenvolumen besser im WLAN:</p>
+    <h2>Download the model</h2>
+    <p>Scoring runs directly in your browser, texts do not leave the computer. For that a
+      model is downloaded once from Hugging Face – on mobile internet or with a limited data allowance better use Wi-Fi:</p>
     <div class="downloads" id="downloads"></div>
-    <p class="small muted">Welches Modell, wann gescannt wird und welche Seiten tabu sind (Online-Banking, Mail),
-      stellst du in den Einstellungen ein. Standard: gescannt wird nur auf Seiten, die du selbst im Popup
-      einschaltest.</p>
+    <p class="small muted">Which model, when to scan and which sites are off limits (online banking, mail)
+      you set in the settings. Default: only sites that you switch on yourself in the popup
+      are scanned.</p>
     <div class="actions">
-      <a class="button primary" href="options.html#detection">Weiter zu den Einstellungen</a>
-      <a class="small muted" href="privacy.html" target="_blank">Datenschutzerklärung</a>
+      <a class="button primary" href="options.html#detection">Continue to the settings</a>
+      <a class="small muted" href="privacy.html" target="_blank">Privacy policy</a>
     </div>
   </section>
 </main>

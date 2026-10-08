@@ -1,5 +1,5 @@
-// Begrüßung nach der Installation (background.js, onInstalled). Download-Größen aus models.js,
-// damit sie nicht an zwei Stellen gepflegt werden.
+// Welcome page after installation (background.js, onInstalled). Download sizes from models.js,
+// so that they are not maintained in two places.
 for (const m of Object.values(AIVSAI_MODELS)) {
   if (!m.browser) continue;
   const name = document.createElement("b");

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
 <meta charset="utf-8" />
 <title>AI Content Flag</title>
@@ -39,8 +39,8 @@
 <body>
   <header>
     <h1>AI Content Flag</h1>
-    <label class="switch" title="Extension an/aus (Alt+Shift+A)">
-      <input type="checkbox" id="enabled" aria-label="Extension aktiv" />
+    <label class="switch" title="Extension on/off (Alt+Shift+A)">
+      <input type="checkbox" id="enabled" aria-label="Extension enabled" />
       <span></span>
     </label>
   </header>
@@ -51,25 +51,25 @@
         <div class="site-name" id="host">–</div>
         <div class="small muted" id="siteHint"></div>
       </div>
-      <label class="switch" id="siteSwitch" title="Diese Seite automatisch scannen">
-        <input type="checkbox" id="siteAuto" aria-label="Diese Seite automatisch scannen" />
+      <label class="switch" id="siteSwitch" title="Scan this site automatically">
+        <input type="checkbox" id="siteAuto" aria-label="Scan this site automatically" />
         <span></span>
       </label>
     </div>
-    <button id="scanNow" class="primary">Diese Seite jetzt scannen</button>
+    <button id="scanNow" class="primary">Scan page now</button>
     <div class="small muted" style="margin-top:6px">
-      Einzelne Stellen: Text markieren oder Absatz rechtsklicken → „Auf KI prüfen“ (<kbd>Alt+Shift+C</kbd>)
+      Single passages: select text or right-click a paragraph → "Check for AI" (<kbd>Alt+Shift+C</kbd>)
     </div>
     <div class="small" style="margin-top:6px"><button id="blockToggle" class="link" hidden></button></div>
   </section>
 
   <section>
-    <h2>Diese Seite</h2>
+    <h2>This page</h2>
     <div class="counts">
-      <div class="count red" title="Ähnelt KI-Text"><b id="cRed">–</b><span>auffällig</span></div>
-      <div class="count yellow"><b id="cYellow">–</b><span>unklar</span></div>
-      <div class="count green"><b id="cGreen">–</b><span>unauffällig</span></div>
-      <div class="count uncertain" title="Hoher Score, aber zu kurzer Text für eine Aussage"><b id="cUncertain">–</b><span>unsicher</span></div>
+      <div class="count red" title="Resembles AI text"><b id="cRed">–</b><span>flagged</span></div>
+      <div class="count yellow"><b id="cYellow">–</b><span>unclear</span></div>
+      <div class="count green"><b id="cGreen">–</b><span>not flagged</span></div>
+      <div class="count uncertain" title="High score, but text too short to tell"><b id="cUncertain">–</b><span>uncertain</span></div>
     </div>
     <div class="pending small muted" id="pending"></div>
 
@@ -82,14 +82,14 @@
       <span class="dot gray" id="backendDot"></span>
       <div class="backend-text">
         <div id="backendName">–</div>
-        <div class="small muted" id="backendStatus">Prüfe…</div>
+        <div class="small muted" id="backendStatus">Checking…</div>
       </div>
     </div>
   </section>
 
   <footer>
-    <span class="small muted">Scores sind Hinweise, keine Beweise.</span>
-    <button id="openOptions">Einstellungen</button>
+    <span class="small muted">Scores are hints, not proof.</span>
+    <button id="openOptions">Settings</button>
   </footer>
 
   <script src="generated/blocklist.js"></script>

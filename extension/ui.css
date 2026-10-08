@@ -68,10 +68,10 @@ input[type="text"], input[type="password"], input[type="url"], select, textarea 
   background: var(--bg);
   color: var(--text);
 }
-/* Nur in der Höhe ziehbar: in der Breite würde das Feld aus seiner Spalte ragen. */
+/* Only draggable in height: in width the field would stick out of its column. */
 textarea { display: block; resize: vertical; min-height: 4.5em; }
 
-/* Schalter */
+/* Switch */
 .switch { position: relative; display: inline-block; width: 36px; height: 20px; flex: none; }
 .switch input { opacity: 0; width: 0; height: 0; }
 .switch span {
