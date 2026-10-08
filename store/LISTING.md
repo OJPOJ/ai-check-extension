@@ -1,57 +1,23 @@
-# Store-Eintrag
+# Store listing
 
-Texte für das Store-Formular (Chrome Web Store / Edge Add-ons), Deutsch und Englisch. Zeichenzahlen
-für die Kurzbeschreibung gelten für Chrome (Limit 132 Zeichen); Edge erlaubt mehr, dieselbe Kürzung
-passt trotzdem.
+Texts for the store form (Chrome Web Store / Edge Add-ons), in English. Character counts
+for the short description apply to Chrome (limit 132 characters); Edge allows more, the same
+shortening fits anyway.
 
 ## Name
 
 AI Content Flag
 
-## Kategorie
+## Category
 
-„Productivity“ (Chrome Web Store) bzw. „Produktivität“ (Edge Add-ons). Beide Stores ändern ihre
-Kategorie-Taxonomien gelegentlich – beim Einreichen die aktuell verfügbaren Optionen prüfen; falls
-„Productivity“ nicht (mehr) passt, ist „Tools“ die nächstbeste Wahl.
-
-## Kurzbeschreibung (Deutsch, ≤132 Zeichen, 124 gezählt)
-
-Markiert KI-verdächtige Textabsätze grün/gelb/rot – Score-Klassifikator, lokal im Browser oder per
-Cloud-Dienst deiner Wahl.
+"Productivity" (Chrome Web Store and Edge Add-ons). Both stores occasionally change their
+category taxonomies – check the currently available options when submitting; if
+"Productivity" no longer fits, "Tools" is the next best choice.
 
 ## Short description (English, ≤132 characters, 124 counted)
 
 Flags AI-suspicious paragraphs green/yellow/red with a score – runs locally in your browser or via
 a cloud backend you pick.
-
-## Ausführliche Beschreibung (Deutsch)
-
-AI Content Flag bewertet längere Textabsätze auf Webseiten mit einem KI-Text-Klassifikator und
-markiert sie als Ampel – grün (unauffällig), gelb (unklar) oder rot (auffällig, ähnelt KI-Text) –
-zusammen mit einem Score von 0–100.
-
-**Wie es läuft:** Standardmäßig läuft das Modell direkt im Browser per WebAssembly – Texte verlassen
-den Rechner nicht. Wer möchte, kann stattdessen einen lokalen Server, einen eigenen Server/Cloud-Dienst
-oder die Hugging Face Inference API verwenden; die Erweiterung zeigt dann deutlich, wohin Text
-gesendet wird, bevor es passiert.
-
-**Wann gescannt wird:** Nur auf Seiten, die du ausdrücklich freigibst (oder nur auf Knopfdruck) –
-keine Texte werden ohne dein Zutun verschickt. Eine mitgelieferte Sperrliste (Online-Banking, Webmail,
-Behördenportale) sowie eine Erkennung von Passwort-/Zahlungsfeldern verhindern das Scannen sensibler
-Seiten zusätzlich, unabhängig von dieser Einstellung.
-
-**Grenzen, ehrlich gesagt:**
-- Die mitgelieferten Modelle sind ausschließlich auf **Englisch** trainiert. Absätze in anderen
-  Sprachen werden erkannt und **nicht bewertet**, statt geraten zu werden.
-- **Fehlalarme kommen vor** – auch menschlicher Text wird gelegentlich rot markiert, besonders
-  kurzer, übersetzter oder stark redigierter Text (z.B. Lexikon-Artikel, Pressemitteilungen).
-- Der Score ist ein **Hinweis, kein Beweis** und keine kalibrierte Wahrscheinlichkeit. Bitte
-  niemandem allein aufgrund dieser Markierung KI-Nutzung unterstellen.
-- Sehr kurze Absätze werden als „unsicher“ statt farbig markiert, weil das Modell dort zu oft irrt.
-
-**Quelloffen:** Der Code steht unter der MIT-Lizenz. Details zu Lizenzen und Datenherkunft (u.a. eine
-CC-BY-SA-4.0-Sperrliste und ein CC-BY-SA-4.0-Referenzset für „Modell prüfen“) sind über „Über /
-Lizenzen“ in den Einstellungen der Erweiterung einsehbar.
 
 ## Detailed description (English)
 
@@ -64,7 +30,7 @@ leaves your machine. If you prefer, you can instead use a local server, your own
 or the Hugging Face Inference API; the extension clearly shows where text would be sent before it is.
 
 **When it scans:** Only on pages you explicitly allow (or only on demand, per click) – no text is
-sent without your action. A built-in blocklist (online banking, webmail, government login portals)
+sent without your action. A bundled blocklist (online banking, webmail, government login portals)
 and detection of password/payment fields additionally prevent scanning of sensitive pages, regardless
 of this setting.
 
@@ -79,5 +45,5 @@ of this setting.
   there.
 
 **Open source:** The code is MIT-licensed. License and data-provenance details (including a
-CC BY-SA 4.0 blocklist and a CC BY-SA 4.0 reference set used for "check model") are available via
-"About / Licenses" in the extension's settings.
+CC BY-SA 4.0 blocklist and a CC BY-SA 4.0 reference set used for "Check model") are available via
+"About / licenses" in the extension's settings.

@@ -1,11 +1,11 @@
 const $ = (id) => document.getElementById(id);
 
-// Domainlisten (Textarea, eine pro Zeile) - das Popup ändert sie auch, siehe storage.onChanged unten
+// Domain lists (textarea, one per line) - the popup changes them too, see storage.onChanged below
 const SITE_FIELDS = ["sites", "blockedSites", "unblockedSites"];
 const CHECK_FIELDS = ["builtinBlocklist", "sensitiveHeuristic", "showGreen", "showBadge", "lazyScan", "groupShortParagraphs", "feedbackButtons"];
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost"]);
 
-// Felder aller Provider (auch der nicht gewählten - deren Werte bleiben beim Speichern erhalten)
+// Fields of all providers (also the unselected ones - their values are kept on saving)
 const PROVIDER_FIELDS = Object.values(AIVSAI.PROVIDERS).flatMap((p) => p.fields);
 
 const radioValue = (name) => document.querySelector(`input[name="${name}"]:checked`)?.value;
@@ -25,7 +25,7 @@ function showStatus(text, kind = "") {
   $("status").className = kind;
 }
 
-// --- Formular aus AIVSAI.PROVIDERS (config.js) und dem Modellkatalog (models.js) ---
+// --- Form from AIVSAI.PROVIDERS (config.js) and the model catalog (models.js) ---
 
 function choiceCard(name, value, title, text) {
   return el(
@@ -36,7 +36,7 @@ function choiceCard(name, value, title, text) {
   );
 }
 
-// Auswahl aus models.js, z.B. browserModel -> alle Modelle mit Abschnitt "browser"
+// Selection from models.js, e.g. browserModel -> all models with a "browser" section
 function modelField(f) {
   const models = AIVSAI.catalog(f.catalog);
   const cards = models.map(([key, m]) => choiceCard(f.key, key, m.title, m[f.catalog].summary ?? m.summary));
@@ -58,17 +58,17 @@ function inputField(f) {
   return el("div", { className: "field" }, label, input, f.hint ? el("div", { className: "hint", textContent: f.hint }) : null);
 }
 
-// „Modell prüfen“ (bg/model-check.js) für Provider mit `check`
+// "Check model" (bg/model-check.js) for providers with `check`
 function checkField(id, def) {
-  const button = el("button", { textContent: "Modell prüfen", id: `check-${id}` });
+  const button = el("button", { textContent: "Check model", id: `check-${id}` });
   button.addEventListener("click", () => runCheck(id));
   const lead =
-    "Schickt 40 englische Referenztexte (je 20 von Menschen und von ChatGPT, aus HC3) ans Modell und prüft " +
-    "Antwortformat, Richtung, Trennschärfe und Tempo. Schlägt dazu Startwerte für die Ampel vor.";
+    "Sends 40 English reference texts (20 each from humans and from ChatGPT, from HC3) to the model and checks " +
+    "response format, direction, separation and speed. Also suggests starting values for the traffic light.";
   return el(
     "div",
     { className: "field model-check" },
-    el("div", { className: "label", textContent: def.check === "required" ? "Modell prüfen (Pflicht)" : "Modell prüfen" }),
+    el("div", { className: "label", textContent: def.check === "required" ? "Check model (required)" : "Check model" }),
     el("div", { className: "hint", textContent: lead }),
     el(
       "div",
@@ -93,7 +93,7 @@ function buildProviderForms() {
   }
 }
 
-// --- Lesen, Prüfen, Speichern ---
+// --- Reading, validating, saving ---
 
 function parseSites(text) {
   const sites = text
@@ -105,7 +105,7 @@ function parseSites(text) {
 
 function readField(f) {
   const value = f.type === "model" ? radioValue(f.key) : $(f.key).value.trim();
-  // leere optionale Felder fallen auf ihren Default zurück (z.B. die lokale Server-URL)
+  // empty optional fields fall back to their default (e.g. the local server URL)
   return value || (f.required ? "" : f.default);
 }
 
@@ -126,7 +126,7 @@ function readForm() {
   return { cfg, secrets };
 }
 
-// Aktuelle Formularwerte als Konfiguration (für Vorschau: Datenschutz-Hinweis, Presets)
+// Current form values as a configuration (for preview: privacy note, presets)
 function formConfig() {
   const { cfg, secrets } = readForm();
   return { ...secrets, ...cfg };
@@ -134,7 +134,7 @@ function formConfig() {
 
 function missingField(cfg, secrets) {
   const missing = AIVSAI.PROVIDERS[cfg.provider].fields.find((f) => f.required && !(f.secret ? secrets : cfg)[f.key]);
-  return missing ? `Bitte „${missing.label}“ angeben.` : null;
+  return missing ? `Please enter "${missing.label}".` : null;
 }
 
 function validate(cfg, secrets) {
@@ -142,38 +142,38 @@ function validate(cfg, secrets) {
   if (missing) return missing;
   if (AIVSAI.PROVIDERS[cfg.provider].check === "required" && !AIVSAI.modelCheck(cfg)) {
     return checkFor(cfg)
-      ? "Das Modell hat die Prüfung nicht bestanden – so nicht verwendbar."
-      : "Bitte zuerst „Modell prüfen“ – für eigene Modelle Pflicht vor dem Speichern.";
+      ? "The model failed the check – not usable as is."
+      : "Please run \"Check model\" first – required for custom models before saving.";
   }
-  if (cfg.yellowFrom >= cfg.redFrom) return "„Gelb ab“ muss kleiner als „Rot ab“ sein.";
+  if (cfg.yellowFrom >= cfg.redFrom) return "\"Yellow from\" must be smaller than \"Red from\".";
   return null;
 }
 
-// Origins, für die eine optionale Host-Berechtigung nötig ist (Endpunkt und ggf. Metadaten-Quelle)
+// Origins that need an optional host permission (endpoint and, if applicable, metadata source)
 function requiredOrigins(cfg) {
   const def = AIVSAI.PROVIDERS[cfg.provider];
   const origins = [...(def.origins ?? [])];
   const endpoint = def.endpoint(cfg);
-  if (!endpoint) return origins; // Browser-Modell: Download per CORS, keine Host-Berechtigung nötig
-  const url = new URL(endpoint); // wirft bei ungültiger URL
-  if (!/^https?:$/.test(url.protocol)) throw new Error("URL muss mit http:// oder https:// beginnen");
-  if (!LOOPBACK_HOSTS.has(url.hostname)) origins.push(`${url.protocol}//${url.hostname}/*`); // Loopback: im Manifest
+  if (!endpoint) return origins; // Browser model: download via CORS, no host permission needed
+  const url = new URL(endpoint); // throws on an invalid URL
+  if (!/^https?:$/.test(url.protocol)) throw new Error("URL must start with http:// or https://");
+  if (!LOOPBACK_HOSTS.has(url.hostname)) origins.push(`${url.protocol}//${url.hostname}/*`); // Loopback: in the manifest
   return origins;
 }
 
-// Fragt (synchron im Klick-Handler gestartet) nach den Host-Berechtigungen; false mit Meldung, wenn nicht
+// Asks (started synchronously in the click handler) for the host permissions; false with a message if not granted
 function requestOrigins(cfg) {
   let origins;
   try {
     origins = requiredOrigins(cfg);
   } catch (err) {
-    showStatus(`Ungültige URL: ${err.message}`, "err");
+    showStatus(`Invalid URL: ${err.message}`, "err");
     return Promise.resolve(false);
   }
   if (!origins.length) return Promise.resolve(true);
   return chrome.permissions.request({ origins }).then((granted) => {
     const hosts = origins.map((o) => o.replace("/*", "")).join(", ");
-    if (!granted) showStatus(`Zugriff auf ${hosts} nicht erlaubt – Backend nicht erreichbar.`, "err");
+    if (!granted) showStatus(`Access to ${hosts} not allowed – backend unreachable.`, "err");
     return granted;
   });
 }
@@ -182,10 +182,10 @@ let dirty = false;
 
 function setDirty(value) {
   dirty = value;
-  if (value) showStatus("Ungespeicherte Änderungen", "dirty");
+  if (value) showStatus("Unsaved changes", "dirty");
 }
 
-// Muss synchron im Klick-Handler starten, sonst verweigert Chrome den Berechtigungsdialog.
+// Must start synchronously in the click handler, otherwise Chrome refuses the permission dialog.
 function saveFromClick() {
   const { cfg, secrets } = readForm();
   const invalid = validate(cfg, secrets);
@@ -202,14 +202,14 @@ function saveFromClick() {
   });
 }
 
-// --- Modell prüfen ---
+// --- Check model ---
 
-// Prüfergebnisse je Provider: gespeicherter Stand, nach einer Prüfung der neue - gespeichert wird er mit
-// dem Formular. Die Einzelergebnisse (checks) nur für die Anzeige, nicht im Storage (Sync-Quota).
+// Check results per provider: stored state, after a check the new one - it is stored with
+// the form. The individual results (checks) only for display, not in storage (sync quota).
 let modelChecks = {};
 const checkDetails = {};
 
-// Letzte Prüfung für die Formularwerte (auch durchgefallene), sonst null
+// Last check for the form values (including failed ones), otherwise null
 function checkFor(cfg) {
   const check = modelChecks[cfg.provider];
   return check?.sig === AIVSAI.checkSignature(cfg) ? check : null;
@@ -222,14 +222,14 @@ function renderCheck() {
   const check = checkFor(cfg);
   const status = $(`check-${cfg.provider}-status`);
   if (!check) {
-    status.textContent = def.check === "required" ? "Noch nicht geprüft – Pflicht vor dem Speichern." : "Noch nicht geprüft.";
+    status.textContent = def.check === "required" ? "Not checked yet – required before saving." : "Not checked yet.";
   } else if (!check.ok) {
-    status.textContent = "Nicht bestanden – siehe unten.";
+    status.textContent = "Failed – see below.";
   } else {
-    const version = check.info?.version ? `, Version ${check.info.version}` : "";
+    const version = check.info?.version ? `, version ${check.info.version}` : "";
     status.textContent =
-      `Bestanden am ${new Date(check.at).toLocaleString("de-DE")}: AUROC ${check.auroc.toFixed(2)}, ` +
-      `~${Math.round(check.msPerText)} ms pro Text${version}.`;
+      `Passed on ${new Date(check.at).toLocaleString("en-US")}: AUROC ${check.auroc.toFixed(2)}, ` +
+      `~${Math.round(check.msPerText)} ms per text${version}.`;
   }
   status.style.color = check ? (check.ok ? "var(--green)" : "var(--red)") : "";
   const list = $(`check-${cfg.provider}-list`);
@@ -245,25 +245,25 @@ function runCheck(provider) {
     if (!granted) return;
     const button = $(`check-${provider}`);
     button.disabled = true;
-    showStatus("Prüfe Modell… (40 Referenztexte, lädt ggf. erst das Modell)");
+    showStatus("Checking model… (40 reference texts, may download the model first)");
     const r = await chrome.runtime.sendMessage({ type: "CHECK_MODEL", cfg: { ...cfg, ...secrets } });
     button.disabled = false;
-    if (!r?.sig) return showStatus(`Prüfung fehlgeschlagen: ${r?.error ?? "keine Antwort"}`, "err");
+    if (!r?.sig) return showStatus(`Check failed: ${r?.error ?? "no response"}`, "err");
     const { checks, ...stored } = r;
     modelChecks = { ...modelChecks, [provider]: stored };
     checkDetails[provider] = { sig: r.sig, checks };
     setDirty(true);
     renderProvider();
     if (r.ok) {
-      applyPreset(); // vorgeschlagene Ampel übernehmen
-      showStatus("Modell geprüft – bestanden. Speichern, um es zu verwenden.", "ok");
+      applyPreset(); // adopt the suggested traffic light
+      showStatus("Model checked – passed. Save to use it.", "ok");
     } else {
-      showStatus("Modell hat die Prüfung nicht bestanden.", "err");
+      showStatus("Model failed the check.", "err");
     }
   });
 }
 
-// --- Anzeige ---
+// --- Display ---
 
 function renderProvider() {
   const cfg = formConfig();
@@ -300,8 +300,8 @@ function renderPresetInfo() {
   const p = AIVSAI.presetFor(formConfig());
   const same = p.yellowFrom === parseFloat($("yellowFrom").value) && p.redFrom === parseFloat($("redFrom").value);
   $("presetInfo").textContent = same
-    ? "entspricht der Empfehlung"
-    : `Empfehlung: gelb ab ${Math.round(p.yellowFrom * 100)}, rot ab ${Math.round(p.redFrom * 100)}`;
+    ? "matches the recommendation"
+    : `Recommendation: yellow from ${Math.round(p.yellowFrom * 100)}, red from ${Math.round(p.redFrom * 100)}`;
 }
 
 function applyPreset() {
@@ -311,13 +311,13 @@ function applyPreset() {
   renderScale();
 }
 
-// --- Browser-Modell: Status, Download, Löschen ---
+// --- Browser model: status, download, delete ---
 
-let modelState = null; // letzte Antwort von MODEL_STATUS: { models: { tmr: {...}, desklib: {...} }, threads }
+let modelState = null; // last response from MODEL_STATUS: { models: { tmr: {...}, desklib: {...} }, threads }
 const selectedModel = () => radioValue("browserModel") || AIVSAI.DEFAULTS.browserModel;
 
 function formatMB(bytes) {
-  if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(2).replace(".", ",")} GB`;
+  if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(2)} GB`;
   if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(0)} MB`;
   return `${Math.max(1, Math.round(bytes / 1e3))} KB`;
 }
@@ -325,33 +325,33 @@ function formatMB(bytes) {
 function renderProgress(p) {
   $("modelProgress").hidden = false;
   if (!p?.total) {
-    $("modelProgress").removeAttribute("value"); // unbestimmt, bis die erste Größe bekannt ist
-    $("modelStatus").textContent = "Lade herunter…";
+    $("modelProgress").removeAttribute("value"); // indeterminate until the first size is known
+    $("modelStatus").textContent = "Downloading…";
     return;
   }
   $("modelProgress").value = p.loaded / p.total;
-  const verb = AIVSAI.MODELS[selectedModel()]?.browser.build ? "Lade und wandle um…" : "Lade herunter…";
-  $("modelStatus").textContent = `${verb} ${formatMB(p.loaded)} von ${formatMB(p.total)}`;
+  const verb = AIVSAI.MODELS[selectedModel()]?.browser.build ? "Downloading and converting…" : "Downloading…";
+  $("modelStatus").textContent = `${verb} ${formatMB(p.loaded)} of ${formatMB(p.total)}`;
 }
 
 function renderModel() {
   const key = selectedModel();
   const st = modelState?.ok ? modelState.models?.[key] : null;
-  $("modelDownload").textContent = `Herunterladen (${AIVSAI.MODELS[key].browser.download})`;
+  $("modelDownload").textContent = `Download (${AIVSAI.MODELS[key].browser.download})`;
   $("modelDownload").hidden = !!(st && (st.downloaded || st.downloading));
   $("modelDelete").hidden = !st?.downloaded;
   $("modelProgress").hidden = true;
   if (!modelState) {
-    $("modelStatus").textContent = "Prüfe…";
+    $("modelStatus").textContent = "Checking…";
   } else if (!modelState.ok) {
-    $("modelStatus").textContent = `Fehler: ${modelState.error ?? "keine Antwort"}`;
+    $("modelStatus").textContent = `Error: ${modelState.error ?? "no response"}`;
   } else if (st.downloading) {
     renderProgress(st.downloading);
   } else if (st.downloaded) {
-    const threads = modelState.threads === 1 ? "1 Thread" : `${modelState.threads} Threads`;
-    $("modelStatus").textContent = `Heruntergeladen – bereit (${threads}).`;
+    const threads = modelState.threads === 1 ? "1 thread" : `${modelState.threads} threads`;
+    $("modelStatus").textContent = `Downloaded – ready (${threads}).`;
   } else {
-    $("modelStatus").textContent = "Noch nicht heruntergeladen.";
+    $("modelStatus").textContent = "Not downloaded yet.";
   }
 }
 
@@ -364,8 +364,8 @@ function bindModelButtons() {
   $("modelDownload").addEventListener("click", async () => {
     const { download, askBeforeDownload } = AIVSAI.MODELS[selectedModel()].browser;
     const question =
-      `Das Modell lädt einmalig ${download} herunter. Bei mobilem Internet oder begrenztem Datenvolumen ` +
-      "besser im WLAN. Jetzt herunterladen?";
+      `The model downloads ${download} once. On mobile internet or with a limited data allowance ` +
+      "better use Wi-Fi. Download now?";
     if (askBeforeDownload && !confirm(question)) return;
     $("modelDownload").hidden = true;
     renderProgress(null);
@@ -389,23 +389,23 @@ chrome.runtime.onMessage.addListener((msg) => {
   } else if (msg?.type === "MODEL_DONE") {
     refreshModel();
     if (msg.model !== selectedModel()) return;
-    if (msg.ok) showStatus(dirty ? "Modell heruntergeladen – jetzt speichern, um es zu verwenden." : "Modell heruntergeladen.", "ok");
-    else showStatus(`Download fehlgeschlagen: ${msg.error}`, "err");
+    if (msg.ok) showStatus(dirty ? "Model downloaded – save now to use it." : "Model downloaded.", "ok");
+    else showStatus(`Download failed: ${msg.error}`, "err");
   }
 });
 
-// --- Gespeicherte Bewertungen ---
+// --- Stored scores ---
 
 async function refreshStore() {
   const r = await chrome.runtime.sendMessage({ type: "SCORE_STORE_INFO" });
   $("storeClear").disabled = !r?.count;
   if (!r?.ok) {
-    $("storeStatus").textContent = `Fehler: ${r?.error ?? "keine Antwort"}`;
+    $("storeStatus").textContent = `Error: ${r?.error ?? "no response"}`;
     return;
   }
-  const n = r.count.toLocaleString("de-DE");
-  const size = r.count ? ` · ca. ${formatMB(r.bytes)}` : "";
-  $("storeStatus").textContent = `${n} ${r.count === 1 ? "Bewertung" : "Bewertungen"} gespeichert${size}`;
+  const n = r.count.toLocaleString("en-US");
+  const size = r.count ? ` · approx. ${formatMB(r.bytes)}` : "";
+  $("storeStatus").textContent = `${n} ${r.count === 1 ? "score" : "scores"} stored${size}`;
 }
 
 $("storeClear").addEventListener("click", async () => {
@@ -413,28 +413,28 @@ $("storeClear").addEventListener("click", async () => {
   refreshStore();
 });
 
-// --- Feedback-Sammlung ---
+// --- Feedback collection ---
 
 async function refreshFeedback() {
   const r = await chrome.runtime.sendMessage({ type: "FEEDBACK_INFO" });
   $("feedbackExport").disabled = !r?.count;
   $("feedbackClear").disabled = !r?.count && !r?.consentAt;
   if (!r?.ok) {
-    $("feedbackStatus").textContent = `Fehler: ${r?.error ?? "keine Antwort"}`;
+    $("feedbackStatus").textContent = `Error: ${r?.error ?? "no response"}`;
     return;
   }
   const consent = r.consentAt
-    ? `Einwilligung vom ${new Date(r.consentAt).toLocaleDateString("de-DE")}`
-    : "Keine Einwilligung erteilt";
+    ? `Consent from ${new Date(r.consentAt).toLocaleDateString("en-US")}`
+    : "No consent given";
   $("feedbackStatus").textContent = r.count
-    ? `${r.count} ${r.count === 1 ? "Eintrag" : "Einträge"} (${r.human} Mensch, ${r.ai} KI; ` +
-      `${r.guess} nur Eindruck; Modell lag ${r.disagree}× daneben) · ca. ${formatMB(r.bytes)} · ${consent}`
-    : `Keine Einträge · ${consent}`;
+    ? `${r.count} ${r.count === 1 ? "entry" : "entries"} (${r.human} human, ${r.ai} AI; ` +
+      `${r.guess} just impression; model was wrong ${r.disagree}×) · approx. ${formatMB(r.bytes)} · ${consent}`
+    : `No entries · ${consent}`;
 }
 
 $("feedbackExport").addEventListener("click", async () => {
   const r = await chrome.runtime.sendMessage({ type: "FEEDBACK_EXPORT" });
-  if (!r?.ok) return showStatus(`Export fehlgeschlagen: ${r?.error ?? "keine Antwort"}`, "err");
+  if (!r?.ok) return showStatus(`Export failed: ${r?.error ?? "no response"}`, "err");
   const jsonl = r.rows.map((row) => `${JSON.stringify(row)}\n`).join("");
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([jsonl], { type: "application/x-ndjson" }));
@@ -444,7 +444,7 @@ $("feedbackExport").addEventListener("click", async () => {
 });
 
 $("feedbackClear").addEventListener("click", async () => {
-  if (!confirm("Alle Feedback-Einträge löschen und die Einwilligung widerrufen?")) return;
+  if (!confirm("Delete all feedback entries and withdraw consent?")) return;
   await chrome.runtime.sendMessage({ type: "FEEDBACK_CLEAR" });
   refreshFeedback();
 });
@@ -452,17 +452,17 @@ $("feedbackClear").addEventListener("click", async () => {
 function renderBuiltinInfo() {
   const list = globalThis.AIVSAI_BLOCKLIST;
   if (!list) {
-    $("builtinInfo").textContent = "Liste fehlt – npm run build:blocklist ausführen.";
+    $("builtinInfo").textContent = "List missing – run npm run build:blocklist.";
     return;
   }
-  const date = new Date(list.generated).toLocaleDateString("de-DE");
+  const date = new Date(list.generated).toLocaleDateString("en-US");
   $("builtinInfo").textContent =
-    `${list.count.toLocaleString("de-DE")} Domains, Stand ${date}. Quellen: UT1-Blacklists (Université Toulouse ` +
-    `Capitole, CC BY-SA 4.0), FDIC und NCUA (US-Banken und Credit Unions), Wikidata (Banken DE/AT/CH/UK/US) ` +
-    `und eine handverlesene Liste. Die Liste steht unter CC BY-SA 4.0.`;
+    `${list.count.toLocaleString("en-US")} domains, as of ${date}. Sources: UT1 blacklists (Université Toulouse ` +
+    `Capitole, CC BY-SA 4.0), FDIC and NCUA (US banks and credit unions), Wikidata (banks DE/AT/CH/UK/US) ` +
+    `and a hand-picked list. The list is licensed under CC BY-SA 4.0.`;
 }
 
-// Navigation: aktuellen Abschnitt hervorheben
+// Navigation: highlight the current section
 function watchSections() {
   const links = new Map([...document.querySelectorAll(".toc a")].map((a) => [a.hash.slice(1), a]));
   const visible = new Set();
@@ -509,10 +509,10 @@ async function init() {
   bindEvents();
 }
 
-// Popup und Tastenkürzel ändern "enabled" und die Domainlisten, während diese Seite offen sein kann -
-// ohne Abgleich würde der nächste Klick auf Speichern den alten Formularstand zurückschreiben.
+// Popup and keyboard shortcut change "enabled" and the domain lists while this page may be open -
+// without reconciliation the next click on Save would write the old form state back.
 chrome.storage.onChanged.addListener((changes, area) => {
-  // Einwilligung kommt aus dem Popover auf einer Webseite
+  // Consent comes from the popover on a web page
   if (area === "local" && "feedbackConsentAt" in changes) refreshFeedback();
   if (area !== "sync") return;
   if ("enabled" in changes) $("enabled").checked = changes.enabled.newValue;
@@ -522,24 +522,24 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 function bindEvents() {
-  // Hauptschalter wirkt sofort, wie im Popup
+  // Main switch takes effect immediately, as in the popup
   $("enabled").addEventListener("change", () => chrome.storage.sync.set({ enabled: $("enabled").checked }));
 
-  // Jede andere Eingabe wartet auf "Speichern"
+  // Every other input waits for "Save"
   document.querySelector("main").addEventListener("input", () => setDirty(true));
   document.querySelector("main").addEventListener("change", (e) => {
     setDirty(true);
     const { name } = e.target;
     if (name === "provider") renderProvider();
     if (name === "scanMode") renderScanMode();
-    // anderes Modell -> dessen Info, Download-Status und empfohlene Ampel
+    // different model -> its info, download status and recommended traffic light
     if (e.target.type === "radio" && PROVIDER_FIELDS.some((f) => f.type === "model" && f.key === name)) {
       renderProvider();
       if (name === "browserModel") renderModel();
       applyPreset();
     }
   });
-  // URL, Modell-ID usw.: Datenschutz-Hinweis und ob die letzte Prüfung noch zu den Werten passt
+  // URL, model ID etc.: privacy note and whether the last check still matches the values
   $("providerForms").addEventListener("input", renderProvider);
   $("yellowFrom").addEventListener("input", renderScale);
   $("redFrom").addEventListener("input", renderScale);
@@ -559,15 +559,15 @@ function bindEvents() {
   $("test").addEventListener("click", () => {
     saveFromClick().then(async (ok) => {
       if (!ok) return;
-      showStatus("Teste Verbindung… (lädt ggf. erst das Modell)");
+      showStatus("Testing connection… (may download the model first)");
       $("test").disabled = true;
       const r = await chrome.runtime.sendMessage({ type: "TEST_PROVIDER" });
       $("test").disabled = false;
       if (r?.ok) {
-        const score = typeof r.score === "number" ? `${Math.round(r.score * 100)}%` : "kein";
-        showStatus(`OK – ${r.provider} antwortet in ${r.ms} ms (Beispieltext: ${score} KI-Score).`, "ok");
+        const score = typeof r.score === "number" ? `${Math.round(r.score * 100)}%` : "no";
+        showStatus(`OK – ${r.provider} responds in ${r.ms} ms (sample text: ${score} AI score).`, "ok");
       } else {
-        showStatus(`Fehler bei ${r?.provider ?? "Backend"}: ${r?.error ?? "keine Antwort"}`, "err");
+        showStatus(`Error at ${r?.provider ?? "backend"}: ${r?.error ?? "no response"}`, "err");
       }
     });
   });
@@ -576,8 +576,8 @@ function bindEvents() {
 function save() {
   saveFromClick().then((ok) => {
     if (!ok) return;
-    showStatus("Gespeichert.", "ok");
-    setTimeout(refreshStore, 300); // "Nicht speichern" löscht im Hintergrund
+    showStatus("Saved.", "ok");
+    setTimeout(refreshStore, 300); // "Do not store" deletes in the background
   });
 }
 

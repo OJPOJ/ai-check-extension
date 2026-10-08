@@ -1,4 +1,4 @@
-// Bewertung mit Cache, Verbindungstest und Status fürs Popup - unabhängig vom konkreten Provider.
+// Scoring with cache, connection test and status for the popup - independent of the concrete provider.
 import "../config.js";
 import { backendFor, describeError } from "./providers.js";
 import * as store from "./score-store.js";
@@ -8,14 +8,14 @@ const TEST_TEXT =
   "Maintaining a bicycle in good working condition requires regular attention to several " +
   "key components, including the tires, the chain and the brake pads.";
 
-// Arbeitsspeicher-Cache: providerSignature + Text -> probability. Hält nur, solange der Service Worker
-// läuft (~30 s ohne Nachrichten); darunter liegt der dauerhafte Speicher aus score-store.js.
-// Schlüssel ist der Text selbst (max. 2000 Zeichen), nicht die ID vom Content-Script: dessen
-// 32-Bit-Hash ist nur innerhalb einer Seite eindeutig genug.
+// In-memory cache: providerSignature + text -> probability. Only lasts while the service worker
+// runs (~30 s without messages); below it sits the persistent store from score-store.js.
+// The key is the text itself (max. 2000 characters), not the ID from the content script: its
+// 32-bit hash is only unique enough within a single page.
 const cache = new Map();
 let lastStatus = null; // { ok, error?, at, provider }
 
-// Konfiguration im Speicher halten statt pro Batch zweimal aus dem Storage zu lesen
+// Keep the configuration in memory instead of reading it from storage twice per batch
 let configPromise = null;
 
 export function getConfig() {
@@ -28,13 +28,13 @@ export function getConfig() {
 
 chrome.storage.onChanged.addListener((changes) => {
   configPromise = null;
-  // Treffer aus dem Arbeitsspeicher landen nie im dauerhaften Speicher - wird das Speichern eingeschaltet,
-  // müssen sie einmal über den normalen Weg laufen, sonst fehlen sie dort bis zum SW-Neustart
+  // Hits from memory never end up in the persistent store - if storing is switched on,
+  // they have to go through the normal path once, otherwise they are missing there until the SW restarts
   if ("scoreRetentionDays" in changes) cache.clear();
 });
 
-// Alles, wovon ein Score abhängt: Provider-Einstellungen plus Modellversion (modelKey). Wechsel des
-// Modells oder eine neue Version -> andere Signatur -> alte Einträge passen nicht mehr.
+// Everything a score depends on: provider settings plus model version (modelKey). Switching the
+// model or a new version -> different signature -> old entries no longer match.
 function providerSignature(cfg) {
   return [...AIVSAI.PROVIDER_KEYS.map((k) => cfg[k]), AIVSAI.modelKey(cfg)].join("\u0001");
 }
@@ -45,8 +45,8 @@ function cachePut(key, value) {
   if (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);
 }
 
-// Der Vertrag kennt `lang` pro Anfrage, nicht pro Text: gemischte Batches (selten - meist hat eine Seite
-// eine Sprache) gehen als eine Anfrage pro Sprache raus. Ergebnis in der Reihenfolge von `items`.
+// The contract knows `lang` per request, not per text: mixed batches (rare - usually a page has
+// one language) go out as one request per language. Result in the order of `items`.
 async function scoreByLang(items, cfg) {
   const groups = Map.groupBy(items.map((it, i) => ({ it, i })), ({ it }) => it.lang || "");
   const result = new Array(items.length).fill(null);
@@ -57,15 +57,15 @@ async function scoreByLang(items, cfg) {
   return result;
 }
 
-// Laufende Bewertungen: Cache-Schlüssel -> Promise<{p?: number, error?: string}>. Scannen mehrere Tabs
-// dieselbe Seite (oder steht ein Absatz zweimal in einem Batch), geht jeder Text nur einmal an Speicher
-// und Backend; die anderen Anfragen warten auf dieses Ergebnis.
+// Running scorings: cache key -> Promise<{p?: number, error?: string}>. If several tabs scan
+// the same page (or a paragraph appears twice in a batch), each text goes to storage
+// and backend only once; the other requests wait for that result.
 const pending = new Map();
 
 /**
- * @param {{id: string, text: string, lang?: string}[]} items  lang: erkannte Sprache, falls bekannt
+ * @param {{id: string, text: string, lang?: string}[]} items  lang: detected language, if known
  * @returns {Promise<{ok: boolean, scores: Record<string, number>, model: string, error?: string}>}
- *   `model` (AIVSAI.modelKey) gehört zu jedem Score - für Feedback, Berichte und Kalibrierung.
+ *   `model` (AIVSAI.modelKey) belongs to every score - for feedback, reports and calibration.
  */
 export async function scoreBatch(items) {
   const cfg = await getConfig();
@@ -74,8 +74,8 @@ export async function scoreBatch(items) {
 
   const sig = providerSignature(cfg);
   const scores = {};
-  // 1. Arbeitsspeicher, sonst an eine laufende Bewertung anhängen oder selbst eine anmelden -
-  // ohne await dazwischen, damit keine zweite Anfrage denselben Text parallel anmeldet
+  // 1. Memory, otherwise attach to a running scoring or register one ourselves -
+  // without an await in between, so that no second request registers the same text in parallel
   const joined = [];
   const own = [];
   for (const it of items) {
@@ -105,7 +105,7 @@ export async function scoreBatch(items) {
         const p = result.probs[i];
         if (typeof p === "number") scores[it.id] = p;
         pending.delete(key);
-        settle(typeof p === "number" ? { p } : { error: result.error ?? "Keine Bewertung" });
+        settle(typeof p === "number" ? { p } : { error: result.error ?? "No score" });
       });
     }
     error = result.error;
@@ -118,13 +118,13 @@ export async function scoreBatch(items) {
   return error ? { ok: false, error, scores, model } : { ok: true, scores, model };
 }
 
-// 2. dauerhafter Speicher, 3. Modell/Backend. Ergebnis in der Reihenfolge von `items`; `error` nur, wenn das
-// Backend scheitert - Treffer aus dem Speicher sind dann trotzdem in `probs`.
+// 2. persistent store, 3. model/backend. Result in the order of `items`; `error` only if the
+// backend fails - hits from the store are still in `probs` then.
 async function lookup(items, cfg, sig, model) {
   const probs = new Array(items.length);
   let missing = items.map((it, i) => ({ it, i }));
 
-  // 2. dauerhafter Speicher (falls eingeschaltet) - Fehler dort dürfen nie die Bewertung verhindern
+  // 2. persistent store (if switched on) - errors there must never prevent the scoring
   if (cfg.scoreRetentionDays > 0) {
     try {
       const keys = await Promise.all(missing.map(({ it }) => store.keyFor(sig, it.text)));
@@ -138,12 +138,12 @@ async function lookup(items, cfg, sig, model) {
       });
       missing = rest;
     } catch (err) {
-      console.warn("Score-Speicher nicht lesbar", err);
+      console.warn("Score store not readable", err);
     }
     if (!missing.length) return { probs };
   }
 
-  // 3. Modell/Backend
+  // 3. Model/backend
   const provider = AIVSAI.providerLabel(cfg);
   try {
     const result = await scoreByLang(missing.map(({ it }) => it), cfg);
@@ -154,7 +154,7 @@ async function lookup(items, cfg, sig, model) {
       cachePut(`${sig}${it.text}`, result[j]);
       if (key) fresh.push({ k: key, p: result[j], m: model });
     });
-    if (fresh.length) store.putMany(fresh).catch((err) => console.warn("Score-Speicher nicht beschreibbar", err));
+    if (fresh.length) store.putMany(fresh).catch((err) => console.warn("Score store not writable", err));
     lastStatus = { ok: true, at: Date.now(), provider };
     return { probs };
   } catch (err) {
@@ -164,7 +164,7 @@ async function lookup(items, cfg, sig, model) {
   }
 }
 
-// Aufräumen nach Aufbewahrungsdauer (0 = nichts speichern -> alles löschen)
+// Cleanup by retention period (0 = store nothing -> delete everything)
 export async function pruneStore() {
   const { scoreRetentionDays } = await getConfig();
   await store.prune(scoreRetentionDays);
@@ -193,8 +193,8 @@ export async function testProvider() {
   }
 }
 
-// Leichter Check fürs Popup: eigener Check des Backends (Browser-Modell, /healthz), sonst nur der letzte
-// bekannte Stand (ein echter Probe-Request würde bei Cloud-Anbietern Kosten/Quota verbrauchen).
+// Light check for the popup: the backend's own check (browser model, /healthz), otherwise only the last
+// known state (a real probe request would consume cost/quota with cloud providers).
 export async function health() {
   const cfg = await getConfig();
   const provider = AIVSAI.providerLabel(cfg);

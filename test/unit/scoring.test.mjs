@@ -1,5 +1,5 @@
-// scoreBatch aus extension/bg/scoring.js mit gemocktem chrome/fetch: gleichzeitige Anfragen für denselben Text
-// (mehrere Tabs, doppelter Absatz im Batch) gehen nur einmal ans Backend. Dauerhafter Speicher ist aus.
+// scoreBatch from extension/bg/scoring.js with mocked chrome/fetch: simultaneous requests for the same text
+// (several tabs, duplicate paragraph in the batch) go to the backend only once. Persistent store is off.
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 
@@ -19,7 +19,7 @@ const realFetch = globalThis.fetch;
 let requests = [];
 let release;
 
-// Backend antwortet erst nach release(): Score 0.5 pro Text, bei fail HTTP 500
+// Backend responds only after release(): score 0.5 per text, HTTP 500 on fail
 function holdBackend({ fail = false } = {}) {
   requests = [];
   const gate = new Promise((resolve) => (release = resolve));
@@ -27,7 +27,7 @@ function holdBackend({ fail = false } = {}) {
     const { texts } = JSON.parse(init.body);
     requests.push(texts);
     await gate;
-    if (fail) return new Response("kaputt", { status: 500 });
+    if (fail) return new Response("broken", { status: 500 });
     return new Response(JSON.stringify({ scores: texts.map(() => 0.5) }), { status: 200 });
   };
 }
@@ -36,12 +36,12 @@ afterEach(() => {
   globalThis.fetch = realFetch;
 });
 
-// eindeutige Texte pro Test - der Arbeitsspeicher-Cache überlebt zwischen den Tests
+// unique texts per test - the in-memory cache survives between tests
 let n = 0;
 const text = (tag) => `${tag} ${++n} ${"lorem ipsum ".repeat(20)}`;
 
-describe("scoreBatch: laufende Anfragen zusammenfassen", () => {
-  it("schickt denselben Text aus zwei Tabs nur einmal ans Backend", async () => {
+describe("scoreBatch: merge running requests", () => {
+  it("sends the same text from two tabs to the backend only once", async () => {
     holdBackend();
     const shared = text("shared");
     const onlyB = text("onlyB");
@@ -57,7 +57,7 @@ describe("scoreBatch: laufende Anfragen zusammenfassen", () => {
     assert.deepEqual(requests, [[shared], [onlyB]]);
   });
 
-  it("schickt einen doppelten Absatz im selben Batch nur einmal", async () => {
+  it("sends a duplicate paragraph in the same batch only once", async () => {
     holdBackend();
     const t = text("dup");
     const res = scoreBatch([
@@ -69,7 +69,7 @@ describe("scoreBatch: laufende Anfragen zusammenfassen", () => {
     assert.deepEqual(requests, [[t]]);
   });
 
-  it("gibt den Fehler an wartende Anfragen weiter und versucht es danach neu", async () => {
+  it("passes the error on to waiting requests and retries afterwards", async () => {
     holdBackend({ fail: true });
     const t = text("fail");
     const a = scoreBatch([{ id: "a", text: t }]);
@@ -88,7 +88,7 @@ describe("scoreBatch: laufende Anfragen zusammenfassen", () => {
     assert.equal(requests.length, 1);
   });
 
-  it("nimmt fertige Ergebnisse aus dem Arbeitsspeicher", async () => {
+  it("takes finished results from memory", async () => {
     holdBackend();
     release();
     const t = text("cached");

@@ -1,10 +1,10 @@
 """
-WP-07: Druckt dieselben Tabellen wie evaluate_suite.py (AUROC, Fehlalarme wie angezeigt, je Domaene/
-Generator/Laengen-Bucket, Schwellen-Empfehlung), aber aus bereits vorhandenen Rohscores statt neu zu
-rechnen - fuer den vollen desklib-Lauf (n=1200), der ueber mehrere Aufrufe (evaluate_suite.py fuer die
-ersten 480, desklib_fill_suite.py fuer den Rest) entstanden ist.
+WP-07: Prints the same tables as evaluate_suite.py (AUROC, false alarms as displayed, per domain/
+generator/length bucket, threshold recommendation), but from already existing raw scores instead of
+recomputing - for the full desklib run (n=1200), which came about over several calls (evaluate_suite.py for the
+first 480, desklib_fill_suite.py for the rest).
 
-Nutzung (aus training/):
+Usage (from training/):
     .venv/Scripts/python.exe report_from_scores.py --backend desklib
 """
 import argparse

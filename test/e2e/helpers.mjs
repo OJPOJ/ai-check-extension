@@ -1,5 +1,5 @@
-// Gemeinsame Helfer für die E2E-Tests: echte Extension in Chromium (Playwright) gegen ein Fake-Backend,
-// das den Vertrag von shim_server.py spricht (POST {texts} -> {scores}) und mitschreibt, was ankommt.
+// Shared helpers for the E2E tests: the real extension in Chromium (Playwright) against a fake backend
+// that speaks the contract of shim_server.py (POST {texts} -> {scores}) and records what arrives.
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,14 +8,14 @@ import { chromium } from "playwright";
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 export const EXT = path.join(ROOT, "extension");
 
-/** Deterministischer Score aus der Textlänge - verteilt Absätze reproduzierbar auf grün/gelb/rot. */
+/** Deterministic score from the text length - distributes paragraphs reproducibly across green/yellow/red. */
 export const scoreByLength = (text) => [0.2, 0.7, 0.95][text.length % 3];
 
 /**
- * Fake-Backend auf zufälligem Port (kollidiert nicht mit einem laufenden shim_server.py).
- * `info` = Antwort auf GET /v1/info (ohne: 404, wie ein Server, der den optionalen Endpunkt nicht hat).
+ * Fake backend on a random port (does not collide with a running shim_server.py).
+ * `info` = response to GET /v1/info (without: 404, like a server that does not have the optional endpoint).
  * @returns {Promise<{url: string, texts: string[], batches: string[][], langs: (string|undefined)[], requests: number,
- *   close: () => Promise<void>}>}  langs: `lang` pro Anfrage
+ *   close: () => Promise<void>}>}  langs: `lang` per request
  */
 export async function startBackend(score = scoreByLength, { info } = {}) {
   const backend = { texts: [], batches: [], langs: [], requests: 0 };
@@ -45,12 +45,12 @@ export async function startBackend(score = scoreByLength, { info } = {}) {
 }
 
 /**
- * Startet Chromium mit der entpackten Extension. `pages` bildet erfundene Hosts auf HTML ab
- * (Content-Scripts laufen nicht auf localhost, deshalb eigene Hostnamen).
+ * Starts Chromium with the unpacked extension. `pages` maps made-up hosts to HTML
+ * (content scripts do not run on localhost, hence own hostnames).
  */
 export async function launchExtension({ pages = {}, viewport = { width: 900, height: 900 } } = {}) {
   const ctx = await chromium.launchPersistentContext("", {
-    channel: "chromium", // neuer Headless-Modus, der Extensions unterstützt
+    channel: "chromium", // new headless mode that supports extensions
     headless: !process.env.HEADED,
     viewport,
     args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`]
@@ -62,21 +62,21 @@ export async function launchExtension({ pages = {}, viewport = { width: 900, hei
     }
     [sw] = ctx.serviceWorkers();
     sw ||= await ctx.waitForEvent("serviceworker");
-    // onInstalled öffnet die Begrüßung - mal als neuen Tab, mal im leeren Starttab. Von dort weiter zu
-    // den Einstellungen wie ein Nutzer (prüft nebenbei den Link); die Seite dient danach als
-    // Extension-Kontext für Nachrichten.
+    // onInstalled opens the welcome page - sometimes as a new tab, sometimes in the empty start tab. From there on to
+    // the settings like a user (checks the link along the way); the page then serves as the
+    // extension context for messages.
     const welcome = await until(() => ctx.pages().find((p) => p.url().endsWith("/welcome.html")), {
-      message: "Begrüßungsseite wurde nicht geöffnet"
+      message: "Welcome page was not opened"
     });
     await welcome.waitForLoadState();
     await welcome.click("a[href^='options.html']");
     options = await until(() => ctx.pages().find((p) => p.url().includes("/options.html")), {
-      message: "Einstellungsseite wurde nicht geöffnet"
+      message: "Settings page was not opened"
     });
     await options.waitForLoadState();
-    await options.waitForFunction(() => document.querySelector("#modelStatus")?.textContent !== "Prüfe…");
+    await options.waitForFunction(() => document.querySelector("#modelStatus")?.textContent !== "Checking…");
   } catch (err) {
-    await ctx.close(); // sonst hält der offene Browser den Testprozess am Leben
+    await ctx.close(); // otherwise the open browser keeps the test process alive
     throw err;
   }
 
@@ -85,11 +85,11 @@ export async function launchExtension({ pages = {}, viewport = { width: 900, hei
     page.on("console", (m) => m.type() === "error" && errors.push(`${label}: ${m.text()}`));
   watch(options, "options");
 
-  // Ohne "tabs"-Recht liefert chrome.tabs.query keine URLs (activeTab gilt erst nach Klick aufs
-  // Icon) - deshalb den Tab nach vorn holen und als aktiven Tab finden
+  // Without the "tabs" permission chrome.tabs.query returns no URLs (activeTab only applies after a click on the
+  // icon) - hence bring the tab to the front and find it as the active tab
   async function tabId(host) {
     const page = ctx.pages().find((p) => p.url().startsWith(`http://${host}/`));
-    if (!page) throw new Error(`kein Tab für ${host}`);
+    if (!page) throw new Error(`no tab for ${host}`);
     await page.bringToFront();
     return options.evaluate(async () => (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0].id);
   }
@@ -98,7 +98,7 @@ export async function launchExtension({ pages = {}, viewport = { width: 900, hei
     ctx,
     options,
     errors,
-    /** aktueller Service Worker (nach einem Neustart ein neues Objekt) */
+    /** current service worker (a new object after a restart) */
     sw: () => ctx.serviceWorkers()[0] ?? sw,
     async open(url) {
       const page = await ctx.newPage();
@@ -109,27 +109,27 @@ export async function launchExtension({ pages = {}, viewport = { width: 900, hei
     configure: (cfg) => options.evaluate((c) => chrome.storage.sync.set(c), cfg),
     send: (msg) => options.evaluate((m) => chrome.runtime.sendMessage(m), msg),
     tabId,
-    /** Nachricht an das Content-Script des Tabs mit diesem Host */
+    /** Message to the content script of the tab with this host */
     sendToTab: async (host, msg) =>
       options.evaluate(([id, m]) => chrome.tabs.sendMessage(id, m), [await tabId(host), msg]),
     close: () => ctx.close()
   };
 }
 
-/** Wartet, bis `fn()` truthy liefert (Bedingungen auf Node-Seite, z.B. Backend-Zähler); wirft sonst. */
-export async function until(fn, { timeout = 10_000, interval = 100, message = "Bedingung nicht erfüllt" } = {}) {
+/** Waits until `fn()` returns truthy (conditions on the Node side, e.g. backend counters); throws otherwise. */
+export async function until(fn, { timeout = 10_000, interval = 100, message = "Condition not met" } = {}) {
   const end = Date.now() + timeout;
   for (;;) {
     const value = await fn();
     if (value) return value;
-    if (Date.now() > end) throw new Error(`${message} (nach ${timeout} ms)`);
+    if (Date.now() > end) throw new Error(`${message} (after ${timeout} ms)`);
     await new Promise((r) => setTimeout(r, interval));
   }
 }
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** Direkter Blick in den dauerhaften Score-Speicher (IndexedDB der Extension). */
+/** Direct look into the persistent score store (the extension's IndexedDB). */
 export const storedScores = (page) =>
   page.evaluate(
     () =>
@@ -142,7 +142,7 @@ export const storedScores = (page) =>
   );
 
 /**
- * Absatztext mit Kennung, lang genug für den Auto-Scan (>= 40 Wörter) und für gelb/rot statt „unsicher“
- * (~165 Wörter, AIVSAI.reliableWords).
+ * Paragraph text with an identifier, long enough for the auto-scan (>= 40 words) and for yellow/red instead of "uncertain"
+ * (~165 words, AIVSAI.reliableWords).
  */
 export const longText = (tag) => `${tag} ` + "words about gardening soil water light and patience in the spring ".repeat(15);

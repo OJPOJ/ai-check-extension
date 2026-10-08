@@ -8,7 +8,7 @@ function sendToTab(msg) {
   return new Promise((resolve) => {
     if (!tab?.id) return resolve(null);
     chrome.tabs.sendMessage(tab.id, msg, (resp) => {
-      // kein Content-Script (chrome://, Web Store, PDF-Viewer, Tab vor Installation geöffnet)
+      // no content script (chrome://, Web Store, PDF viewer, tab opened before installation)
       resolve(chrome.runtime.lastError ? null : resp);
     });
   });
@@ -27,29 +27,29 @@ function renderScale() {
 
 function renderSite() {
   const supported = /^https?:$/.test(tab?.url ? new URL(tab.url).protocol : "");
-  $("host").textContent = supported ? host : "Diese Seite";
+  $("host").textContent = supported ? host : "This page";
   const reason = supported ? AIVSAI.blockReason(host, config) : null;
   $("siteSwitch").hidden = !supported || !!reason || config.scanMode === "manual";
   $("scanNow").disabled = !supported || !!reason;
   $("blockToggle").hidden = !supported;
-  $("blockToggle").textContent = reason ? "Von der Sperrliste nehmen" : "Hier nie scannen (Sperrliste)";
+  $("blockToggle").textContent = reason ? "Remove from blocklist" : "Never scan here (blocklist)";
   const siteAuto = $("siteAuto");
 
   if (!supported) {
-    $("siteHint").textContent = "Hier kann nicht gescannt werden";
+    $("siteHint").textContent = "Cannot scan here";
   } else if (reason) {
     $("siteHint").textContent =
-      reason === "builtin" ? "Mitgelieferte Sperrliste (Bank/Mail) – wird nie gescannt" : "Sperrliste – wird nie gescannt";
+      reason === "builtin" ? "Bundled blocklist (bank/mail) – is never scanned" : "Blocklist – is never scanned";
   } else if (config.scanMode === "all") {
     siteAuto.checked = true;
     siteAuto.disabled = true;
-    $("siteHint").textContent = "Automatisch – alle Seiten werden gescannt";
+    $("siteHint").textContent = "Automatic – all sites are scanned";
   } else if (config.scanMode === "sites") {
     siteAuto.disabled = false;
     siteAuto.checked = AIVSAI.siteMatches(host, config.sites);
-    $("siteHint").textContent = siteAuto.checked ? "Wird automatisch gescannt" : "Nur auf Knopfdruck";
+    $("siteHint").textContent = siteAuto.checked ? "Is scanned automatically" : "Only on button press";
   } else {
-    $("siteHint").textContent = "Nur auf Knopfdruck";
+    $("siteHint").textContent = "Only on button press";
   }
 }
 
@@ -64,31 +64,31 @@ function renderStats(stats) {
   set("cYellow", stats.yellow);
   set("cGreen", stats.green);
   set("cUncertain", stats.uncertain);
-  $("scanNow").textContent = stats.active ? "Seite neu scannen" : "Diese Seite jetzt scannen";
-  // Heuristik aus dem Content-Script - kennt das Popup nicht aus den Einstellungen
+  $("scanNow").textContent = stats.active ? "Rescan page" : "Scan page now";
+  // Heuristic from the content script - the popup does not know it from the settings
   if (stats.blockReason === "sensitive") {
-    $("siteHint").textContent = "Passwort-/Zahlungsfeld erkannt – wird nicht gescannt";
+    $("siteHint").textContent = "Password/payment field detected – is not scanned";
     $("siteSwitch").hidden = true;
     $("scanNow").disabled = true;
   }
 
   if (stats.error) {
-    $("pending").textContent = `Fehler: ${stats.error}`;
+    $("pending").textContent = `Error: ${stats.error}`;
   } else if (stats.pending) {
-    $("pending").textContent = `${stats.pending} Absatz/Absätze werden geprüft…`;
+    $("pending").textContent = `${stats.pending} paragraph(s) being checked…`;
   } else if (stats.deferred) {
-    $("pending").textContent = `${stats.deferred} weitere Absätze werden beim Scrollen geprüft.`;
+    $("pending").textContent = `${stats.deferred} more paragraphs will be checked on scrolling.`;
   } else if (stats.skipped) {
     const langs = AIVSAI.languages(config);
     $("pending").textContent =
-      `${stats.skipped} Absatz/Absätze in anderer Sprache nicht bewertet` +
-      (langs ? ` – das Modell kennt nur ${langs.map(AIVSAI_LANG.name).join(", ")}.` : ".");
+      `${stats.skipped} paragraph(s) in another language not scored` +
+      (langs ? ` – the model only knows ${langs.map(AIVSAI_LANG.name).join(", ")}.` : ".");
   } else if (stats.active && !stats.red && !stats.yellow && !stats.green && !stats.uncertain) {
-    $("pending").textContent = "Keine ausreichend langen Textabsätze gefunden.";
+    $("pending").textContent = "No sufficiently long paragraphs of text found.";
   } else if (stats.blocked) {
-    $("pending").textContent = "Keine automatische Prüfung – einzelne Stellen per Rechtsklick.";
+    $("pending").textContent = "No automatic check – single passages via right-click.";
   } else if (!stats.active) {
-    $("pending").textContent = "Auf dieser Seite nicht aktiv.";
+    $("pending").textContent = "Not active on this page.";
   } else {
     $("pending").textContent = "";
   }
@@ -104,7 +104,7 @@ async function refreshHealth() {
   const dot = $("backendDot");
   dot.className = `dot ${h?.ok === true ? "green" : h?.ok === false ? "red" : "gray"}`;
   $("backendStatus").textContent =
-    h?.ok === true ? h.detail || "Erreichbar" : h?.ok === false ? h.error || "Fehler" : "Noch nicht verwendet";
+    h?.ok === true ? h.detail || "Reachable" : h?.ok === false ? h.error || "Error" : "Not used yet";
 }
 
 function render() {
@@ -127,7 +127,7 @@ async function init() {
   refreshHealth();
 }
 
-// Das Content-Script meldet jede Änderung selbst (STATS geht an Background und Popup) - kein Polling
+// The content script reports every change itself (STATS goes to background and popup) - no polling
 chrome.runtime.onMessage.addListener((msg, sender) => {
   if (msg?.type === "STATS" && tab?.id !== undefined && sender.tab?.id === tab.id) renderStats(msg.stats);
 });
@@ -148,7 +148,7 @@ $("siteAuto").addEventListener("change", async (e) => {
 $("blockToggle").addEventListener("click", async () => {
   const notHost = (list) => list.filter((s) => !AIVSAI.siteMatches(host, [s]));
   if (AIVSAI.blockReason(host, config)) {
-    // eigene Einträge entfernen; greift dann noch die mitgelieferte Liste, Ausnahme für diesen Host
+    // remove own entries; if the bundled list still applies, add an exception for this host
     config.blockedSites = notHost(config.blockedSites);
     if (AIVSAI.blockReason(host, config)) config.unblockedSites = [...config.unblockedSites, host];
   } else {
@@ -163,7 +163,7 @@ $("blockToggle").addEventListener("click", async () => {
 $("scanNow").addEventListener("click", async () => {
   const stats = await sendToTab({ type: "SCAN_NOW" });
   if (!stats) {
-    $("pending").textContent = "Seite einmal neu laden, dann erneut versuchen.";
+    $("pending").textContent = "Reload the page once, then try again.";
     return;
   }
   renderStats(stats);

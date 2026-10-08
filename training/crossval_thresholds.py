@@ -1,31 +1,31 @@
 """
-WP-07: Kreuzvalidierung der Ampel-Schwellen (redFrom, shortRedFrom) auf der breiten Eval-Suite
-(data/eval_suite.jsonl + die Rohscores aus evaluate_suite.py/desklib_fill_suite.py).
+WP-07: Cross-validation of the traffic light thresholds (redFrom, shortRedFrom) on the broad eval suite
+(data/eval_suite.jsonl + the raw scores from evaluate_suite.py/desklib_fill_suite.py).
 
-Methode (ENTSCHEIDUNG, siehe orchestration/LOG.md): wiederholte zufaellige Haelfte/Haelfte-Splits,
-stratifiziert nach (domain, label), damit jede Haelfte dieselbe Domain-/Klassenmischung hat wie die
-Gesamtsuite - dieselbe Methode wie schon EVAL_RESULTS.md "Konfidenz fuer kurze Absaetze" (200x
-Wikipedia-Haelften). Pro Wiederholung:
-  1. Haelfte A: Schwelle so waehlen, dass ~1% der MENSCH-Scores "wie angezeigt" (Regel 9 im
-     orchestration/README.md - config.js level(): unter reliableWords zaehlt shortRedFrom statt
-     redFrom, ohne shortRedFrom bleibt es "unsicher") darueberliegen (99. Perzentil).
-  2. Haelfte B (ungesehen): mit dieser Schwelle tatsaechliche Fehlalarm-/Erkennungsrate messen.
-Getrennt fuer die "lange" Gruppe (>= reliableWords, regelt redFrom) und die "kurze" Gruppe
-(< reliableWords, regelt shortRedFrom, nur wenn das Modell eins hat).
+Method: repeated random half/half splits,
+stratified by (domain, label), so that each half has the same domain/class mix as the
+whole suite - the same method as already in EVAL_RESULTS.md "Confidence for short paragraphs" (200x
+Wikipedia halves). Per repetition:
+  1. Half A: choose the threshold such that ~1% of the HUMAN scores "as displayed" (rule 9 in
+     orchestration/README.md - config.js level(): below reliableWords shortRedFrom applies instead of
+     redFrom, without shortRedFrom it stays "uncertain") lie above it (99th percentile).
+  2. Half B (unseen): measure the actual false alarm/detection rate with this threshold.
+Separately for the "long" group (>= reliableWords, governs redFrom) and the "short" group
+(< reliableWords, governs shortRedFrom, only if the model has one).
 
-Zusaetzlich: dieselben 200 Test-Haelften auch mit den AKTUELLEN Werten aus models.js ausgewertet,
-um eine Fehlerspanne (5.-95. Perzentil) der heutigen Zahlen zu bekommen (Aufgabe: "Konfidenzintervall
-der aktuellen Werte").
+Additionally: the same 200 test halves are also evaluated with the CURRENT values from models.js,
+to get an error range (5th-95th percentile) of today's numbers (task: "confidence interval
+of the current values").
 
-Nutzung (aus training/):
+Usage (from training/):
     .venv/Scripts/python.exe crossval_thresholds.py --backend tmr
     .venv/Scripts/python.exe crossval_thresholds.py --backend desklib
     .venv/Scripts/python.exe crossval_thresholds.py --backend both --reps 200
 
-WP-09: --backend fakespot liest data/eval_scores_fakespot_suite.jsonl (ONNX-Scores, MedAliFarhat/
-ai-text-detector-onnx - genau die Zahlen, die die Extension tatsaechlich saehe, siehe compare_onnx.py).
-Kein "aktueller" Wert (Modell ist neu, noch nicht in models.js) - current_on_testhalves() wird dafuer
-uebersprungen (CURRENT-Eintrag auf None).
+WP-09: --backend fakespot reads data/eval_scores_fakespot_suite.jsonl (ONNX scores, MedAliFarhat/
+ai-text-detector-onnx - exactly the numbers the extension would actually see, see compare_onnx.py).
+No "current" value (the model is new, not yet in models.js) - current_on_testhalves() is skipped
+for it (CURRENT entry set to None).
 """
 import argparse
 import json
@@ -37,11 +37,11 @@ from pathlib import Path
 RELIABLE_WORDS = 120
 TARGET_FA = 0.01
 
-# Aktuelle Ampel-Startwerte aus extension/models.js (nur gelesen) - wie in evaluate_suite.py
+# Current traffic light starting values from extension/models.js (only read) - as in evaluate_suite.py
 CURRENT = {
     "tmr": {"redFrom": 0.98, "shortRedFrom": None},
     "desklib": {"redFrom": 0.87, "shortRedFrom": 0.98},
-    "fakespot": {"redFrom": None, "shortRedFrom": None},  # neues Modell, keine Produktions-Schwelle
+    "fakespot": {"redFrom": None, "shortRedFrom": None},  # new model, no production threshold
 }
 
 
@@ -64,7 +64,7 @@ def share(scores, thresh):
 
 
 def stratified_half_split(rows, rnd):
-    """Zwei etwa gleich grosse Haelften, je (domain,label) moeglichst gleich aufgeteilt."""
+    """Two halves of roughly equal size, each (domain,label) split as evenly as possible."""
     by_key = defaultdict(list)
     for r in rows:
         by_key[(r["domain"], r["label"])].append(r)
@@ -83,14 +83,14 @@ def select_threshold(train_human_scores, target_fa=TARGET_FA):
 
 
 def crossval(rows, reps, seed, bucket_name, in_bucket):
-    """rows: alle Zeilen des Backends (mit 'score'). in_bucket(r)->bool waehlt die Wort-Gruppe.
-    Gibt Liste von dicts je Wiederholung zurueck: gewaehlte Schwelle, FA/Erkennung auf Haelfte B."""
+    """rows: all rows of the backend (with 'score'). in_bucket(r)->bool selects the word group.
+    Returns a list of dicts, one per repetition: chosen threshold, FA/detection on half B."""
     sub = [r for r in rows if in_bucket(r)]
     n_human = sum(1 for r in sub if r["label"] == 0)
     n_ai = sum(1 for r in sub if r["label"] == 1)
-    print(f"  Bucket {bucket_name}: n={len(sub)} (human={n_human}, KI={n_ai})")
+    print(f"  Bucket {bucket_name}: n={len(sub)} (human={n_human}, AI={n_ai})")
     if n_human < 10 or n_ai < 10:
-        print(f"    -> zu wenig Daten fuer Kreuzvalidierung, uebersprungen")
+        print(f"    -> too little data for cross-validation, skipped")
         return []
     rnd = random.Random(seed)
     out = []
@@ -111,14 +111,14 @@ def crossval(rows, reps, seed, bucket_name, in_bucket):
 
 
 def current_on_testhalves(rows, reps, seed, bucket_name, in_bucket, current_t):
-    """Dieselbe Art Splits, aber statt einer gewaehlten Schwelle die heutige feste Schwelle -
-    liefert die Verteilung der FA-/Erkennungsrate auf (unabhaengigen) Test-Haelften -> CI."""
+    """The same kind of splits, but instead of a chosen threshold today's fixed threshold -
+    yields the distribution of the FA/detection rate on (independent) test halves -> CI."""
     if current_t is None:
         return []
     sub = [r for r in rows if in_bucket(r)]
     if sum(1 for r in sub if r["label"] == 0) < 10:
         return []
-    rnd = random.Random(seed + 1)  # andere Ziehung als crossval(), aber gleiche Methode
+    rnd = random.Random(seed + 1)  # different draw than crossval(), but same method
     out = []
     for i in range(reps):
         a, b = stratified_half_split(sub, rnd)
@@ -131,7 +131,7 @@ def current_on_testhalves(rows, reps, seed, bucket_name, in_bucket, current_t):
 
 
 def summarize(vals, key):
-    xs = sorted(v[key] for v in vals if v[key] == v[key])  # NaN raus
+    xs = sorted(v[key] for v in vals if v[key] == v[key])  # drop NaN
     if not xs:
         return None
     return {
@@ -152,11 +152,11 @@ def fmt(s):
 
 def run_backend(backend, scores_path, reps, seed):
     rows = load_jsonl(scores_path)
-    print(f"\n{'=' * 70}\n{backend.upper()}  (n={len(rows)})  {reps}x stratifizierte Haelfte/Haelfte-Splits\n{'=' * 70}")
+    print(f"\n{'=' * 70}\n{backend.upper()}  (n={len(rows)})  {reps}x stratified half/half splits\n{'=' * 70}")
 
     buckets = [
-        ("lang (>=120 Woerter, regelt redFrom)", lambda r: r["words"] >= RELIABLE_WORDS),
-        ("kurz (<120 Woerter, regelt shortRedFrom)", lambda r: r["words"] < RELIABLE_WORDS),
+        ("long (>=120 words, governs redFrom)", lambda r: r["words"] >= RELIABLE_WORDS),
+        ("short (<120 words, governs shortRedFrom)", lambda r: r["words"] < RELIABLE_WORDS),
     ]
     cur = CURRENT[backend]
     current_vals = [cur["redFrom"], cur["shortRedFrom"]]
@@ -171,19 +171,19 @@ def run_backend(backend, scores_path, reps, seed):
         t_summary = summarize(cv, "threshold")
         fa_summary = summarize(cv, "fa_test")
         det_summary = summarize(cv, "det_test")
-        print(f"  Kreuzvalidierte Schwelle (Ziel {TARGET_FA*100:.0f}% FA auf Trainhaelfte): {fmt(t_summary)}")
-        print(f"  -> Fehlalarme auf (ungesehener) Testhaelfte:                            {fmt(fa_summary)}")
-        print(f"  -> KI erkannt auf Testhaelfte:                                          {fmt(det_summary)}")
+        print(f"  Cross-validated threshold (target {TARGET_FA*100:.0f}% FA on train half): {fmt(t_summary)}")
+        print(f"  -> False alarms on (unseen) test half:                                 {fmt(fa_summary)}")
+        print(f"  -> AI detected on test half:                                           {fmt(det_summary)}")
 
         if cur_t is not None:
             cv_cur = current_on_testhalves(rows, reps, seed, label, pred, cur_t)
             fa_cur = summarize(cv_cur, "fa_test")
             det_cur = summarize(cv_cur, "det_test")
-            print(f"  Aktuelle Schwelle {cur_t}: Fehlalarme auf Testhaelften (CI):                {fmt(fa_cur)}")
-            print(f"  Aktuelle Schwelle {cur_t}: KI erkannt auf Testhaelften (CI):                {fmt(det_cur)}")
+            print(f"  Current threshold {cur_t}: false alarms on test halves (CI):                {fmt(fa_cur)}")
+            print(f"  Current threshold {cur_t}: AI detected on test halves (CI):                {fmt(det_cur)}")
         else:
             fa_cur = det_cur = None
-            print(f"  (kein aktueller Wert fuer diesen Bucket - z.B. TMR ohne shortRedFrom)")
+            print(f"  (no current value for this bucket - e.g. TMR without shortRedFrom)")
 
         results[label] = {
             "threshold": t_summary, "fa_test": fa_summary, "det_test": det_summary,

@@ -1,612 +1,611 @@
-# Backend-Vergleich: Laya (Zero-Shot) vs. TMR vs. desklib
+# Backend comparison: Laya (zero-shot) vs. TMR vs. desklib
 
-Stand: 2026-09-23. Genauigkeit: 100 balancierte Beispiele (50 human / 50 KI) aus dem
-HC3-Holdout-Split (`data/holdout.jsonl`, Domäne größtenteils `reddit_eli5` — informeller,
-umgangssprachlicher Text). Latenz/Speicher: `benchmark_latency.py`, CPU (kein GPU-Test),
-Batch-Größen an `extension/content.js` angelehnt (BATCH_SIZE=25). Reproduzierbar mit
-`evaluate_backends.py` (Sample in `eval_sample.jsonl`, Rohdaten in `eval_scores_<backend>.jsonl`).
+As of 2026-09-23. Accuracy: 100 balanced examples (50 human / 50 AI) from the
+HC3 holdout split (`data/holdout.jsonl`, domain mostly `reddit_eli5` — informal,
+colloquial text). Latency/memory: `benchmark_latency.py`, CPU (no GPU test),
+batch sizes modelled on `extension/content.js` (BATCH_SIZE=25). Reproducible with
+`evaluate_backends.py` (sample in `eval_sample.jsonl`, raw data in `eval_scores_<backend>.jsonl`).
 
-| Backend | Accuracy@0.5 | AUROC | Accuracy@beste Schwelle | ms/Text (Batch=25) | Batch=25 gesamt | RAM geladen |
+| Backend | Accuracy@0.5 | AUROC | Accuracy@best threshold | ms/text (batch=25) | Batch=25 total | RAM loaded |
 |---|---|---|---|---|---|---|
-| Laya (`english`, zero-shot) | 0.510 | 0.549 | 0.570 (Schwelle 0.74) | ~2458ms | ~61s | ~2.1 GB (Docker) |
-| **TMR** (RoBERTa-base, 125M) | 0.550 | **0.911** | **0.830** (Schwelle 0.98) | **~62ms** | **~1.6s** | **~900 MB** |
-| **desklib** (DeBERTa-v3-large, 430M) | **0.960** | **0.998** | **0.990** (Schwelle 0.87) | ~4869ms | ~122s | ~4.65 GB |
+| Laya (`english`, zero-shot) | 0.510 | 0.549 | 0.570 (threshold 0.74) | ~2458ms | ~61s | ~2.1 GB (Docker) |
+| **TMR** (RoBERTa-base, 125M) | 0.550 | **0.911** | **0.830** (threshold 0.98) | **~62ms** | **~1.6s** | **~900 MB** |
+| **desklib** (DeBERTa-v3-large, 430M) | **0.960** | **0.998** | **0.990** (threshold 0.87) | ~4869ms | ~122s | ~4.65 GB |
 
-## Performance-Abwägung (wichtig für "läuft im Hintergrund mit")
+## Performance trade-off (important for "runs along in the background")
 
-**desklib ist mit Abstand am genauesten (AUROC 0.998, nur 1 Fehler von 100 bei optimaler
-Schwelle), aber auf CPU ~80× langsamer als TMR und braucht ~5× mehr RAM.** Ein normaler
-Seitenscan mit 25 Kandidaten (die Batch-Größe, die `content.js` tatsächlich verwendet)
-würde mit desklib **rund 2 Minuten** dauern und zeitweise **4,65 GB RAM** belegen — das
-verträgt sich nicht mit der Anforderung "läuft im Hintergrund mit, ohne den Rechner spürbar
-zu bremsen". TMR schafft denselben Batch in **~1,6 Sekunden** bei **~900 MB**.
+**desklib is by far the most accurate (AUROC 0.998, only 1 error out of 100 at the optimal
+threshold), but on CPU ~80× slower than TMR and needs ~5× more RAM.** A normal
+page scan with 25 candidates (the batch size that `content.js` actually uses)
+would take **around 2 minutes** with desklib and at times occupy **4.65 GB RAM** — that
+is not compatible with the requirement "runs along in the background without noticeably
+slowing down the machine". TMR handles the same batch in **~1.6 seconds** at **~900 MB**.
 
-Alle Zahlen sind CPU-only gemessen (kein GPU auf dieser Maschine getestet) — mit CUDA-GPU
-wären alle drei Backends deutlich schneller, das Verhältnis zueinander bliebe aber ähnlich.
+All numbers were measured CPU-only (no GPU tested on this machine) — with a CUDA GPU
+all three backends would be considerably faster, but the ratio between them would stay similar.
 
-**Bug/Kompatibilitäts-Fund unterwegs:** desklibs eigener Beispielcode (Model Card, 2024)
-crasht beim Laden mit `transformers>=5` (`AttributeError: ... 'all_tied_weights_keys'`) —
-gefixt durch eine überschriebene Property (leeres Dict), siehe `evaluate_backends.py` und
-`../server/shim_server.py`. Ein konkreter Beleg dafür, dass 2024er-Modellcode ohne Anpassung
-nicht mehr mit aktueller Software läuft.
+**Bug/compatibility finding along the way:** desklib's own example code (model card, 2024)
+crashes on loading with `transformers>=5` (`AttributeError: ... 'all_tied_weights_keys'`) —
+fixed by an overridden property (empty dict), see `evaluate_backends.py` and
+`../server/shim_server.py`. Concrete evidence that 2024 model code no longer runs
+with current software without adaptation.
 
 ## Interpretation
 
-- **Laya zero-shot hat kein brauchbares Signal.** AUROC 0.549 heißt: kaum besser als
-  Münzwurf, egal welche Schwelle man wählt. Deckt sich mit der Doku-Warnung
-  ("treat Laya as a fast base to specialise, not as a zero-shot decision engine") und dem
-  frühen manuellen Test in `../server/README.md`. Ohne eigenes Fine-Tuning (Phase D) bleibt
-  Laya für diese Aufgabe unbrauchbar.
+- **Laya zero-shot has no usable signal.** AUROC 0.549 means: barely better than a
+  coin flip, whichever threshold you choose. Matches the docs warning
+  ("treat Laya as a fast base to specialise, not as a zero-shot decision engine") and the
+  early manual test in `../server/README.md`. Without our own fine-tuning (phase D) Laya
+  remains unusable for this task.
 
-- **TMR trennt gut (AUROC 0.911), war aber bei Schwelle 0.5 falsch kalibriert für diese
-  Textdomäne:** bei 0.5 hat es 45 von 50 menschlichen Reddit-Style-Texten fälschlich als
-  KI markiert (Score-Mittelwert insgesamt 0.893 — systematisch zu hoch für diese Domäne).
-  Mit einer auf dieses Sample optimierten Schwelle (0.98) steigt die Accuracy auf 0.830
-  (TP=41, FP=8, FN=9, TN=42) — deutlich brauchbar, wenn auch nicht perfekt.
+- **TMR separates well (AUROC 0.911), but was miscalibrated at threshold 0.5 for this
+  text domain:** at 0.5 it wrongly marked 45 of 50 human Reddit-style texts as
+  AI (overall score mean 0.893 — systematically too high for this domain).
+  With a threshold optimised on this sample (0.98) the accuracy rises to 0.830
+  (TP=41, FP=8, FN=9, TN=42) — clearly usable, though not perfect.
 
-## Schlussfolgerung für die Extension
+## Conclusion for the extension
 
-- TMR ist Laya-Zero-Shot klar überlegen und sollte das Default-Backend werden.
-- Der Default-Schwellenwert in der Extension darf NICHT 0.5 sein — 0.90–0.95 ist ein
-  realistischerer Startpunkt für informellen/kurzen Text, muss aber pro Domäne (Artikel vs.
-  Forenpost vs. Produktbewertung) unterschiedlich gut passen. Sollte in den Optionen
-  weiterhin frei einstellbar bleiben.
-- 100 Beispiele aus einer Domäne sind eine grobe Schätzung, keine belastbare Kalibrierung.
-  Vor einem "fertig"-Gefühl lohnt sich ein größerer/diverserer Eval-Lauf (mehr HC3-Domänen,
-  ggf. RAID-Sample) — als Folgeschritt vorgemerkt, nicht Teil dieses Laufs.
+- TMR is clearly superior to Laya zero-shot and should become the default backend.
+- The default threshold in the extension must NOT be 0.5 — 0.90–0.95 is a more
+  realistic starting point for informal/short text, but it will fit differently well per domain (article vs.
+  forum post vs. product review). It should remain freely adjustable in the settings.
+- 100 examples from one domain are a rough estimate, not a reliable calibration.
+  Before feeling "done", a larger/more diverse eval run is worthwhile (more HC3 domains,
+  possibly a RAID sample) — noted as a follow-up step, not part of this run.
 
-## Textlänge: mehr Kontext statt Chunks (2026-09-25)
+## Text length: more context instead of chunks (2026-09-25)
 
-Frage: Der Auto-Scan schickte nur die ersten 500 Zeichen pro Absatz. Lohnt mehr Text, und helfen
-Chunks mit Überlappung? Gleiche HC3-Texte mit ≥ 1500 Zeichen, Mensch/KI balanciert, CPU (PyTorch).
-Reproduzierbar mit `evaluate_length.py`.
+Question: The auto-scan only sent the first 500 characters per paragraph. Is more text worth it, and do
+chunks with overlap help? Same HC3 texts with ≥ 1500 characters, human/AI balanced, CPU (PyTorch).
+Reproducible with `evaluate_length.py`.
 
-TMR, n = 400, `--normalize` (Leerzeichen vor Satzzeichen aus ELI5 entfernt, sonst misst man
-teils dieses Artefakt):
+TMR, n = 400, `--normalize` (spaces before punctuation from ELI5 removed, otherwise you partly
+measure this artefact):
 
-| Variante | AUROC | Acc@beste Schwelle | Durchläufe/Text | s/Text |
+| Variant | AUROC | Acc@best threshold | Passes/text | s/text |
 |---|---|---|---|---|
-| A erste 500 Zeichen | 0.966 | 0.910 | 1 | 0.20 |
-| **B erste 1500 Zeichen am Stück** | **0.999** | **0.993** | 1 | 0.43 |
-| C 500er-Chunks, 100 Überlappung, Mittelwert | 0.972 | 0.917 | 4 | 0.55 |
-| D 500er-Chunks ohne Überlappung, Mittelwert | 0.979 | 0.938 | 3 | 0.37 |
+| A first 500 characters | 0.966 | 0.910 | 1 | 0.20 |
+| **B first 1500 characters in one piece** | **0.999** | **0.993** | 1 | 0.43 |
+| C 500-char chunks, 100 overlap, mean | 0.972 | 0.917 | 4 | 0.55 |
+| D 500-char chunks without overlap, mean | 0.979 | 0.938 | 3 | 0.37 |
 
-Ohne `--normalize` dasselbe Bild (A 0.940 → B 0.993). desklib (n = 80, ohne `--normalize`): A 0.994,
-B/C/D je 1.000 – auf HC3 zu leicht, um die Varianten zu unterscheiden; Rechenzeit 0.58 → 2.3 s/Text.
+Without `--normalize` the same picture (A 0.940 → B 0.993). desklib (n = 80, without `--normalize`): A 0.994,
+B/C/D 1.000 each – too easy on HC3 to tell the variants apart; compute time 0.58 → 2.3 s/text.
 
-- Ein langer Durchlauf schlägt Chunks deutlich: Das Modell nutzt den Zusammenhang, der Mittelwert
-  über Stücke ersetzt ihn nicht. Überlappung bringt nichts.
-- Konsequenz in `content.js`: Auto-Scan und manuelle Prüfung senden bis 2000 Zeichen (≈ 512 Tokens,
-  mehr sieht das Modell nicht), gekürzt am Satzende; Batches nach Textmenge (≤ 2500 Zeichen).
-- Chunking erst sinnvoll über 512 Tokens hinaus (ganze Artikel) oder um in gemischten Texten die
-  KI-Stellen einzugrenzen.
-- Einschränkungen: nur HC3/Englisch, nur lange Texte; beide Modelle kennen HC3 womöglich aus dem
-  Training → absolute Werte zu optimistisch, der Vergleich der Varianten (gleiche Texte) hält.
+- One long pass clearly beats chunks: the model uses the context, the mean
+  over pieces does not replace it. Overlap brings nothing.
+- Consequence in `content.js`: auto-scan and manual check send up to 2000 characters (≈ 512 tokens,
+  the model sees no more), cut at the end of a sentence; batches by amount of text (≤ 2500 characters).
+- Chunking only makes sense beyond 512 tokens (whole articles) or to narrow down the
+  AI passages in mixed texts.
+- Limitations: HC3/English only, long texts only; both models may know HC3 from
+  training → absolute values too optimistic, the comparison of the variants (same texts) holds.
 
-## Auffüllen: Batches nach Länge aufteilen (2026-09-25)
+## Padding: split batches by length (2026-09-25)
 
-Ein Batch wird auf den längsten Text aufgefüllt (bzw. in `evaluate_backends.py` bisher immer auf
-768 Tokens). Typischer Scan-Batch: ein langer Absatz (654 Tokens) + vier kurze (~70 Tokens),
-Server-Code (`shim_server.py`), CPU:
+A batch is padded to the longest text (and in `evaluate_backends.py` so far always to
+768 tokens). Typical scan batch: one long paragraph (654 tokens) + four short ones (~70 tokens),
+server code (`shim_server.py`), CPU:
 
-| Modell | alles zusammen aufgefüllt | nach Länge gruppiert | max. Score-Abweichung |
+| Model | everything padded together | grouped by length | max. score deviation |
 |---|---|---|---|
-| desklib | 16,6 s | 4,4 s | 0 |
-| TMR | 1,7 s | 0,6 s | 0 |
+| desklib | 16.6 s | 4.4 s | 0 |
+| TMR | 1.7 s | 0.6 s | 0 |
 
-Scores identisch, weil Füll-Tokens ausmaskiert werden (desklib: Mean-Pooling mit Maske, TMR:
-Attention-Maske). Umgesetzt in `extension/length-buckets.js` (Browser) und `length_buckets()` im
-Server: sortieren, neue Gruppe sobald ein Text > 1,25 × kürzester + 16 Tokens. `evaluate_backends.py`
-füllt nur noch auf den längsten Text im Batch auf.
+Scores identical, because padding tokens are masked out (desklib: mean pooling with mask, TMR:
+attention mask). Implemented in `extension/length-buckets.js` (browser) and `length_buckets()` in the
+server: sort, new group as soon as a text > 1.25 × shortest + 16 tokens. `evaluate_backends.py`
+now pads only to the longest text in the batch.
 
-Außerdem: Ein einzelner desklib-Text mit ~650 Tokens kostet auf der CPU ~4,5 s – deshalb schickt der
-Auto-Scan desklib nur bis 1500 Zeichen (~350 Tokens), obwohl das Modell 768 Tokens könnte
+Also: a single desklib text with ~650 tokens costs ~4.5 s on the CPU – that is why the
+auto-scan sends desklib only up to 1500 characters (~350 tokens), although the model could handle 768 tokens
 (`extension/config.js`, `maxChars`).
 
-## Fehlalarme auf Wikipedia (2026-09-25)
+## False alarms on Wikipedia (2026-09-25)
 
-Frage: Wie oft wird menschlicher Sachtext rot? Anlass: TMR markierte Wikipedia „Photosynthesis“ 50/80 rot
-(Schwellen 0.6/0.9). Mensch: Absätze aus WikiText-2 (Wikipedia „Good“/„Featured“ Articles, vor 2016,
-also sicher ohne LLM), zum Vergleich menschliche HC3-Antworten; KI: ChatGPT-Antworten aus HC3. Texte wie
-im Auto-Scan gekürzt (TMR 2000, desklib 1500 Zeichen), nach Wortzahl aufgeteilt. Reproduzierbar mit
-`evaluate_false_alarms.py` (TMR n = 200, desklib n = 60 pro Zeile).
+Question: How often does human factual text turn red? Occasion: TMR marked Wikipedia "Photosynthesis" 50/80 red
+(thresholds 0.6/0.9). Human: paragraphs from WikiText-2 (Wikipedia "Good"/"Featured" Articles, before 2016,
+hence certainly without LLMs), human HC3 answers for comparison; AI: ChatGPT answers from HC3. Texts cut as
+in the auto-scan (TMR 2000, desklib 1500 characters), split by word count. Reproducible with
+`evaluate_false_alarms.py` (TMR n = 200, desklib n = 60 per row).
 
-Anteil mit Score ≥ Schwelle – bei Mensch = Fehlalarm, bei KI = erkannt.
+Share with score ≥ threshold – for human = false alarm, for AI = detected.
 
 **TMR:**
 
-| Quelle | Wörter | ≥ 0.6 | ≥ 0.9 | ≥ 0.95 | ≥ 0.97 | ≥ 0.98 | ≥ 0.99 |
+| Source | Words | ≥ 0.6 | ≥ 0.9 | ≥ 0.95 | ≥ 0.97 | ≥ 0.98 | ≥ 0.99 |
 |---|---|---|---|---|---|---|---|
-| Wikipedia (Mensch) | 40–79 | 89.5 % | 74.5 % | 59.5 % | 38.5 % | 20.0 % | 0 % |
-| Wikipedia (Mensch) | 80–119 | 66.0 % | 53.0 % | 43.0 % | 32.0 % | 15.5 % | 0 % |
-| Wikipedia (Mensch) | 120–149 | 28.5 % | 19.0 % | 14.5 % | 8.0 % | 1.5 % | 0 % |
-| Wikipedia (Mensch) | 150+ | 13.0 % | 8.5 % | 6.0 % | 2.5 % | 0.5 % | 0 % |
-| HC3 (Mensch) | 40–79 | 80.5 % | 55.5 % | 38.5 % | 21.5 % | 9.5 % | 0 % |
-| HC3 (Mensch) | 80–119 | 55.5 % | 40.5 % | 29.0 % | 19.5 % | 9.5 % | 0 % |
-| HC3 (Mensch) | 120–149 | 25.5 % | 13.5 % | 5.5 % | 2.0 % | 0.5 % | 0 % |
-| HC3 (Mensch) | 150+ | 39.0 % | 29.0 % | 18.5 % | 9.5 % | 2.5 % | 0 % |
-| HC3 ChatGPT (KI) | 40–79 | 100 % | 100 % | 99.5 % | 97.5 % | 81.5 % | 0 % |
-| HC3 ChatGPT (KI) | 80–119 | 99.5 % | 99.0 % | 98.5 % | 96.5 % | 86.5 % | 0 % |
-| HC3 ChatGPT (KI) | 120–149 | 99.5 % | 98.0 % | 96.5 % | 95.0 % | 87.0 % | 0 % |
-| HC3 ChatGPT (KI) | 150+ | 100 % | 100 % | 99.5 % | 98.5 % | 92.0 % | 0 % |
+| Wikipedia (human) | 40–79 | 89.5% | 74.5% | 59.5% | 38.5% | 20.0% | 0% |
+| Wikipedia (human) | 80–119 | 66.0% | 53.0% | 43.0% | 32.0% | 15.5% | 0% |
+| Wikipedia (human) | 120–149 | 28.5% | 19.0% | 14.5% | 8.0% | 1.5% | 0% |
+| Wikipedia (human) | 150+ | 13.0% | 8.5% | 6.0% | 2.5% | 0.5% | 0% |
+| HC3 (human) | 40–79 | 80.5% | 55.5% | 38.5% | 21.5% | 9.5% | 0% |
+| HC3 (human) | 80–119 | 55.5% | 40.5% | 29.0% | 19.5% | 9.5% | 0% |
+| HC3 (human) | 120–149 | 25.5% | 13.5% | 5.5% | 2.0% | 0.5% | 0% |
+| HC3 (human) | 150+ | 39.0% | 29.0% | 18.5% | 9.5% | 2.5% | 0% |
+| HC3 ChatGPT (AI) | 40–79 | 100% | 100% | 99.5% | 97.5% | 81.5% | 0% |
+| HC3 ChatGPT (AI) | 80–119 | 99.5% | 99.0% | 98.5% | 96.5% | 86.5% | 0% |
+| HC3 ChatGPT (AI) | 120–149 | 99.5% | 98.0% | 96.5% | 95.0% | 87.0% | 0% |
+| HC3 ChatGPT (AI) | 150+ | 100% | 100% | 99.5% | 98.5% | 92.0% | 0% |
 
-- **Die alten Startwerte 0.6/0.9 waren für Sachtext unbrauchbar:** drei Viertel der kurzen
-  Wikipedia-Absätze rot, bei 80–119 Wörtern die Hälfte. TMR liegt fast immer hoch; die Trennung
-  steckt im schmalen Band 0.97–0.99 (über 0.99 kommt es praktisch nie).
-- **Länge entscheidet:** Selbst bei 0.98 sind 20 % bzw. 15,5 % der Wikipedia-Absätze unter 120 Wörtern
-  rot, darüber 1,5 % bzw. 0,5 %.
-- **Konsequenz (`extension/models.js`):** TMR gelb ab 0.95, rot ab 0.98; unter 120 Wörtern wird ein
-  hoher Score „unsicher“ statt gelb/rot (`reliableWords`). Kosten: rot werden noch ~87–92 % der
-  ChatGPT-Texte statt ~100 %.
+- **The old starting values 0.6/0.9 were unusable for factual text:** three quarters of the short
+  Wikipedia paragraphs red, at 80–119 words half. TMR is almost always high; the separation
+  lies in the narrow band 0.97–0.99 (above 0.99 it practically never goes).
+- **Length decides:** even at 0.98, 20% and 15.5% respectively of the Wikipedia paragraphs under 120 words are
+  red, above that 1.5% and 0.5%.
+- **Consequence (`extension/models.js`):** TMR yellow from 0.95, red from 0.98; under 120 words a
+  high score becomes "uncertain" instead of yellow/red (`reliableWords`). Cost: ~87–92% of the
+  ChatGPT texts still turn red instead of ~100%.
 
-**desklib** (n = 60 pro Zeile, entsprechend grob):
+**desklib** (n = 60 per row, correspondingly rough):
 
-| Quelle | Wörter | ≥ 0.5 | ≥ 0.8 | ≥ 0.9 | ≥ 0.95 | ≥ 0.98 |
+| Source | Words | ≥ 0.5 | ≥ 0.8 | ≥ 0.9 | ≥ 0.95 | ≥ 0.98 |
 |---|---|---|---|---|---|---|
-| Wikipedia (Mensch) | 40–79 | 35.0 % | 8.3 % | 1.7 % | 1.7 % | 1.7 % |
-| Wikipedia (Mensch) | 80–119 | 28.3 % | 16.7 % | 13.3 % | 10.0 % | 6.7 % |
-| Wikipedia (Mensch) | 120–149 | 13.3 % | 1.7 % | 0 % | 0 % | 0 % |
-| Wikipedia (Mensch) | 150+ | 5.0 % | 1.7 % | 0 % | 0 % | 0 % |
-| HC3 (Mensch) | 40–79 | 16.7 % | 6.7 % | 0 % | 0 % | 0 % |
-| HC3 (Mensch) | 80–119 | 3.3 % | 0 % | 0 % | 0 % | 0 % |
-| HC3 (Mensch) | 120–149 | 11.7 % | 6.7 % | 0 % | 0 % | 0 % |
-| HC3 (Mensch) | 150+ | 5.0 % | 5.0 % | 1.7 % | 0 % | 0 % |
-| HC3 ChatGPT (KI) | 40–79 | 98.3 % | 96.7 % | 96.7 % | 81.7 % | 68.3 % |
-| HC3 ChatGPT (KI) | 80–119 | 100 % | 98.3 % | 96.7 % | 93.3 % | 83.3 % |
-| HC3 ChatGPT (KI) | 120–149 | 98.3 % | 98.3 % | 98.3 % | 96.7 % | 95.0 % |
-| HC3 ChatGPT (KI) | 150+ | 100 % | 100 % | 100 % | 100 % | 100 % |
+| Wikipedia (human) | 40–79 | 35.0% | 8.3% | 1.7% | 1.7% | 1.7% |
+| Wikipedia (human) | 80–119 | 28.3% | 16.7% | 13.3% | 10.0% | 6.7% |
+| Wikipedia (human) | 120–149 | 13.3% | 1.7% | 0% | 0% | 0% |
+| Wikipedia (human) | 150+ | 5.0% | 1.7% | 0% | 0% | 0% |
+| HC3 (human) | 40–79 | 16.7% | 6.7% | 0% | 0% | 0% |
+| HC3 (human) | 80–119 | 3.3% | 0% | 0% | 0% | 0% |
+| HC3 (human) | 120–149 | 11.7% | 6.7% | 0% | 0% | 0% |
+| HC3 (human) | 150+ | 5.0% | 5.0% | 1.7% | 0% | 0% |
+| HC3 ChatGPT (AI) | 40–79 | 98.3% | 96.7% | 96.7% | 81.7% | 68.3% |
+| HC3 ChatGPT (AI) | 80–119 | 100% | 98.3% | 96.7% | 93.3% | 83.3% |
+| HC3 ChatGPT (AI) | 120–149 | 98.3% | 98.3% | 98.3% | 96.7% | 95.0% |
+| HC3 ChatGPT (AI) | 150+ | 100% | 100% | 100% | 100% | 100% |
 
-- desklib trennt deutlich besser (bei Rot ab 0.87 werden fast alle KI-Texte erkannt), ist auf
-  Wikipedia unter 120 Wörtern aber auch nicht sauber: 80–119 Wörter ~15 % über der Rot-Schwelle.
-  (Mit n = 150 nachgemessen: ~6 % über 0.87, gleichmäßig für 40–119 Wörter – siehe „Konfidenz für
-  kurze Absätze“.)
-- **Konsequenz:** „unsicher“ unter 120 Wörtern für beide Modelle und als Standard für unbekannte;
-  desklib-Schwellen bleiben 0.5 / 0.87.
-- Einschränkungen: nur Englisch, KI nur ChatGPT 2023 (HC3, womöglich im Training der Modelle – die
-  Erkennungsraten sind eher zu optimistisch; die Fehlalarm-Raten auf Wikipedia betrifft das nicht).
+- desklib separates much better (with red from 0.87 almost all AI texts are detected), but is
+  not clean on Wikipedia under 120 words either: 80–119 words ~15% above the red threshold.
+  (Re-measured with n = 150: ~6% above 0.87, evenly for 40–119 words – see "Confidence for
+  short paragraphs".)
+- **Consequence:** "uncertain" under 120 words for both models and as the default for unknown ones;
+  desklib thresholds stay 0.5 / 0.87.
+- Limitations: English only, AI only ChatGPT 2023 (HC3, possibly in the models' training – the
+  detection rates are rather too optimistic; this does not affect the false alarm rates on Wikipedia).
 
-## Konfidenz für kurze Absätze – desklib (2026-09-26)
+## Confidence for short paragraphs – desklib (2026-09-26)
 
-Frage: Muss desklib unter 120 Wörtern immer „unsicher“ sagen, oder lässt sich ein kurzer Absatz mit
-genug Konfidenz doch rot markieren? Die Messung oben (n = 60) war dafür zu dünn und widersprüchlich
-(40–79 Wörter sauberer als 80–119). Neu: n = 150 pro 20-Wort-Stufe, gleiche Quellen, reproduzierbar mit
+Question: Does desklib always have to say "uncertain" under 120 words, or can a short paragraph with
+enough confidence still be marked red? The measurement above (n = 60) was too thin and contradictory for this
+(40–79 words cleaner than 80–119). New: n = 150 per 20-word step, same sources, reproducible with
 `evaluate_false_alarms.py desklib 150 --fine --dump fa_desklib.jsonl`.
 
-**Fehlalarme (Score ≥ 0.87 = heutige Rot-Schwelle) und Erkennung nach Länge:**
+**False alarms (score ≥ 0.87 = today's red threshold) and detection by length:**
 
-| Wörter | Wikipedia (Mensch) | HC3 (Mensch) | ChatGPT (KI) |
+| Words | Wikipedia (human) | HC3 (human) | ChatGPT (AI) |
 |---|---|---|---|
-| 40–59 | 6.0 % | 3.3 % | 76.7 % |
-| 60–79 | 6.7 % | 2.0 % | 92.0 % |
-| 80–99 | 5.3 % | 0 % | 94.0 % |
-| 100–119 | 6.7 % | 1.3 % | 98.7 % |
-| 120–149 | 0.7 % | 1.3 % | 98.7 % |
-| 150+ | 2.0 % | 2.0 % | 100 % |
+| 40–59 | 6.0% | 3.3% | 76.7% |
+| 60–79 | 6.7% | 2.0% | 92.0% |
+| 80–99 | 5.3% | 0% | 94.0% |
+| 100–119 | 6.7% | 1.3% | 98.7% |
+| 120–149 | 0.7% | 1.3% | 98.7% |
+| 150+ | 2.0% | 2.0% | 100% |
 
-- Unter 120 Wörtern gleichmäßig ~6 % Fehlalarme auf Wikipedia, ab 120 ~1,3 %. Die Grenze 120 ist
-  also richtig, aber innerhalb der kurzen Absätze gibt es keinen Längen-Verlauf (der frühere
-  Unterschied 40–79 vs. 80–119 war Zufall).
-- Die Fehlalarme sind gewöhnliche enzyklopädische Prosa (Geschichte, Militär, Wetter, Biografien) –
-  keine Listen, Tabellen oder Formeln. Es liegt am sachlichen Stil, nicht an Artefakten.
+- Under 120 words evenly ~6% false alarms on Wikipedia, from 120 on ~1.3%. The 120 boundary is
+  therefore right, but within the short paragraphs there is no trend with length (the earlier
+  difference 40–79 vs. 80–119 was chance).
+- The false alarms are ordinary encyclopaedic prose (history, military, weather, biographies) –
+  no lists, tables or formulas. It is the factual style, not artefacts.
 
-**Weg 1 – eigene Rot-Schwelle für kurze Absätze.** Alle 600 kurzen Texte je Quelle:
+**Path 1 – own red threshold for short paragraphs.** All 600 short texts per source:
 
-| Rot ab (unter 120 Wörtern) | Wikipedia-Fehlalarme | HC3-Fehlalarme | KI erkannt |
+| Red from (under 120 words) | Wikipedia false alarms | HC3 false alarms | AI detected |
 |---|---|---|---|
-| 0.87 | 6.2 % | 1.7 % | 90.3 % |
-| 0.95 | 2.5 % | 0.5 % | 81.7 % |
-| 0.97 | 1.7 % | 0.5 % | 77.0 % |
-| **0.98** | **1.0 %** | **0 %** | **73.0 %** |
-| 0.99 | 0.7 % | 0 % | 65.5 % |
-| 0.995 | 0 % | 0 % | 56.8 % |
+| 0.87 | 6.2% | 1.7% | 90.3% |
+| 0.95 | 2.5% | 0.5% | 81.7% |
+| 0.97 | 1.7% | 0.5% | 77.0% |
+| **0.98** | **1.0%** | **0%** | **73.0%** |
+| 0.99 | 0.7% | 0% | 65.5% |
+| 0.995 | 0% | 0% | 56.8% |
 
-Zum Vergleich lange Absätze bei 0.87: 1.3 % Wikipedia-Fehlalarme, 99.3 % erkannt. Kreuzvalidiert (200×
-halbe Wikipedia-Daten zum Festlegen, andere Hälfte zum Prüfen, Ziel 1.3 % wie lange Absätze): Schwelle im
-Median 0.980 (5–95 %: 0.961–0.991), Fehlalarme auf der Prüfhälfte im Mittel 1.3 % (höchstens 4.3 %).
-Erkennung nach Länge bei 0.98: 45 % (40–59 Wörter), 72 % (60–79), 83 % (80–99), 92 % (100–119).
+For comparison long paragraphs at 0.87: 1.3% Wikipedia false alarms, 99.3% detected. Cross-validated (200×
+half of the Wikipedia data to set it, the other half to check, target 1.3% like long paragraphs): threshold
+median 0.980 (5–95%: 0.961–0.991), false alarms on the check half on average 1.3% (at most 4.3%).
+Detection by length at 0.98: 45% (40–59 words), 72% (60–79), 83% (80–99), 92% (100–119).
 
-**Weg 2 – Stabilität im Absatz.** Kurze Absätze mit Score ≥ 0.87 (589 Stück) an der Satzgrenze nahe
-der Mitte geteilt, beide Hälften einzeln bewertet (`evaluate_split_half.py`). Bei Fehlalarmen liegen die
-Hälften tatsächlich weiter auseinander (Median |a−b| 0.10 gegen 0.03 bei KI-Text), aber als Regel ist
-das schlechter als Weg 1 bei gleicher Fehlalarmrate:
+**Path 2 – stability within the paragraph.** Short paragraphs with score ≥ 0.87 (589 of them) split at the sentence boundary near
+the middle, both halves scored individually (`evaluate_split_half.py`). For false alarms the
+halves are indeed further apart (median |a−b| 0.10 versus 0.03 for AI text), but as a rule this
+is worse than path 1 at the same false alarm rate:
 
-| Regel | Wikipedia-Fehlalarme | KI erkannt |
+| Rule | Wikipedia false alarms | AI detected |
 |---|---|---|
-| Score ≥ 0.995 (Weg 1) | 0 % | 56.8 % |
-| beide Hälften ≥ 0.95 | 0.2 % | 39.7 % |
-| Score ≥ 0.99 (Weg 1) | 0.7 % | 65.5 % |
-| beide Hälften ≥ 0.9 | 0.5 % | 55.7 % |
-| Score ≥ 0.98 (Weg 1) | 1.0 % | 73.0 % |
-| Score ≥ 0.97 und beide Hälften ≥ 0.8 | 1.2 % | 70.0 % |
+| Score ≥ 0.995 (path 1) | 0% | 56.8% |
+| both halves ≥ 0.95 | 0.2% | 39.7% |
+| Score ≥ 0.99 (path 1) | 0.7% | 65.5% |
+| both halves ≥ 0.9 | 0.5% | 55.7% |
+| Score ≥ 0.98 (path 1) | 1.0% | 73.0% |
+| Score ≥ 0.97 and both halves ≥ 0.8 | 1.2% | 70.0% |
 
-Die Hälften sind nur 20–60 Wörter lang und damit selbst unzuverlässig; dazu kosten sie zwei zusätzliche
-Modellaufrufe pro Absatz. Weg 2 lohnt sich nicht.
+The halves are only 20–60 words long and thus unreliable themselves; in addition they cost two extra
+model calls per paragraph. Path 2 is not worth it.
 
-- **Vorschlag (noch nicht umgesetzt):** desklib unter 120 Wörtern rot ab 0.98 statt nie; 0.87–0.98
-  bleibt „unsicher“. Ein kurzer Absatz wird dann nur so oft fälschlich rot wie ein langer (~1 %), und
-  knapp drei Viertel der kurzen KI-Absätze werden wieder als KI markiert statt grau.
-- **Nicht für TMR:** TMR liegt fast nie über 0.99, bei 0.98 sind unter 120 Wörtern noch 15–20 % der
-  Wikipedia-Absätze rot (Tabelle oben). Dort bleibt „unsicher“ die richtige Antwort.
-- Einschränkungen wie oben: nur Englisch, KI nur ChatGPT 2023 aus HC3 (Erkennungsraten eher zu
-  optimistisch); 600 kurze Wikipedia-Absätze, 1 % = 6 Texte.
+- **Proposal (not yet implemented):** desklib under 120 words red from 0.98 instead of never; 0.87–0.98
+  stays "uncertain". A short paragraph then turns falsely red only as often as a long one (~1%), and
+  almost three quarters of the short AI paragraphs are marked as AI again instead of grey.
+- **Not for TMR:** TMR is almost never above 0.99, at 0.98 under 120 words 15–20% of the
+  Wikipedia paragraphs are still red (table above). There "uncertain" remains the right answer.
+- Limitations as above: English only, AI only ChatGPT 2023 from HC3 (detection rates rather too
+  optimistic); 600 short Wikipedia paragraphs, 1% = 6 texts.
 
-## Breitere Eval-Suite (2026-09-26, WP-01)
+## Broader eval suite (2026-09-26, WP-01)
 
-Frage: Die bisherigen Zahlen stammen fast vollständig aus HC3 (Reddit-ELI5 vs. ChatGPT 2023) plus
-einer Wikipedia-Fehlalarm-Messung - eine Domäne, ein KI-Modell. Wie verhalten sich TMR und desklib
-über mehrere Domänen und mehrere, aktuellere KI-Generatoren?
+Question: The numbers so far come almost entirely from HC3 (Reddit-ELI5 vs. ChatGPT 2023) plus
+one Wikipedia false alarm measurement - one domain, one AI model. How do TMR and desklib behave
+across several domains and several, more recent AI generators?
 
-**Datenquelle:** [`Jinyan1/COLING_2025_MGT_en`](https://huggingface.co/datasets/Jinyan1/COLING_2025_MGT_en)
-(Hugging Face), eine Zusammenstellung aus drei Human-vs-KI-Detection-Forschungsdatensätzen:
+**Data source:** [`Jinyan1/COLING_2025_MGT_en`](https://huggingface.co/datasets/Jinyan1/COLING_2025_MGT_en)
+(Hugging Face), a compilation of three human-vs-AI detection research datasets:
 MAGE ([`yaful/MAGE`](https://huggingface.co/datasets/yaful/MAGE), Apache-2.0), M4GT-Bench
-(mbzuai-nlp/M4, EACL 2024 - im GitHub-Repo keine LICENSE-Datei gefunden, reine Recherche-/Eval-
-Nutzung) und HC3 (Apache-2.0, bereits in `prepare_dataset.py` genutzt). Für die Zusammenstellung
-selbst ist im Dataset-Karten-YAML keine Lizenz eingetragen; genutzt nur zur lokalen Auswertung,
-Rohdaten bleiben unter `data/` (gitignored), keine Weiterverteilung. **RAID** (`liamdugan/raid`,
-MIT-Lizenz) wurde geprüft, aber verworfen: `train`/`extra`-Split enthalten dort nur offene Modelle
-(Llama-Chat, Mistral, MPT, GPT-2) - die im Datensatz gelisteten GPT-4/ChatGPT/Cohere-Generationen
-liegen offenbar nur im unlabeled `test`-Split (Leaderboard), sind also öffentlich nicht mit Label
-nutzbar.
+(mbzuai-nlp/M4, EACL 2024 - no LICENSE file found in the GitHub repo, pure research/eval
+use) and HC3 (Apache-2.0, already used in `prepare_dataset.py`). For the compilation
+itself no license is entered in the dataset card YAML; used only for local evaluation,
+raw data stays under `data/` (gitignored), no redistribution. **RAID** (`liamdugan/raid`,
+MIT license) was examined but rejected: the `train`/`extra` splits there contain only open models
+(Llama-Chat, Mistral, MPT, GPT-2) - the GPT-4/ChatGPT/Cohere generations listed in the dataset
+apparently exist only in the unlabeled `test` split (leaderboard), so they are not publicly
+usable with labels.
 
-**Zusammenstellung** (`build_eval_suite.py`, Seed 42, reproduzierbar): sechs Domänen, menschliche
-Texte vor 2023 (die Quell-Datensätze/-Aufgaben selbst sind alle älter, XSum/CNN/Wikipedia/Reddit/
-arXiv/Yelp/IMDb/WikiHow), KI-Text von den aktuellsten in diesem Datensatz verfügbaren Generatoren:
+**Composition** (`build_eval_suite.py`, seed 42, reproducible): six domains, human
+texts from before 2023 (the source datasets/tasks themselves are all older, XSum/CNN/Wikipedia/Reddit/
+arXiv/Yelp/IMDb/WikiHow), AI text from the most recent generators available in this dataset:
 
-| Domäne (unsere Kategorie) | Sub-Quellen | Verfügbare Generatoren |
+| Domain (our category) | Sub-sources | Available generators |
 |---|---|---|
-| news | xsum, cnn, tldr, dialogsum | gpt-3.5-turbo (einziger verfügbar) |
+| news | xsum, cnn, tldr, dialogsum | gpt-3.5-turbo (only one available) |
 | wikipedia | wikipedia, wiki_csai | gpt4, gpt4o, gpt-3.5-turbo, llama3-70b, mixtral-8x7b, gemma2-9b-it, cohere |
-| forum | reddit, cmv, reddit_eli5, eli5 | s.o. (alle 7) |
-| sci_abstract | arxiv, sci_gen, peerread, pubmed | s.o. (alle 7) |
-| reviews | yelp, imdb | gpt-3.5-turbo (einziger verfügbar) |
-| howto | wikihow | s.o. (alle 7) |
+| forum | reddit, cmv, reddit_eli5, eli5 | see above (all 7) |
+| sci_abstract | arxiv, sci_gen, peerread, pubmed | see above (all 7) |
+| reviews | yelp, imdb | gpt-3.5-turbo (only one available) |
+| howto | wikihow | see above (all 7) |
 
-Je Domäne 100 menschliche + 100 KI-Texte (auf die verfügbaren Generatoren aufgeteilt) = **1200
-Texte gesamt, 600/600 balanciert**. Absätze 40–400 Wörter (wie `content.js` MIN_WORDS bzw.
-`extension/length-buckets.js`), am Satzende gekürzt; Tokenisierungs-Artefakt „Leerzeichen vor
-Satzzeichen" (bekannt aus `reddit_eli5`/HC3, s.o.) normalisiert. Ältere/kleine Generatoren im
-Quell-Datensatz (davinci, opt_\*, flan_t5_\*, t0_\*, bloom\*, gpt_j, gpt_neox, GLM130B, dolly\*)
-bewusst ausgelassen - nicht mehr repräsentativ für heutigen KI-Text im Web. **Kein Claude/Gemini
-verfügbar:** kein öffentlicher Datensatz mit gelabelten Claude-/Gemini-Generationen gefunden (diese
-Extension hat keine API-Keys für eigene Generierung) - Einschränkung, keine Umgehung.
+Per domain 100 human + 100 AI texts (split across the available generators) = **1200
+texts in total, 600/600 balanced**. Paragraphs 40–400 words (like `content.js` MIN_WORDS and
+`extension/length-buckets.js`), cut at the end of a sentence; tokenisation artefact "space before
+punctuation" (known from `reddit_eli5`/HC3, see above) normalised. Older/small generators in the
+source dataset (davinci, opt_\*, flan_t5_\*, t0_\*, bloom\*, gpt_j, gpt_neox, GLM130B, dolly\*)
+deliberately left out - no longer representative of today's AI text on the web. **No Claude/Gemini
+available:** no public dataset with labelled Claude/Gemini generations found (this
+extension has no API keys for generating its own) - a limitation, not a workaround.
 
-**Bewertung** (`evaluate_suite.py`): TMR auf allen 1200 Texten, desklib auf einer stratifizierten
-Stichprobe von 480 (Domäne × Mensch/KI gleich verteilt) - desklib braucht auf dieser CPU ~2,3 s/Text
-(gemessen, `benchmark_latency.py`-Größenordnung bestätigt sich), 1200 Texte hätten ~46 Minuten
-gekostet, die Stichprobe ~18,5 Minuten. Rohscores: `data/eval_scores_tmr_suite.jsonl` /
+**Scoring** (`evaluate_suite.py`): TMR on all 1200 texts, desklib on a stratified
+sample of 480 (domain × human/AI evenly distributed) - desklib needs ~2.3 s/text on this CPU
+(measured, the `benchmark_latency.py` order of magnitude is confirmed), 1200 texts would have cost ~46 minutes,
+the sample ~18.5 minutes. Raw scores: `data/eval_scores_tmr_suite.jsonl` /
 `data/eval_scores_desklib_suite.jsonl` (gitignored).
 
-### Ergebnis: AUROC und Fehlalarme an den aktuellen Schwellen
+### Result: AUROC and false alarms at the current thresholds
 
-Aktuelle Schwellen aus `extension/models.js` (nur gelesen, nicht verändert): TMR yellowFrom 0.95 /
-redFrom 0.98; desklib yellowFrom 0.5 / redFrom 0.87 (kurze Absätze < 120 Wörter: `shortRedFrom` 0.98
-bzw. gar keins bei TMR → dort immer „unsicher“ statt rot).
+Current thresholds from `extension/models.js` (only read, not changed): TMR yellowFrom 0.95 /
+redFrom 0.98; desklib yellowFrom 0.5 / redFrom 0.87 (short paragraphs < 120 words: `shortRedFrom` 0.98
+and none at all for TMR → there always "uncertain" instead of red).
 
-| Backend | n | AUROC gesamt | Fehlalarme (Mensch) ≥ redFrom | KI erkannt ≥ redFrom |
+| Backend | n | Overall AUROC | False alarms (human) ≥ redFrom | AI detected ≥ redFrom |
 |---|---|---|---|---|
-| TMR | 1200 | 0.929 | 12.0 % | 83.5 % |
-| desklib | 480 | 0.990 | 2.5 % | 95.4 % |
+| TMR | 1200 | 0.929 | 12.0% | 83.5% |
+| desklib | 480 | 0.990 | 2.5% | 95.4% |
 
-**Je Domäne:**
+**Per domain:**
 
-| Domäne | TMR AUROC | TMR FA@red | TMR erkannt | desklib AUROC | desklib FA@red | desklib erkannt |
+| Domain | TMR AUROC | TMR FA@red | TMR detected | desklib AUROC | desklib FA@red | desklib detected |
 |---|---|---|---|---|---|---|
-| forum | 0.962 | 6.0 % | 86.0 % | 1.000 | 0 % | 100 % |
-| howto | **0.767** | 20.0 % | 64.0 % | 0.968 | 2.5 % | 92.5 % |
-| news | 0.940 | **34.0 %** | 99.0 % | 0.991 | **10.0 %** | 95.0 % |
-| reviews | 0.924 | 10.0 % | 74.0 % | 0.992 | 0 % | 90.0 % |
-| sci_abstract | 0.977 | 1.0 % | 86.0 % | 0.995 | 2.5 % | 97.5 % |
-| wikipedia | 0.995 | 1.0 % | 92.0 % | 0.999 | 0 % | 97.5 % |
+| forum | 0.962 | 6.0% | 86.0% | 1.000 | 0% | 100% |
+| howto | **0.767** | 20.0% | 64.0% | 0.968 | 2.5% | 92.5% |
+| news | 0.940 | **34.0%** | 99.0% | 0.991 | **10.0%** | 95.0% |
+| reviews | 0.924 | 10.0% | 74.0% | 0.992 | 0% | 90.0% |
+| sci_abstract | 0.977 | 1.0% | 86.0% | 0.995 | 2.5% | 97.5% |
+| wikipedia | 0.995 | 1.0% | 92.0% | 0.999 | 0% | 97.5% |
 
-TMR ist auf `howto` (Anleitungen, oft listenartig) deutlich schwächer (AUROC 0.767) als auf den
-bisher gemessenen Domänen. Beide Modelle haben auf `news` die höchste Fehlalarmrate - menschliche
-Nachrichtentexte/-zusammenfassungen (XSum/CNN) ähneln stilistisch offenbar KI-Zusammenfassungen
-(glatt, neutral, kurz). Bei desklib ist das mit n=80 je Domäne aber eine grobe Schätzung (10 % FA
-= 8 Texte).
+TMR is clearly weaker on `howto` (how-tos, often list-like) (AUROC 0.767) than on the
+domains measured so far. Both models have the highest false alarm rate on `news` - human
+news texts/summaries (XSum/CNN) apparently resemble AI summaries stylistically
+(smooth, neutral, short). For desklib this is only a rough estimate with n=80 per domain, though (10% FA
+= 8 texts).
 
-**Je Generator** (Anteil KI-Texte ≥ redFrom erkannt):
+**Per generator** (share of AI texts detected ≥ redFrom):
 
 | Generator | TMR (n≈56–256) | desklib (n≈19–102) |
 |---|---|---|
-| gpt4 | 86.7 % | 100 % |
-| gpt4o | 88.3 % | 100 % |
-| gpt-3.5-turbo | 87.1 % | 94.1 % |
-| llama3-70b | 85.7 % | 96.4 % |
-| mixtral-8x7b | 83.9 % | 89.5 % |
-| cohere | 71.4 % | 95.5 % |
-| gemma2-9b-it | **67.9 %** | 94.7 % |
+| gpt4 | 86.7% | 100% |
+| gpt4o | 88.3% | 100% |
+| gpt-3.5-turbo | 87.1% | 94.1% |
+| llama3-70b | 85.7% | 96.4% |
+| mixtral-8x7b | 83.9% | 89.5% |
+| cohere | 71.4% | 95.5% |
+| gemma2-9b-it | **67.9%** | 94.7% |
 
-TMR erkennt GPT-Familie und Llama am zuverlässigsten, ist bei Cohere und besonders Gemma2 spürbar
-schwächer (68–71 % statt 84–88 %). desklib bleibt über alle sieben Generatoren zwischen 90–100 % -
-kein Generator, an dem es deutlich schwächelt.
+TMR detects the GPT family and Llama most reliably, and is noticeably weaker on Cohere and especially Gemma2
+(68–71% instead of 84–88%). desklib stays between 90–100% across all seven generators -
+no generator on which it noticeably falters.
 
-**Je Längen-Bucket** (nur Mensch-Zeilen für Fehlalarme, nur KI-Zeilen für „erkannt"):
+**Per length bucket** (human rows only for false alarms, AI rows only for "detected"):
 
-| Wörter | TMR FA@yellow | TMR FA@red | TMR erkannt | desklib FA@yellow | desklib FA@red | desklib erkannt |
+| Words | TMR FA@yellow | TMR FA@red | TMR detected | desklib FA@yellow | desklib FA@red | desklib detected |
 |---|---|---|---|---|---|---|
-| 40–79 | 56.7 % | 33.3 % | 70.7 % | 21.7 % | 4.3 % | 75.0 % |
-| 80–119 | 51.9 % | 31.2 % | 86.6 % | 25.0 % | 6.2 % | 96.0 % |
-| 120–149 | 12.8 % | 2.6 % | 82.6 % | 23.1 % | 7.7 % | 100 % |
-| 150+ | 19.1 % | 6.4 % | 84.7 % | 7.6 % | 1.2 % | 97.8 % |
+| 40–79 | 56.7% | 33.3% | 70.7% | 21.7% | 4.3% | 75.0% |
+| 80–119 | 51.9% | 31.2% | 86.6% | 25.0% | 6.2% | 96.0% |
+| 120–149 | 12.8% | 2.6% | 82.6% | 23.1% | 7.7% | 100% |
+| 150+ | 19.1% | 6.4% | 84.7% | 7.6% | 1.2% | 97.8% |
 
-Bestätigt die bisherige `reliableWords=120`-Grenze: unter 120 Wörtern sind beide Modelle bei „rot"
-unzuverlässig (TMR 31–33 % FA, desklib 4–6 % FA) - genau deshalb zeigt die Extension dort „unsicher“
-statt gelb/rot (außer desklib mit `shortRedFrom`). Die 150+-Zahlen liegen etwas höher als die frühere
-Wikipedia-only-Messung (TMR 1,3 % → 6,4 %, desklib ~1,3 % → 1,2 %, hier eher gleich), weil jetzt auch
-`news`/`howto`/`forum` einfließen, nicht nur Wikipedia/HC3.
+Confirms the existing `reliableWords=120` boundary: under 120 words both models are unreliable
+for "red" (TMR 31–33% FA, desklib 4–6% FA) - which is exactly why the extension shows "uncertain" there
+instead of yellow/red (except desklib with `shortRedFrom`). The 150+ numbers are somewhat higher than the earlier
+Wikipedia-only measurement (TMR 1.3% → 6.4%, desklib ~1.3% → 1.2%, rather the same here), because now
+`news`/`howto`/`forum` are included too, not just Wikipedia/HC3.
 
-### Korrektur: Fehlalarme so, wie die Extension sie anzeigt
+### Correction: false alarms the way the extension displays them
 
-Die Spalten „FA@red“ oben zählen jeden Mensch-Text ab `redFrom`, auch kurze. Die Extension färbt Texte
-unter `reliableWords` (120 Wörter) aber nicht nach `redFrom`: TMR nie rot, desklib erst ab
-`shortRedFrom` 0.98. Mit dieser Regel (`evaluate_suite.py`, Zeile „wie angezeigt“; bei den kurzen
-Absätzen ohne Gruppierung aus WP-02):
+The "FA@red" columns above count every human text from `redFrom`, including short ones. But the extension does not colour texts
+under `reliableWords` (120 words) by `redFrom`: TMR never red, desklib only from
+`shortRedFrom` 0.98. With this rule (`evaluate_suite.py`, line "as displayed"; for the short
+paragraphs without grouping from WP-02):
 
-| Domäne | TMR FA rot | TMR KI rot | desklib FA rot | desklib KI rot |
+| Domain | TMR FA red | TMR AI red | desklib FA red | desklib AI red |
 |---|---|---|---|---|
-| forum | 2 % | 81 % | 0 % | 100 % |
-| howto | **20 %** | 64 % | 2,5 % | 92,5 % |
-| news | 3 % | 73 % | 2,5 % | 90 % |
-| reviews | 2 % | 13 % | 0 % | 70 % |
-| sci_abstract | 0 % | 79 % | 2,5 % | 95 % |
-| wikipedia | 1 % | 92 % | 0 % | 97,5 % |
-| **gesamt** | **4,7 %** | 67 % | **1,2 %** | 91 % |
+| forum | 2% | 81% | 0% | 100% |
+| howto | **20%** | 64% | 2.5% | 92.5% |
+| news | 3% | 73% | 2.5% | 90% |
+| reviews | 2% | 13% | 0% | 70% |
+| sci_abstract | 0% | 79% | 2.5% | 95% |
+| wikipedia | 1% | 92% | 0% | 97.5% |
+| **overall** | **4.7%** | 67% | **1.2%** | 91% |
 
-Damit verschiebt sich das Bild:
+This shifts the picture:
 
-- **Die hohen News-Fehlalarme (TMR 34 %, desklib 10 %) betreffen fast nur kurze Texte**, die ohnehin
-  „unsicher“ bleiben (48 von 100 menschlichen News-Texten haben unter 120 Wörter). Angezeigt: 3 % bzw. 2,5 %.
-- **Das eigentliche Problem ist TMR auf `howto` (WikiHow):** alle Texte ≥ 120 Wörter, 20 % der
-  menschlichen werden rot. Ohne `howto` läge TMR bei ~1,6 %.
-- **desklib liegt mit den aktuellen Schwellen schon bei ~1 %** (3 von 240). Eine Anhebung von `redFrom`
-  auf 0.92–0.95 (unten) ist damit nicht nötig; die Messung gibt dafür zu wenige Fälle her.
-- Die Perzentil-Schwellen unten beziehen sich auf die Rohscores aller Längen und sind entsprechend
-  zu lesen: Für TMR müsste `redFrom` für ~1 % bei langen Texten auf ~0.985 steigen, fast nur wegen
+- **The high news false alarms (TMR 34%, desklib 10%) affect almost only short texts**, which stay
+  "uncertain" anyway (48 of 100 human news texts have under 120 words). As displayed: 3% and 2.5% respectively.
+- **The real problem is TMR on `howto` (WikiHow):** all texts ≥ 120 words, 20% of the
+  human ones turn red. Without `howto` TMR would be at ~1.6%.
+- **desklib is already at ~1% with the current thresholds** (3 of 240). Raising `redFrom`
+  to 0.92–0.95 (below) is therefore not necessary; the measurement yields too few cases for it.
+- The percentile thresholds below refer to the raw scores of all lengths and are to be read
+  accordingly: for TMR, `redFrom` would have to rise to ~0.985 for ~1% on long texts, almost only because of
   `howto`.
 
-### Schwellen-Empfehlung für ~1 % Fehlalarme auf dieser Suite
+### Threshold recommendation for ~1% false alarms on this suite
 
-Perzentil-Methode (99. Perzentil der Mensch-Scores dieser Suite), getrennt nach `reliableWords`:
+Percentile method (99th percentile of this suite's human scores), separated by `reliableWords`:
 
-| Backend | Bucket | Schwelle für ~1 % FA | tatsächliche FA | KI erkannt dabei | aktuelle Schwelle |
+| Backend | Bucket | Threshold for ~1% FA | actual FA | AI detected at that | current threshold |
 |---|---|---|---|---|---|
-| TMR | alle | 0.9865 | 1.0 % | 36.3 % | redFrom 0.98 |
-| TMR | < 120 Wörter | 0.9868 | 1.5 % | 9.6 % | (immer „unsicher“) |
-| TMR | ≥ 120 Wörter | 0.9853 | 1.1 % | 61.9 % | redFrom 0.98 |
-| desklib | alle | 0.9463 | 1.3 % | 93.8 % | redFrom 0.87 |
-| desklib | < 120 Wörter | 0.9566 | 1.8 % | 79.6 % | shortRedFrom 0.98 (73 % erkannt, siehe oben) |
-| desklib | ≥ 120 Wörter | 0.9254 | 1.1 % | 97.4 % | redFrom 0.87 (2,5 % FA) |
+| TMR | all | 0.9865 | 1.0% | 36.3% | redFrom 0.98 |
+| TMR | < 120 words | 0.9868 | 1.5% | 9.6% | (always "uncertain") |
+| TMR | ≥ 120 words | 0.9853 | 1.1% | 61.9% | redFrom 0.98 |
+| desklib | all | 0.9463 | 1.3% | 93.8% | redFrom 0.87 |
+| desklib | < 120 words | 0.9566 | 1.8% | 79.6% | shortRedFrom 0.98 (73% detected, see above) |
+| desklib | ≥ 120 words | 0.9254 | 1.1% | 97.4% | redFrom 0.87 (2.5% FA) |
 
-**Konkrete Schwellen-Empfehlung:**
+**Concrete threshold recommendation:**
 
-- **TMR:** Der aktuelle Wert (redFrom 0.98) liegt auf dieser breiteren Suite bei ~12 % Fehlalarmen,
-  nicht ~1 % - die frühere Kalibrierung war auf Wikipedia/HC3 zugeschnitten, hält aber auf `news`/
-  `howto` nicht. Für ein echtes ~1 %-Ziel über alle Domänen bräuchte es **redFrom ≈ 0.985–0.987**,
-  was die Erkennung bei langen Texten von ~85 % auf ~62 % drückt und bei kurzen Texten (ohnehin
-  „unsicher“) fast nichts mehr erkennt (9,6 %). TMR bleibt also ein Modell mit schmalem nutzbarem
-  Band zwischen Fehlalarmen und Erkennung - die bestehende Empfehlung „TMR fürs Hintergrund-Scannen,
-  aber mit Vorsicht bei Nachrichten/Anleitungen“ wird hierdurch bestätigt statt widerlegt.
-- **desklib:** Der aktuelle Wert (redFrom 0.87) liegt bei ~2,5 % FA - schon nah am Ziel, aber
-  `news` treibt das auf 10 % hoch. **redFrom ≈ 0.92–0.95** würde über alle Domänen ~1 % FA
-  erreichen, bei nur minimalem Erkennungsverlust (95,4 % → 93,8–97,4 %, da desklib in diesem Bereich
-  kaum Trennschärfe verliert) - ein günstiger Tausch, den Punkt 5 (Kalibrierung) aufgreifen sollte.
-  Für kurze Absätze (< 120 Wörter) legt diese Suite **shortRedFrom ≈ 0.955–0.96** nahe statt der
-  aktuellen 0.98 - ähnliche Fehlalarmrate (1,8 % vs. ~1 % auf der alten Wikipedia-only-Messung),
-  aber spürbar mehr erkannte kurze KI-Texte (79,6 % statt 73 %). Vor einer Änderung an
-  `extension/models.js` lohnt sich - wie schon beim Kurz-Absatz-Fund oben - eine Kreuzvalidierung
-  (train/test-Split dieser Suite), weil 480 Texte (Fehlalarm-Bucket teils nur ~20–30 Texte) noch
-  keine sehr enge Fehlerspanne geben.
+- **TMR:** The current value (redFrom 0.98) is at ~12% false alarms on this broader suite,
+  not ~1% - the earlier calibration was tailored to Wikipedia/HC3, but does not hold on `news`/
+  `howto`. For a real ~1% target across all domains it would need **redFrom ≈ 0.985–0.987**,
+  which pushes detection on long texts from ~85% down to ~62% and on short texts ("uncertain"
+  anyway) detects almost nothing any more (9.6%). TMR thus remains a model with a narrow usable
+  band between false alarms and detection - the existing recommendation "TMR for background scanning,
+  but with caution on news/how-tos" is confirmed by this rather than refuted.
+- **desklib:** The current value (redFrom 0.87) is at ~2.5% FA - already close to the target, but
+  `news` drives that up to 10%. **redFrom ≈ 0.92–0.95** would reach ~1% FA across all domains,
+  with only minimal loss of detection (95.4% → 93.8–97.4%, since desklib loses hardly any separation
+  in this range) - a favourable trade that item 5 (calibration) should pick up.
+  For short paragraphs (< 120 words) this suite suggests **shortRedFrom ≈ 0.955–0.96** instead of the
+  current 0.98 - similar false alarm rate (1.8% vs. ~1% in the old Wikipedia-only measurement),
+  but noticeably more short AI texts detected (79.6% instead of 73%). Before a change to
+  `extension/models.js` a cross-validation (train/test split of this suite) is worthwhile - as with the short-paragraph finding above -
+  because 480 texts (the false alarm bucket partly only ~20–30 texts) do not yet
+  give a very tight error range.
 
-### Empfehlung Default-Modell
+### Default model recommendation
 
-**desklib bleibt die klar bessere Wahl, wo Latenz es zulässt.** Auf dieser breiteren, härteren
-Suite (6 Domänen, 7 aktuelle Generatoren inkl. GPT-4o, Llama-3-70B, Mixtral, Gemma-2, Cohere) hält
-der AUROC-Abstand (0.990 vs. 0.929) und wächst sogar: TMR verliert bei `howto` deutlich an
-Trennschärfe (0.767) und bei Cohere/Gemma2 an Erkennung (68–71 %), während desklib über alle
-Domänen und Generatoren zwischen 0.968–1.000 AUROC bzw. 90–100 % Erkennung bleibt. Die bestehende
-Rollenverteilung in der Extension (TMR fürs automatische Hintergrund-Scannen wegen Tempo, desklib
-für „Nur auf Knopfdruck“/genauere Prüfung) bleibt sinnvoll - TMR eher als grober erster Filter,
-mit dem Wissen, dass es bei Nachrichten/Anleitungen und neueren Nicht-OpenAI-Modellen (Gemma,
-Cohere) schwächer ist.
+**desklib remains the clearly better choice where latency allows.** On this broader, harder
+suite (6 domains, 7 current generators incl. GPT-4o, Llama-3-70B, Mixtral, Gemma-2, Cohere)
+the AUROC gap (0.990 vs. 0.929) holds and even grows: TMR loses a lot of separation on `howto`
+(0.767) and detection on Cohere/Gemma2 (68–71%), while desklib stays between 0.968–1.000 AUROC and 90–100%
+detection across all domains and generators. The existing
+division of roles in the extension (TMR for automatic background scanning because of speed, desklib
+for "only on button press"/more accurate checking) remains sensible - TMR rather as a coarse first filter,
+with the knowledge that it is weaker on news/how-tos and newer non-OpenAI models (Gemma,
+Cohere).
 
-### Einschränkungen
+### Limitations
 
-- Kein Claude/Gemini als Generator verfügbar (kein öffentlicher gelabelter Datensatz gefunden,
-  keine eigenen API-Keys) - die Erkennungsraten sagen nichts über diese beiden Modellfamilien.
-- M4GT-Bench-Lizenz ungeklärt (siehe oben) - Daten bleiben lokal, keine Weiterverteilung.
-- desklib nur auf 480/1200 Texten gemessen (Zeitbudget); Domänen-Werte dort auf n=80 je Domäne,
-  Generator-Werte auf n=19–102 - insbesondere die 10 %-FA bei `news` (8/80) und die
-  Kurz-Absatz-Zahlen (n=13–32) haben spürbare Stichproben-Unsicherheit.
-- Menschliche Texte sind die Originaldokumente der Quell-Datensätze (vor 2023), aber teils selbst
-  schon algorithmisch vorverarbeitet (z. B. XSum/CNN sind Zusammenfassungs-Datensätze) - „menschlich“
-  heißt hier „von Menschen verfasst“, nicht zwingend „unbearbeiteter Rohtext einer echten Webseite“.
-- Absätze wurden aus ggf. längeren Dokumenten am Anfang entnommen (erster passender Ausschnitt),
-  nicht zufällig aus der Mitte - bei sehr langen Dokumenten (z. B. `howto`, Median 500+ Wörter)
-  könnte der Rest des Dokuments andere Werte liefern.
-- Wie immer bei diesen Benchmarks: TMR/desklib könnten Teile dieser Quell-Datensätze (MAGE/M4GT/HC3
-  sind alle vor 2025 veröffentlicht) im eigenen Training gesehen haben - absolute Erkennungsraten
-  eher zu optimistisch, der Domänen-/Generator-*Vergleich* (gleiche Texte, gleiches Modell) bleibt
-  aussagekräftig.
+- No Claude/Gemini available as a generator (no public labelled dataset found,
+  no own API keys) - the detection rates say nothing about these two model families.
+- M4GT-Bench license unresolved (see above) - data stays local, no redistribution.
+- desklib measured on only 480/1200 texts (time budget); domain values there on n=80 per domain,
+  generator values on n=19–102 - in particular the 10% FA on `news` (8/80) and the
+  short-paragraph numbers (n=13–32) have noticeable sampling uncertainty.
+- Human texts are the original documents of the source datasets (before 2023), but partly themselves
+  already algorithmically preprocessed (e.g. XSum/CNN are summarisation datasets) - "human"
+  here means "written by humans", not necessarily "unedited raw text of a real web page".
+- Paragraphs were taken from the start of possibly longer documents (first matching excerpt),
+  not randomly from the middle - for very long documents (e.g. `howto`, median 500+ words)
+  the rest of the document could yield different values.
+- As always with these benchmarks: TMR/desklib may have seen parts of these source datasets (MAGE/M4GT/HC3
+  were all published before 2025) in their own training - absolute detection rates
+  rather too optimistic, the domain/generator *comparison* (same texts, same model) remains
+  meaningful.
 
-## Schwellen absichern: desklib auf n=1200, Kreuzvalidierung, TMR auf Anleitungen (2026-09-26, WP-07)
+## Securing the thresholds: desklib at n=1200, cross-validation, TMR on how-tos (2026-09-26, WP-07)
 
-Anschluss an "Breitere Eval-Suite": desklib war dort nur auf einer Stichprobe von 480/1200 Texten
-gemessen, die Schwellen-Empfehlung (redFrom 0,92–0,95 desklib, 0,985–0,987 TMR) beruhte auf einem
-einzigen Split ohne Fehlerspanne. Hier: desklib auf allen 1200 Texten (die fehlenden 720 nachgerechnet,
-vorhandene 480 Scores wiederverwendet - `training/desklib_fill_suite.py`, CPU, 2866 s = 47,8 Min für
-die 720 neuen), dazu eine Kreuzvalidierung der Schwellen (`training/crossval_thresholds.py`) und eine
-Einordnung des WikiHow-Befunds gegen die tatsächliche Kandidaten-/Gruppierungslogik der Extension
+Follow-up to "Broader eval suite": desklib was only measured there on a sample of 480/1200 texts,
+the threshold recommendation (redFrom 0.92–0.95 desklib, 0.985–0.987 TMR) was based on a
+single split without an error range. Here: desklib on all 1200 texts (the missing 720 computed afterwards,
+existing 480 scores reused - `training/desklib_fill_suite.py`, CPU, 2866 s = 47.8 min for
+the 720 new ones), plus a cross-validation of the thresholds (`training/crossval_thresholds.py`) and an
+assessment of the WikiHow finding against the extension's actual candidate/grouping logic
 (`content.js`).
 
-### desklib auf allen 1200 Texten
+### desklib on all 1200 texts
 
-Rohscores: `data/eval_scores_desklib_suite.jsonl` (1200 Zeilen, gitignored). Ersetzt die 480er-Zahlen
-im Abschnitt "Breitere Eval-Suite" oben (dort unverändert stehengelassen, siehe dort für Methode).
+Raw scores: `data/eval_scores_desklib_suite.jsonl` (1200 rows, gitignored). Replaces the 480 numbers
+in the section "Broader eval suite" above (left unchanged there, see there for the method).
 
-| Lauf | n | AUROC gesamt | FA wie angezeigt | KI rot wie angezeigt |
+| Run | n | Overall AUROC | FA as displayed | AI red as displayed |
 |---|---|---|---|---|
-| desklib (n=480, WP-01) | 480 | 0,990 | 1,2 % | 91 % |
-| **desklib (n=1200, WP-07)** | **1200** | **0,991** | **1,8 %** | **92,5 %** |
+| desklib (n=480, WP-01) | 480 | 0.990 | 1.2% | 91% |
+| **desklib (n=1200, WP-07)** | **1200** | **0.991** | **1.8%** | **92.5%** |
 
-Je Domäne (wie angezeigt - kurze Absätze nach `shortRedFrom`):
+Per domain (as displayed - short paragraphs by `shortRedFrom`):
 
-| Domäne | AUROC | FA rot | KI rot |
+| Domain | AUROC | FA red | AI red |
 |---|---|---|---|
-| forum | 0,999 | 3,0 % | 98,0 % |
-| howto | 0,975 | 2,0 % | 96,0 % |
-| news | 0,992 | 3,0 % | 93,0 % |
-| reviews | 0,993 | 0 % | 74,0 % |
-| sci_abstract | 0,998 | 2,0 % | 97,0 % |
-| wikipedia | 0,996 | 1,0 % | 97,0 % |
-| **gesamt** | **0,991** | **1,8 %** | **92,5 %** |
+| forum | 0.999 | 3.0% | 98.0% |
+| howto | 0.975 | 2.0% | 96.0% |
+| news | 0.992 | 3.0% | 93.0% |
+| reviews | 0.993 | 0% | 74.0% |
+| sci_abstract | 0.998 | 2.0% | 97.0% |
+| wikipedia | 0.996 | 1.0% | 97.0% |
+| **overall** | **0.991** | **1.8%** | **92.5%** |
 
-Je Generator (Anteil KI-Texte ≥ redFrom erkannt):
+Per generator (share of AI texts detected ≥ redFrom):
 
-| Generator | n | erkannt@red |
+| Generator | n | detected@red |
 |---|---|---|
-| cohere | 56 | 94,6 % |
-| gemma2-9b-it | 56 | 98,2 % |
-| gpt-3.5-turbo | 256 | 95,7 % |
-| gpt4 | 60 | 98,3 % |
-| gpt4o | 60 | 100 % |
-| llama3-70b | 56 | 98,2 % |
-| mixtral-8x7b | 56 | 94,6 % |
+| cohere | 56 | 94.6% |
+| gemma2-9b-it | 56 | 98.2% |
+| gpt-3.5-turbo | 256 | 95.7% |
+| gpt4 | 60 | 98.3% |
+| gpt4o | 60 | 100% |
+| llama3-70b | 56 | 98.2% |
+| mixtral-8x7b | 56 | 94.6% |
 
-Je Längen-Bucket (rohe FA@red bei 0,87, **ohne** `shortRedFrom`-Logik - zeigt, warum sie nötig bleibt):
+Per length bucket (raw FA@red at 0.87, **without** the `shortRedFrom` logic - shows why it remains necessary):
 
-| Wörter | n Mensch | FA@red (roh) | n KI | erkannt@red |
+| Words | n human | FA@red (raw) | n AI | detected@red |
 |---|---|---|---|---|
-| 40–79 | 60 | 13,3 % | 58 | 81,0 % |
-| 80–119 | 77 | 9,1 % | 67 | 98,5 % |
-| 120–149 | 39 | 5,1 % | 23 | 95,7 % |
-| 150+ | 424 | 1,9 % | 452 | 98,5 % |
+| 40–79 | 60 | 13.3% | 58 | 81.0% |
+| 80–119 | 77 | 9.1% | 67 | 98.5% |
+| 120–149 | 39 | 5.1% | 23 | 95.7% |
+| 150+ | 424 | 1.9% | 452 | 98.5% |
 
-- Mit der vollen Stichprobe steigt die "wie angezeigt"-Fehlalarmrate von 1,2 % (n=480) auf 1,8 %
-  (n=1200) - die kleinere Stichprobe war optimistisch (u.a. `forum` hatte dort 0 % Fehlalarme, jetzt
-  3,0 % bei n=200 statt n=80). AUROC bleibt praktisch gleich (0,990 → 0,991).
-- Die rohe FA@red-Spalte je Längen-Bucket bestätigt auf der vollen Stichprobe erneut deutlich mehr
-  Fehlalarme unter 120 Wörtern (13,3 % / 9,1 %) als darüber (1,9 %) - `reliableWords=120` und
-  `shortRedFrom` bleiben richtig.
+- With the full sample the "as displayed" false alarm rate rises from 1.2% (n=480) to 1.8%
+  (n=1200) - the smaller sample was optimistic (among other things `forum` had 0% false alarms there, now
+  3.0% at n=200 instead of n=80). AUROC stays practically the same (0.990 → 0.991).
+- The raw FA@red column per length bucket again clearly confirms on the full sample considerably more
+  false alarms under 120 words (13.3% / 9.1%) than above (1.9%) - `reliableWords=120` and
+  `shortRedFrom` remain right.
 
-### Kreuzvalidierte Schwellen
+### Cross-validated thresholds
 
-Methode (orchestration/LOG.md, ENTSCHEIDUNG): 200 Wiederholungen, pro Wiederholung ein zufälliger
-Hälfte/Hälfte-Split (stratifiziert nach Domäne × Label). Auf Hälfte A: Schwelle als 99. Perzentil der
-Mensch-Scores (Ziel ~1 % Fehlalarme). Auf Hälfte B (ungesehen): tatsächliche Fehlalarm-/Erkennungsrate.
-Getrennt für die Gruppe ≥120 Wörter (regelt `redFrom`) und <120 Wörter (regelt `shortRedFrom`, wo
-vorhanden) - das ist genau die Aufteilung, die `config.js` `level()` tatsächlich verwendet (Regel 9 im
-orchestration/README.md). Reproduzierbar mit `training/crossval_thresholds.py --backend both`.
+Method: 200 repetitions, per repetition a random
+half/half split (stratified by domain × label). On half A: threshold as the 99th percentile of the
+human scores (target ~1% false alarms). On half B (unseen): actual false alarm/detection rate.
+Separately for the group ≥120 words (governs `redFrom`) and <120 words (governs `shortRedFrom`, where
+present) - this is exactly the split that `config.js` `level()` actually uses (rule 9 in
+orchestration/README.md). Reproducible with `training/crossval_thresholds.py --backend both`.
 
-| Backend | Bucket | Kreuzvalidierte Schwelle (Median, 5.–95. Perz.) | FA auf Testhälfte (Median, 5.–95. Perz.) | KI erkannt (Median, 5.–95. Perz.) |
+| Backend | Bucket | Cross-validated threshold (median, 5th–95th perc.) | FA on test half (median, 5th–95th perc.) | AI detected (median, 5th–95th perc.) |
 |---|---|---|---|---|
-| TMR | ≥120 W. (redFrom) | 0,9850 (0,9835–0,9858) | 1,29 % (0,43–3,45 %) | 65,3 % (55,2–75,3 %) |
-| TMR | <120 W. (shortRedFrom) | 0,9867 (0,9865–0,9868) | 2,90 % (0–5,87 %) | 13,3 % (4,7–23,4 %) |
-| desklib | ≥120 W. (redFrom) | 0,9466 (0,8522–0,9578) | 1,29 % (0–3,45 %) | 97,1 % (95,4–98,7 %) |
-| desklib | <120 W. (shortRedFrom) | 0,9758 (0,9583–0,9843) | 1,45 % (0–5,87 %) | 78,1 % (64,1–87,5 %) |
+| TMR | ≥120 w. (redFrom) | 0.9850 (0.9835–0.9858) | 1.29% (0.43–3.45%) | 65.3% (55.2–75.3%) |
+| TMR | <120 w. (shortRedFrom) | 0.9867 (0.9865–0.9868) | 2.90% (0–5.87%) | 13.3% (4.7–23.4%) |
+| desklib | ≥120 w. (redFrom) | 0.9466 (0.8522–0.9578) | 1.29% (0–3.45%) | 97.1% (95.4–98.7%) |
+| desklib | <120 w. (shortRedFrom) | 0.9758 (0.9583–0.9843) | 1.45% (0–5.87%) | 78.1% (64.1–87.5%) |
 
-Zum Vergleich die **aktuellen** Werte, auf denselben Testhälften gemessen (Konfidenzintervall der
-heutigen Zahlen auf dieser Suite):
+For comparison the **current** values, measured on the same test halves (confidence interval of
+today's numbers on this suite):
 
-| Backend | Bucket | Aktueller Wert | FA auf Testhälften (Median, 5.–95. Perz.) | KI erkannt (Median, 5.–95. Perz.) |
+| Backend | Bucket | Current value | FA on test halves (median, 5th–95th perc.) | AI detected (median, 5th–95th perc.) |
 |---|---|---|---|---|
-| TMR | ≥120 W. (redFrom) | 0,98 | 6,03 % (4,72–7,76 %) | 84,5 % (81,6–87,0 %) |
-| TMR | <120 W. | (immer "unsicher") | – | – |
-| desklib | ≥120 W. (redFrom) | 0,87 | 2,16 % (0,86–3,02 %) | 98,3 % (97,5–99,6 %) |
-| desklib | <120 W. (shortRedFrom) | 0,98 | 1,45 % (0–1,45 %) | 70,3 % (65,6–76,6 %) |
+| TMR | ≥120 w. (redFrom) | 0.98 | 6.03% (4.72–7.76%) | 84.5% (81.6–87.0%) |
+| TMR | <120 w. | (always "uncertain") | – | – |
+| desklib | ≥120 w. (redFrom) | 0.87 | 2.16% (0.86–3.02%) | 98.3% (97.5–99.6%) |
+| desklib | <120 w. (shortRedFrom) | 0.98 | 1.45% (0–1.45%) | 70.3% (65.6–76.6%) |
 
-- **TMR `redFrom` 0,98 liegt klar über dem 1-%-Ziel** (Median 6,0 % Fehlalarme auf unabhängigen
-  Testhälften, nie unter 4,7 %) - bestätigt die einmalige Schätzung oben (0,985–0,987) mit einer engen,
-  stabilen kreuzvalidierten Schwelle (0,9835–0,9858). Preis: Erkennung fällt von 84,5 % auf 65,3 %.
-- **desklib `redFrom` 0,87 liegt näher am Ziel, aber im Mittel bei gut 2 %**, mit spürbarer Spanne (bis
-  3,0 % je nach Split). Die kreuzvalidierte Schwelle (Median 0,9466) bestätigt die frühere Empfehlung
-  (0,92–0,95) der Größenordnung nach, hat aber eine breite Spanne (0,85–0,96) - bei ~230 Mensch-Scores
-  pro Trainhälfte ist die 1-%-Perzentil-Schätzung (≈2.–3. kleinster Wert von "oben") inhärent unruhig.
-  Der Tausch bleibt trotzdem günstig: FA sinkt auf ~1,3 %, Erkennung bleibt bei 97,1 % (kaum niedriger
-  als heute).
-- **desklib `shortRedFrom` 0,98 ist auf der breiteren Suite eher etwas zu streng**: kreuzvalidiert liegt
-  die Schwelle bei 0,9758 (0,9583–0,9843, überlappt mit 0,98), bei ähnlicher Fehlalarmrate aber deutlich
-  mehr erkannten kurzen KI-Texten (78 % statt 70 %).
-- **Für TMR unter 120 Wörtern bestätigt sich: kein `shortRedFrom` einführen.** Selbst bei der auf 1 %
-  Fehlalarme optimierten Schwelle (0,9867) werden nur 13 % der kurzen KI-Texte erkannt (Spanne 5–23 %) -
-  nicht nützlich genug, um "unsicher" zu ersetzen.
+- **TMR `redFrom` 0.98 is clearly above the 1% target** (median 6.0% false alarms on independent
+  test halves, never below 4.7%) - confirms the one-off estimate above (0.985–0.987) with a narrow,
+  stable cross-validated threshold (0.9835–0.9858). Price: detection falls from 84.5% to 65.3%.
+- **desklib `redFrom` 0.87 is closer to the target, but on average at a good 2%**, with a noticeable range (up to
+  3.0% depending on the split). The cross-validated threshold (median 0.9466) confirms the earlier recommendation
+  (0.92–0.95) in order of magnitude, but has a wide range (0.85–0.96) - with ~230 human scores
+  per train half the 1% percentile estimate (≈ 2nd–3rd value from the top) is inherently noisy.
+  The trade remains favourable anyway: FA drops to ~1.3%, detection stays at 97.1% (hardly lower
+  than today).
+- **desklib `shortRedFrom` 0.98 is somewhat too strict on the broader suite**: cross-validated the
+  threshold is 0.9758 (0.9583–0.9843, overlaps with 0.98), at a similar false alarm rate but clearly
+  more short AI texts detected (78% instead of 70%).
+- **For TMR under 120 words it is confirmed: do not introduce a `shortRedFrom`.** Even at the threshold optimised for 1%
+  false alarms (0.9867) only 13% of the short AI texts are detected (range 5–23%) -
+  not useful enough to replace "uncertain".
 
-### TMR auf Anleitungen: was der Eval-Ausschnitt zeigt - und ob die Extension das auf echten Seiten auch so sähe
+### TMR on how-tos: what the eval excerpt shows - and whether the extension would see the same on real pages
 
-Befund (unverändert seit "Breitere Eval-Suite"): TMR-AUROC auf `howto` nur 0,767, 20 % der 200
-menschlichen WikiHow-Ausschnitte landen "wie angezeigt" auf Rot - und zwar **alle** bei ≥120 Wörtern
-(176–420 Wörter, Median 397, nachgeprüft), die Kurz-Absatz-Ausnahme (kein `shortRedFrom` für TMR) greift
-hier also nie.
+Finding (unchanged since "Broader eval suite"): TMR AUROC on `howto` only 0.767, 20% of the 200
+human WikiHow excerpts end up red "as displayed" - and **all** of them at ≥120 words
+(176–420 words, median 397, double-checked), so the short-paragraph exception (no `shortRedFrom` for TMR) never
+applies here.
 
-Was misst der Eval-Ausschnitt strukturell? `build_eval_suite.py` nimmt bis zu 400 Wörter vom
-Dokumentanfang, **am Stück**: Zeilenumbrüche/Absatzgrenzen werden vor dem Kürzen zu einem einzigen
-Fließtext zusammengefasst (`" ".join(text.split())`) - im Quelldatensatz sind WikiHow-Schritt-,
-Überschriften- und Listengrenzen bereits verloren. Der Ausschnitt ist also ein einziger langer,
-zusammenhängender Absatz.
+What does the eval excerpt structurally measure? `build_eval_suite.py` takes up to 400 words from the
+start of the document, **in one piece**: line breaks/paragraph boundaries are merged into a single
+running text before cutting (`" ".join(text.split())`) - in the source dataset the WikiHow step,
+heading and list boundaries are already lost. The excerpt is therefore a single long,
+continuous paragraph.
 
-Wie sähe die Extension denselben Text? Relevante Stellen in `content.js`:
-- `CANDIDATE_SELECTOR = "article, p, li"` - einzelne Listenpunkte (`<li>`, wie bei WikiHow-Schritten
-  üblich) sind eigene Kandidaten.
-- Der 40-Wörter-Mindestfilter (`MIN_WORDS`) wirkt **vor** der Gruppierung, pro Kandidat einzeln
-  (`collectCandidates`): ein einzelner Schritt unter 40 Wörtern wird nie zum Kandidaten und nie
-  bewertet - auch nicht gruppiert.
-- `groupCandidates` fasst nur benachbarte Kandidaten **unter `reliableWords` (120 Wörter)** zusammen,
-  und nur, wenn sie denselben Elternknoten haben und **keine** Überschrift/Liste/Tabelle
-  (`GROUP_BREAK_SELECTOR = "h1..h6, ul, ol, table, hr"`) dazwischenliegt.
+How would the extension see the same text? Relevant places in `content.js`:
+- `CANDIDATE_SELECTOR = "article, p, li"` - individual list items (`<li>`, as usual for WikiHow steps)
+  are candidates of their own.
+- The 40-word minimum filter (`MIN_WORDS`) acts **before** grouping, per candidate individually
+  (`collectCandidates`): a single step under 40 words never becomes a candidate and is never
+  scored - not even grouped.
+- `groupCandidates` only merges adjacent candidates **under `reliableWords` (120 words)**,
+  and only if they have the same parent node and **no** heading/list/table
+  (`GROUP_BREAK_SELECTOR = "h1..h6, ul, ol, table, hr"`) lies in between.
 
-Daraus zwei gegenläufige Effekte, die der reine Rohtext-Eval nicht abbildet:
-1. **Entlastend:** Kurze, einzeln unter 40 Wörter liegende Schritte (knapper WikiHow-Stil: "Tu X. Grund:
-   Y.") werden nie einzeln gescannt oder gruppiert - sie tauchen in der Extension gar nicht als Kandidat
-   auf. Der Eval-Ausschnitt (bis 400 Wörter am Stück) enthält aber genau solche Schritte mit, weil er
-   alles zusammenfasst - er testet damit auch Text, den die Extension real nie sieht.
-2. **Nicht entlastend:** Sind einzelne Schritte selbst schon 40–119 Wörter lang (ebenfalls verbreitet,
-   v.a. bei erklärenden Anleitungen) und stehen als `<li>` in derselben `<ol>` ohne Zwischenüberschrift,
-   gruppiert `groupCandidates` sie zu einem zusammenhängenden Text bis `maxChars` (2000 Zeichen bei
-   TMR) - strukturell nahe an dem, was der Eval-Ausschnitt misst. Trennen WikiHow-Guides ihre Schritte
-   dagegen mit "Method"/"Part"-Zwischenüberschriften (verbreitet bei Anleitungen mit mehreren
-   Vorgehensweisen), bricht die Gruppierung an jeder Überschrift - die Schritt-Gruppen bleiben kleiner,
-   eher unter 120 Wörtern und damit "unsicher" statt Rot.
+From this, two opposing effects that the pure raw-text eval does not capture:
+1. **Mitigating:** Short steps, individually under 40 words (terse WikiHow style: "Do X. Reason:
+   Y.") are never scanned individually or grouped - they do not show up in the extension as a candidate at all.
+   The eval excerpt (up to 400 words in one piece) however includes exactly such steps, because it
+   merges everything - so it also tests text that the extension never really sees.
+2. **Not mitigating:** If individual steps are themselves already 40–119 words long (also common,
+   especially for explanatory how-tos) and sit as `<li>` in the same `<ol>` without an intermediate heading,
+   `groupCandidates` groups them into a continuous text up to `maxChars` (2000 characters for
+   TMR) - structurally close to what the eval excerpt measures. If WikiHow guides instead separate their steps
+   with "Method"/"Part" intermediate headings (common for how-tos with several
+   approaches), the grouping breaks at every heading - the step groups stay smaller,
+   rather under 120 words and thus "uncertain" instead of red.
 
-Ein Abruf einer echten WikiHow-Seite zur Gegenprobe war in dieser Umgebung nicht möglich (wikihow.com
-wird vom verfügbaren Fetch-Werkzeug blockiert); die Einschätzung stützt sich auf den nachvollzogenen
-`content.js`-Code plus bekanntes WikiHow-Aufbaumuster (Schritte meist als Listenelemente, häufig mit
-"Method"/"Part"-Überschriften bei mehreren Vorgehensweisen), nicht auf eine gerenderte Seite.
+Fetching a real WikiHow page as a cross-check was not possible in this environment (wikihow.com
+is blocked by the available fetch tool); the assessment rests on the traced
+`content.js` code plus the known WikiHow layout pattern (steps mostly as list items, often with
+"Method"/"Part" headings for several approaches), not on a rendered page.
 
-**Empfehlung: nichts an einer pauschalen Schwelle ändern, keine Domänen-Heuristik einführen.**
-Begründung:
-- Ein generelles Anheben von `redFrom` auf ~0,985 (siehe Kreuzvalidierung) würde die TMR-Erkennung
-  überall von ~85 % auf ~65 % drücken, nur um ein Problem zu lösen, das auf echten Seiten durch
-  Gruppierung/40-Wörter-Filter bereits teilweise abgefedert wird.
-- Eine WikiHow-spezifische Schwelle bräuchte eine zuverlässige Domänenerkennung, die es in `content.js`
-  nicht gibt (und die leicht falsch zu erkennen wäre).
-- Die tatsächliche Exposition auf echten Anleitungsseiten lässt sich mit reinem Rohtext-Eval nicht
-  seriös beziffern - das bräuchte einen Test von `content.js`/`groupCandidates` gegen gerenderte
-  WikiHow-Seiten (Vorschlag für TODO.md, siehe unten).
-- Die bestehende Einordnung ("TMR fürs Hintergrund-Scannen, aber mit Vorsicht bei Anleitungen/
-  Nachrichten; desklib als genaueres Default-Modell") bleibt damit richtig - desklib zeigt auf `howto`
-  mit 2,0 % FA "wie angezeigt" ohnehin ein deutlich kleineres Problem (AUROC 0,975 statt 0,767).
+**Recommendation: change nothing about a blanket threshold, do not introduce a domain heuristic.**
+Reasoning:
+- A general raise of `redFrom` to ~0.985 (see cross-validation) would push TMR detection
+  everywhere from ~85% to ~65%, just to solve a problem that on real pages is already partly cushioned by
+  grouping/the 40-word filter.
+- A WikiHow-specific threshold would need reliable domain detection, which does not exist in `content.js`
+  (and which would be easy to get wrong).
+- The actual exposure on real how-to pages cannot be quantified seriously with a pure raw-text eval
+  - that would need a test of `content.js`/`groupCandidates` against rendered
+  WikiHow pages (proposal for TODO.md, see below).
+- The existing assessment ("TMR for background scanning, but with caution on how-tos/
+  news; desklib as the more accurate default model") thus remains correct - desklib shows on `howto`
+  with 2.0% FA "as displayed" a much smaller problem anyway (AUROC 0.975 instead of 0.767).
 
-### Empfehlung für `extension/models.js`
+### Recommendation for `extension/models.js`
 
-| Wert | Aktuell | Kreuzvalidierter Vorschlag | Ändern? |
+| Value | Current | Cross-validated proposal | Change? |
 |---|---|---|---|
-| desklib `redFrom` | 0,87 | ~0,93–0,95 (Median 0,9466, Spanne 0,85–0,96) | **Ja** - senkt FA von ~2,2 % auf ~1,3 %, Erkennung bleibt bei ~97 % |
-| desklib `shortRedFrom` | 0,98 | ~0,97–0,98 (Median 0,9758, überlappt mit 0,98) | Optional, kleiner Effekt - Erkennung 78 % statt 70 % bei ähnlicher FA |
-| TMR `redFrom` | 0,98 | 0,985 (0,9835–0,9858, sehr eng) | **Nur mit Vorbehalt** - senkt FA von ~6 % auf ~1,3 %, kostet aber ~19 Punkte Erkennung (84,5 % → 65,3 %); Alternative: Wert lassen, Schwäche (howto/News) bewusst in Kauf nehmen, weil desklib ohnehin das genauere Default-Modell ist |
-| TMR `shortRedFrom` | keins | keins einführen | **Nein** - selbst optimal nur ~13 % Erkennung |
+| desklib `redFrom` | 0.87 | ~0.93–0.95 (median 0.9466, range 0.85–0.96) | **Yes** - lowers FA from ~2.2% to ~1.3%, detection stays at ~97% |
+| desklib `shortRedFrom` | 0.98 | ~0.97–0.98 (median 0.9758, overlaps with 0.98) | Optional, small effect - detection 78% instead of 70% at a similar FA |
+| TMR `redFrom` | 0.98 | 0.985 (0.9835–0.9858, very narrow) | **Only with reservations** - lowers FA from ~6% to ~1.3%, but costs ~19 points of detection (84.5% → 65.3%); alternative: leave the value, knowingly accept the weakness (howto/news), because desklib is the more accurate default model anyway |
+| TMR `shortRedFrom` | none | do not introduce | **No** - even at the optimum only ~13% detection |
 
-Eine finale Entscheidung trifft der Orchestrator nach Review (Umfang dieses WP: keine Extension-Dateien
-geändert).
+A final decision is made by the orchestrator after review (scope of this WP: no extension files
+changed).
 
-### Einschränkungen
+### Limitations
 
-- Kreuzvalidierte Schwellen für die "lang"-Buckets stützen sich auf ~230–470 Mensch-Scores pro
-  Trainhälfte, für "kurz" auf ~65–70 - die 1-%-Perzentil-Schätzung ist bei so wenigen Fällen naturgemäß
-  unruhig (sichtbar an der Spanne, v.a. desklib lang: 0,85–0,96). Die Spannen sind ernst zu nehmen,
-  keine Formsache.
-- Die WikiHow-Strukturanalyse ist Code-Lektüre + Domänenwissen, keine Messung an echten Seiten (Fetch
-  von wikihow.com in dieser Umgebung blockiert). Sie zeigt eine plausible Bandbreite, keinen Wert.
-- Wie in "Breitere Eval-Suite": kein Claude/Gemini als Generator, M4GT-Lizenz ungeklärt (Daten bleiben
-  lokal), menschliche Texte teils schon redaktionell/algorithmisch vorverarbeitet (XSum/CNN), Modelle
-  könnten Teile der Quell-Datensätze im Training gesehen haben.
-- desklib jetzt vollständig auf 1200 Texten (720 neu + 480 aus WP-01, Text selbst als Schlüssel beim
-  Zusammenführen - in dieser Suite keine Duplikate erwartet, aber nicht separat geprüft).
+- Cross-validated thresholds for the "long" buckets rely on ~230–470 human scores per
+  train half, for "short" on ~65–70 - the 1% percentile estimate is naturally noisy with so few cases
+  (visible in the range, especially desklib long: 0.85–0.96). The ranges are to be taken seriously,
+  not a formality.
+- The WikiHow structure analysis is code reading + domain knowledge, not a measurement on real pages (fetch
+  of wikihow.com blocked in this environment). It shows a plausible range, not a value.
+- As in "Broader eval suite": no Claude/Gemini as a generator, M4GT license unresolved (data stays
+  local), human texts partly already editorially/algorithmically preprocessed (XSum/CNN), models
+  may have seen parts of the source datasets in training.
+- desklib now fully on 1200 texts (720 new + 480 from WP-01, text itself as the key when
+  merging - no duplicates expected in this suite, but not checked separately).

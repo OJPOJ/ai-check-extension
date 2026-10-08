@@ -1,333 +1,333 @@
-# WP-06 · Modellsuche zwischen TMR und desklib
+# WP-06 · Model search between TMR and desklib
 
-Auftrag: TODO Punkt 2 - ein Detektor mit desklib-ähnlicher Qualität, aber deutlich weniger Download/
-Rechenzeit. Referenz (`training/EVAL_RESULTS.md`, Abschnitt "Breitere Eval-Suite" inkl. "Korrektur",
-1200 Texte, 6 Domänen, 7 Generatoren): TMR (126 MB, ~0,15 s/Absatz, AUROC 0,929, ~4,7 % Fehlalarme
-wie angezeigt) und desklib (1,7 GB Download / ~475 MB im Browser, ~1,3-2,3 s/Absatz, AUROC 0,990,
-~1,2 % Fehlalarme wie angezeigt).
+Task: TODO item 2 - a detector with desklib-like quality, but much less download/
+compute time. Reference (`training/EVAL_RESULTS.md`, section "Broader eval suite" incl. "Correction",
+1200 texts, 6 domains, 7 generators): TMR (126 MB, ~0.15 s/paragraph, AUROC 0.929, ~4.7% false alarms
+as displayed) and desklib (1.7 GB download / ~475 MB in the browser, ~1.3-2.3 s/paragraph, AUROC 0.990,
+~1.2% false alarms as displayed).
 
-## Kandidaten (recherchiert)
+## Candidates (researched)
 
-Kriterien aus dem Brief: offene Lizenz ohne Nicht-kommerziell-Klausel, < 500 MB (ideal < 200 MB),
-öffentlich ohne Gate, aktuelle Trainingsdaten, transformers.js-kompatible Architektur (geprüft:
-RoBERTa, BERT und ModernBERT sind in der in diesem Repo gepinnten `@huggingface/transformers@4.3.0`
-vorhanden - `package/src/models/{roberta,bert,modernbert}/`; Longformer nicht).
+Criteria from the brief: open license without a non-commercial clause, < 500 MB (ideally < 200 MB),
+public without a gate, current training data, transformers.js-compatible architecture (checked:
+RoBERTa, BERT and ModernBERT are present in the `@huggingface/transformers@4.3.0` pinned in this repo
+- `package/src/models/{roberta,bert,modernbert}/`; Longformer is not).
 
-| Repo | Lizenz | Architektur | Größe (fp32 / ONNX) | ONNX vorhanden | Trainingsdaten | Status |
+| Repo | License | Architecture | Size (fp32 / ONNX) | ONNX available | Training data | Status |
 |---|---|---|---|---|---|---|
-| **fakespot-ai/roberta-base-ai-text-detection-v1** | Apache-2.0 | RoBERTa-base (125M) | 499 MB / **125 MB int8** | Ja ([MedAliFarhat/ai-text-detector-onnx](https://huggingface.co/MedAliFarhat/ai-text-detector-onnx), Apache-2.0, `sha 0c809a8`, explizit für transformers.js gebaut) | Nicht im Detail offengelegt (Verweis auf github.com/FakespotAILabs/ApolloDFT, technischer Report ohne konkrete Quellenliste) | **Gemessen, empfohlen** |
-| MayZhou/e5-small-lora-ai-generated-detector | MIT | BERT/e5-small (33M) | 133 MB / kein ONNX | Nein | RAID-train (80k Mensch, 128k KI) + 10k Twitter+GPT-4o-mini-Paraphrasen | Gemessen, **verworfen** (schlecht kalibriert) |
-| AICodexLab/answerdotai-ModernBERT-base-ai-detector | Apache-2.0 | ModernBERT-base (149M) | 598 MB / kein ONNX | Nein | DAIGT V2 (Kaggle-Schüleraufsätze + ChatGPT/Claude/DeepSeek, ~36k Texte) | Gemessen, **verworfen** (Scores saturieren nahe 1,0, generalisiert schlecht) |
-| ShantanuT01/gradient-ai-text-detector | MIT | DeBERTa-v3-large (~435M, wie desklib) | 1,74 GB / 408 MB (nur int4 `model_q4.onnx`, kein int8) | Ja (int4) | DACTYL 2.0 + LLMTrace + MAGA-Bench (~1,1 Mio. Texte) | Nicht gemessen: Größenziel klar verfehlt (fast so groß wie desklib, int4 im Browser zudem riskant/wenig erprobt); Modellkarte behauptet AUROC 0,955 OOD vs. desklib 0,921 OOD - eigener, nicht nachgeprüfter Wert |
-| yaful/MAGE | Apache-2.0 | Longformer | - | - | MAGE-Datensatz | **Verworfen**: Longformer wird von transformers.js nicht unterstützt; MAGE ist außerdem eine der drei Quellen unserer eigenen Eval-Suite (`training/EVAL_RESULTS.md`) - direkte Kontamination |
-| Hello-SimpleAI/chatgpt-detector-roberta | keine Lizenz angegeben | RoBERTa-base | - | - | HC3 | **Verworfen**: keine Lizenz im Model-Repo, HC3 ist Teil unserer Eval-Suite (forum-Domäne) - Kontamination |
-| andreas122001/roberta-academic-detector, roberta-mixed-detector | OpenRAIL | RoBERTa-large | - | - | NicolaiSivesind/human-vs-machine | **Verworfen**: OpenRAIL ist eine Verhaltens-Lizenz (Nutzungsauflagen), nicht MIT/Apache/CC-BY wie gefordert |
-| raj-tomar001/LLM-DetectAIve_deberta-base | keine Lizenz/Model Card | DeBERTa-base | - | - | unbekannt | **Verworfen**: kein Model Card, keine Lizenzangabe |
-| SuperAnnotate/ai-detector(-low-fpr) | "other" (unklar) | RoBERTa-large | 1,4 GB | Nein | Wikipedia + ELI5 | **Verworfen**: Lizenz unklar, zu groß, Wikipedia/ELI5 sind Teil unserer Eval-Suite - Kontamination |
+| **fakespot-ai/roberta-base-ai-text-detection-v1** | Apache-2.0 | RoBERTa-base (125M) | 499 MB / **125 MB int8** | Yes ([MedAliFarhat/ai-text-detector-onnx](https://huggingface.co/MedAliFarhat/ai-text-detector-onnx), Apache-2.0, `sha 0c809a8`, explicitly built for transformers.js) | Not disclosed in detail (refers to github.com/FakespotAILabs/ApolloDFT, technical report without a concrete list of sources) | **Measured, recommended** |
+| MayZhou/e5-small-lora-ai-generated-detector | MIT | BERT/e5-small (33M) | 133 MB / no ONNX | No | RAID-train (80k human, 128k AI) + 10k Twitter+GPT-4o-mini paraphrases | Measured, **rejected** (poorly calibrated) |
+| AICodexLab/answerdotai-ModernBERT-base-ai-detector | Apache-2.0 | ModernBERT-base (149M) | 598 MB / no ONNX | No | DAIGT V2 (Kaggle student essays + ChatGPT/Claude/DeepSeek, ~36k texts) | Measured, **rejected** (scores saturate near 1.0, generalises poorly) |
+| ShantanuT01/gradient-ai-text-detector | MIT | DeBERTa-v3-large (~435M, like desklib) | 1.74 GB / 408 MB (int4 `model_q4.onnx` only, no int8) | Yes (int4) | DACTYL 2.0 + LLMTrace + MAGA-Bench (~1.1 million texts) | Not measured: size target clearly missed (almost as large as desklib, int4 in the browser also risky/little tested); model card claims AUROC 0.955 OOD vs. desklib 0.921 OOD - own value, not verified |
+| yaful/MAGE | Apache-2.0 | Longformer | - | - | MAGE dataset | **Rejected**: Longformer is not supported by transformers.js; MAGE is also one of the three sources of our own eval suite (`training/EVAL_RESULTS.md`) - direct contamination |
+| Hello-SimpleAI/chatgpt-detector-roberta | no license given | RoBERTa-base | - | - | HC3 | **Rejected**: no license in the model repo, HC3 is part of our eval suite (forum domain) - contamination |
+| andreas122001/roberta-academic-detector, roberta-mixed-detector | OpenRAIL | RoBERTa-large | - | - | NicolaiSivesind/human-vs-machine | **Rejected**: OpenRAIL is a behavioural license (usage restrictions), not MIT/Apache/CC-BY as required |
+| raj-tomar001/LLM-DetectAIve_deberta-base | no license/model card | DeBERTa-base | - | - | unknown | **Rejected**: no model card, no license information |
+| SuperAnnotate/ai-detector(-low-fpr) | "other" (unclear) | RoBERTa-large | 1.4 GB | No | Wikipedia + ELI5 | **Rejected**: license unclear, too large, Wikipedia/ELI5 are part of our eval suite - contamination |
 
-8 Kandidaten recherchiert, 3 echt gemessen (Abnahme verlangt mindestens 2).
+8 candidates researched, 3 actually measured (acceptance requires at least 2).
 
-## Messmethodik
+## Measurement method
 
-`evaluate_backends.py` um eine generische `score_hf(texts, model_id)` erweitert (erkennt Sigmoid-
-bei-1-Label vs. Softmax-bei-N-Labels+id2label-Heuristik, wie beim bestehenden TMR-Scorer).
-`evaluate_suite.py` unterstützt jetzt `--backend hf:<repo>`: läuft exakt wie beim TMR-Pfad auf der
-vollen 1200er-Suite und druckt dieselben Tabellen (AUROC gesamt/je Domäne/je Generator/je
-Längen-Bucket, "wie angezeigt" nach Regel 9). Da es für einen neuen Kandidaten keine
-Produktions-Schwelle gibt, leitet `report()` sie automatisch aus dem 99.-Perzentil der eigenen
-Mensch-Scores dieser Messung ab (getrennt für < 120 / ≥ 120 Wörter, `reliableWords=120`) und nutzt
-sie für die "wie angezeigt"/Domänen/Generator-Tabellen - identische Methode wie die bestehende
-Schwellen-Empfehlung am Skriptende, nur vorgezogen. Rohscores unter `training/data/` (gitignored):
+`evaluate_backends.py` extended with a generic `score_hf(texts, model_id)` (detects sigmoid-
+for-1-label vs. softmax-for-N-labels+id2label heuristic, as in the existing TMR scorer).
+`evaluate_suite.py` now supports `--backend hf:<repo>`: runs exactly like the TMR path on the
+full 1200 suite and prints the same tables (AUROC overall/per domain/per generator/per
+length bucket, "as displayed" per rule 9). Since there is no production threshold for a new candidate,
+`report()` derives it automatically from the 99th percentile of this measurement's own
+human scores (separately for < 120 / ≥ 120 words, `reliableWords=120`) and uses
+it for the "as displayed"/domain/generator tables - identical method to the existing
+threshold recommendation at the end of the script, just moved up front. Raw scores under `training/data/` (gitignored):
 `eval_scores_fakespot-ai_roberta-base-ai-text-detection-v1_suite.jsonl`,
 `eval_scores_MayZhou_e5-small-lora-ai-generated-detector_suite.jsonl`,
 `eval_scores_AICodexLab_answerdotai-ModernBERT-base-ai-detector_suite.jsonl`.
 
-`benchmark_latency.py` um eine generische `bench_hf(model_id)` erweitert (`--backend hf:<repo>`),
-identische Methodik wie die bestehenden TMR/desklib-Messungen (Batch 1/8/25, 500-Zeichen-Text).
-Latenz nur gemessen, als laut `tasklist` kein anderer Python-Prozess lief (WP-07 war zu diesem
-Zeitpunkt bereits fertig, `orchestration/LOG.md` 19:08 Uhr) - zusätzlich vor und nach jeder Messung
-per `tasklist` geprüft.
+`benchmark_latency.py` extended with a generic `bench_hf(model_id)` (`--backend hf:<repo>`),
+identical method to the existing TMR/desklib measurements (batch 1/8/25, 500-character text).
+Latency was only measured when, according to `tasklist`, no other Python process was running (WP-07 was already
+finished at that point, git history of `orchestration/LOG.md`, 19:08) - additionally checked before and after each measurement
+via `tasklist`.
 
-Keine neuen Python-Pakete nötig: RoBERTa, BERT und ModernBERT sind mit der bereits installierten
-`transformers==5.17.0` abgedeckt.
+No new Python packages needed: RoBERTa, BERT and ModernBERT are covered by the already installed
+`transformers==5.17.0`.
 
-## Ergebnisse
+## Results
 
-### AUROC gesamt (1200 Texte TMR/fakespot, 480 desklib-Stichprobe - Zahlen aus EVAL_RESULTS.md)
+### Overall AUROC (1200 texts TMR/fakespot, 480 desklib sample - numbers from EVAL_RESULTS.md)
 
-| Backend | n | AUROC gesamt |
+| Backend | n | Overall AUROC |
 |---|---|---|
-| TMR | 1200 | 0,929 |
-| **fakespot-ai roberta-base** | **1200** | **0,964** |
-| desklib | 480 | 0,990 |
-| e5-small-lora (verworfen) | 1200 | 0,878 |
-| ModernBERT-base-detector (verworfen) | 1200 | 0,879 |
+| TMR | 1200 | 0.929 |
+| **fakespot-ai roberta-base** | **1200** | **0.964** |
+| desklib | 480 | 0.990 |
+| e5-small-lora (rejected) | 1200 | 0.878 |
+| ModernBERT-base-detector (rejected) | 1200 | 0.879 |
 
-### Wie angezeigt, neu auf ~1 % Fehlalarme kalibriert (99.-Perzentil dieser Suite, Regel 9)
+### As displayed, recalibrated to ~1% false alarms (99th percentile of this suite, rule 9)
 
-Fair vergleichbar, weil alle drei Backends mit derselben Methode auf derselben Suite neu kalibriert
-sind (TMR/desklib-Werte aus EVAL_RESULTS.md, Abschnitt "Schwellen-Empfehlung", nicht deren
-Produktions-Schwellen):
+Fairly comparable, because all three backends are recalibrated with the same method on the same suite
+(TMR/desklib values from EVAL_RESULTS.md, section "Threshold recommendation", not their
+production thresholds):
 
-| Backend | Bucket | Schwelle | Fehlalarme | KI erkannt |
+| Backend | Bucket | Threshold | False alarms | AI detected |
 |---|---|---|---|---|
-| TMR | ≥ 120 Wörter | 0,9853 | 1,1 % | 61,9 % |
-| **fakespot** | **≥ 120 Wörter** | **0,9988** | **1,1 %** | **90,1 %** |
-| desklib | ≥ 120 Wörter | 0,9254 | 1,1 % | 97,4 % |
-| TMR | < 120 Wörter | 0,9868 | 1,5 % | 9,6 % |
-| **fakespot** | **< 120 Wörter** | **0,9994** | **1,5 %** | **36,0 %** |
-| desklib | < 120 Wörter | 0,9566 | 1,8 % | 79,6 % |
+| TMR | ≥ 120 words | 0.9853 | 1.1% | 61.9% |
+| **fakespot** | **≥ 120 words** | **0.9988** | **1.1%** | **90.1%** |
+| desklib | ≥ 120 words | 0.9254 | 1.1% | 97.4% |
+| TMR | < 120 words | 0.9868 | 1.5% | 9.6% |
+| **fakespot** | **< 120 words** | **0.9994** | **1.5%** | **36.0%** |
+| desklib | < 120 words | 0.9566 | 1.8% | 79.6% |
 
-fakespot liegt bei gleicher Fehlalarmrate klar zwischen TMR und desklib - bei langen Absätzen mit
-90 % Erkennung deutlich näher an desklib (97 %) als an TMR (62 %), bei kurzen Absätzen (< 120 Wörter,
-in der Extension ohnehin "unsicher" statt rot, außer mit shortRedFrom) etwa in der Mitte.
+At the same false alarm rate, fakespot is clearly between TMR and desklib - for long paragraphs with
+90% detection much closer to desklib (97%) than to TMR (62%), for short paragraphs (< 120 words,
+"uncertain" instead of red in the extension anyway, except with shortRedFrom) roughly in the middle.
 
-### Wie angezeigt je Domäne (fakespot, eigene 99%-Schwelle 0,9988; TMR/desklib zum Vergleich an ihrer
-Produktions-Schwelle, aus der "Korrektur"-Tabelle in EVAL_RESULTS.md - nicht exakt dieselbe
-Kalibrierungsmethode, aber die einzigen dort verfügbaren Domänen-Werte)
+### As displayed per domain (fakespot, own 99% threshold 0.9988; TMR/desklib for comparison at their
+production threshold, from the "Correction" table in EVAL_RESULTS.md - not exactly the same
+calibration method, but the only domain values available there)
 
-| Domäne | AUROC TMR / fakespot / desklib | FA rot TMR / fakespot / desklib | KI rot TMR / fakespot / desklib |
+| Domain | AUROC TMR / fakespot / desklib | FA red TMR / fakespot / desklib | AI red TMR / fakespot / desklib |
 |---|---|---|---|
-| forum | 0,962 / 0,996 / 1,000 | 2 % / 1,0 % / 0 % | 81 % / 94 % / 100 % |
-| howto | 0,767 / 0,955 / 0,968 | 20 % / 2,0 % / 2,5 % | 64 % / 75 % / 92,5 % |
-| news | 0,940 / 0,958 / 0,991 | 3 % / 2,0 % / 2,5 % | 73 % / 85 % / 90 % |
-| reviews | 0,924 / 0,962 / 0,992 | 2 % / 0 % / 0 % | **13 % / 32 % / 70 %** |
-| sci_abstract | 0,977 / 0,998 / 0,995 | 0 % / 0 % / 2,5 % | 79 % / 92 % / 95 % |
-| wikipedia | 0,995 / 0,985 / 0,999 | 1 % / 2,0 % / 0 % | 92 % / 95 % / 97,5 % |
+| forum | 0.962 / 0.996 / 1.000 | 2% / 1.0% / 0% | 81% / 94% / 100% |
+| howto | 0.767 / 0.955 / 0.968 | 20% / 2.0% / 2.5% | 64% / 75% / 92.5% |
+| news | 0.940 / 0.958 / 0.991 | 3% / 2.0% / 2.5% | 73% / 85% / 90% |
+| reviews | 0.924 / 0.962 / 0.992 | 2% / 0% / 0% | **13% / 32% / 70%** |
+| sci_abstract | 0.977 / 0.998 / 0.995 | 0% / 0% / 2.5% | 79% / 92% / 95% |
+| wikipedia | 0.995 / 0.985 / 0.999 | 1% / 2.0% / 0% | 92% / 95% / 97.5% |
 
-fakespot verbessert TMRs schwächste Domäne (howto: AUROC 0,767 → 0,955, Erkennung 64 % → 75 % bei
-weniger als einem Zehntel der Fehlalarme) deutlich. `reviews` bleibt für alle drei Modelle die
-schwierigste Domäne (kurze, informelle Yelp/IMDb-Texte) - fakespot verbessert TMR hier zwar spürbar
-(13 % → 32 %), bleibt aber weit hinter desklib (70 %).
+fakespot clearly improves TMR's weakest domain (howto: AUROC 0.767 → 0.955, detection 64% → 75% with
+less than a tenth of the false alarms). `reviews` remains the most difficult domain for all three models
+(short, informal Yelp/IMDb texts) - fakespot does improve on TMR noticeably here
+(13% → 32%), but stays far behind desklib (70%).
 
-### Erkennung je Generator (fakespot, an der 0,9988-Schwelle)
+### Detection per generator (fakespot, at the 0.9988 threshold)
 
-| Generator | fakespot erkannt |
+| Generator | fakespot detected |
 |---|---|
-| gpt4 / gpt4o | 96,7 % |
-| llama3-70b | 91,1 % |
-| mixtral-8x7b | 89,3 % |
-| gemma2-9b-it | 85,7 % |
-| cohere | 71,4 % |
-| gpt-3.5-turbo | 68,8 % |
+| gpt4 / gpt4o | 96.7% |
+| llama3-70b | 91.1% |
+| mixtral-8x7b | 89.3% |
+| gemma2-9b-it | 85.7% |
+| cohere | 71.4% |
+| gpt-3.5-turbo | 68.8% |
 
-Ähnliches Muster wie TMR (schwächer bei Cohere/älterem GPT-3.5), aber auf höherem Niveau - kein
-Generator unter 68 %, TMR fiel bei gemma2-9b-it auf 68 % und lag im Schnitt niedriger.
+Similar pattern to TMR (weaker on Cohere/older GPT-3.5), but at a higher level - no
+generator below 68%, TMR dropped to 68% on gemma2-9b-it and was lower on average.
 
-### Latenz (CPU, PyTorch, `benchmark_latency.py`, 500-Zeichen-Text; gemessen ohne parallel laufenden
-Python-Prozess, siehe oben)
+### Latency (CPU, PyTorch, `benchmark_latency.py`, 500-character text; measured without a parallel running
+Python process, see above)
 
-| Backend | Ladezeit (kalt) | Batch=1 | Batch=8 | Batch=25 | RSS nach Laden |
+| Backend | Load time (cold) | Batch=1 | Batch=8 | Batch=25 | RSS after loading |
 |---|---|---|---|---|---|
-| TMR | 1,83 s | 80 ms/Text | 45 ms/Text | 44 ms/Text | 917 MB |
-| **fakespot roberta-base** | 1,78 s | 76 ms/Text | 49 ms/Text | 45 ms/Text | 917 MB |
-| desklib (aus EVAL_RESULTS.md, gleiche Methodik) | - | ~1,3-2,3 s/Text | - | - | ~800 MB |
+| TMR | 1.83 s | 80 ms/text | 45 ms/text | 44 ms/text | 917 MB |
+| **fakespot roberta-base** | 1.78 s | 76 ms/text | 49 ms/text | 45 ms/text | 917 MB |
+| desklib (from EVAL_RESULTS.md, same method) | - | ~1.3-2.3 s/text | - | - | ~800 MB |
 
-fakespot ist in Ladezeit, Latenz und RAM praktisch identisch zu TMR (beide RoBERTa-base, 125M
-Parameter) - erwartbar, da gleiche Architektur/Größenklasse. e5-small-lora und ModernBERT-base wurden
-wegen der schwachen Genauigkeit nicht mehr separat auf Latenz gemessen (e5-small wäre schneller als
-TMR, ModernBERT-base langsamer wegen 22 statt 12 Layern - beide für die Empfehlung irrelevant).
+fakespot is practically identical to TMR in load time, latency and RAM (both RoBERTa-base, 125M
+parameters) - expected, as same architecture/size class. e5-small-lora and ModernBERT-base were
+not measured separately for latency because of their weak accuracy (e5-small would be faster than
+TMR, ModernBERT-base slower because of 22 instead of 12 layers - both irrelevant for the recommendation).
 
-## Warum e5-small-lora und ModernBERT-base verworfen wurden
+## Why e5-small-lora and ModernBERT-base were rejected
 
-- **e5-small-lora**: AUROC 0,878 (schlechter als TMR). Bei der auf 1 % Fehlalarme kalibrierten
-  Schwelle (0,961) werden nur noch **17-19 %** der KI-Texte erkannt - das Modell ist auf dieser Suite
-  schlecht kalibriert (schon ein neutraler Beispielsatz wie "The quick brown fox..." bekam im
-  Kurztest 92,6 % AI-Score). RAID-Training (viele offene/ältere Modelle) generalisiert offenbar
-  schlecht auf die aktuelleren Generatoren dieser Suite.
-- **ModernBERT-base-detector**: AUROC 0,879. Scores saturieren nah an 1,0 (99%-Schwelle rundet auf
-  1,0000), Erkennung bei 1 % FA nur **~31 %**. Trainiert auf einem engen Datensatz (Kaggle-DAIGT,
-  Schüleraufsätze) - generalisiert schlecht auf die 6 Domänen dieser Suite. ModernBERT als
-  Architektur ist technisch vielversprechend (von transformers.js unterstützt, effizient), aber
-  dieser konkrete Checkpoint ist für unseren Anwendungsfall nicht geeignet; ein auf breiteren Daten
-  (z. B. RAID oder MAGE-ähnlich) nachtrainiertes ModernBERT-base könnte ein Kandidat für eine
-  spätere Runde sein.
+- **e5-small-lora**: AUROC 0.878 (worse than TMR). At the threshold calibrated to 1% false alarms
+  (0.961) only **17-19%** of the AI texts are detected - the model is poorly calibrated on this suite
+  (even a neutral example sentence like "The quick brown fox..." got a 92.6% AI score in the
+  short test). RAID training (many open/older models) apparently generalises
+  poorly to the more recent generators of this suite.
+- **ModernBERT-base-detector**: AUROC 0.879. Scores saturate close to 1.0 (99% threshold rounds to
+  1.0000), detection at 1% FA only **~31%**. Trained on a narrow dataset (Kaggle DAIGT,
+  student essays) - generalises poorly to the 6 domains of this suite. ModernBERT as an
+  architecture is technically promising (supported by transformers.js, efficient), but
+  this specific checkpoint is not suitable for our use case; a ModernBERT-base retrained on broader data
+  (e.g. RAID or MAGE-like) could be a candidate for a
+  later round.
 
-## Empfehlung
+## Recommendation
 
-**fakespot-ai/roberta-base-ai-text-detection-v1** als dritter Modell-Eintrag in `extension/models.js`
-(Umsetzung ist ein eigenes WP, hier nur die Grundlage):
+**fakespot-ai/roberta-base-ai-text-detection-v1** as the third model entry in `extension/models.js`
+(implementation is a work package of its own, only the basis here):
 
-- **Browser-Einbindung**: fertiges ONNX von [`MedAliFarhat/ai-text-detector-onnx`](https://huggingface.co/MedAliFarhat/ai-text-detector-onnx)
-  (Apache-2.0, `sha 0c809a8de6e600ec2fd0fcdeb595a5461d93e8dc`, ausdrücklich für transformers.js
-  gebaut - `onnx/model_quantized.onnx`, 125 MB int8). Genau wie beim TMR-Eintrag: `repo`/`revision`
-  pinnen, `marker: "onnx/model_quantized.onnx"`, `download: "125 MB"`. **Kein** `desklib_build.js`-
-  artiger Umwandlungsschritt nötig - einfachster der drei Fälle im aktuellen Katalog.
-- **Schwellen** (abgeleitet aus der 99%-Perzentil-Kalibrierung dieser Suite, wie ursprünglich bei
-  desklib - Feinkalibrierung/Kreuzvalidierung ist WP-07-Aufgabe):
-  - `reliableWords: 120` (Konvention beibehalten)
-  - `redFrom ≈ 0,999` (≥ 120 Wörter: ~1,1 % Fehlalarme, ~90 % erkannt)
-  - `shortRedFrom ≈ 0,999` (< 120 Wörter: ~1,5 % Fehlalarme, ~36 % erkannt) - schwach, aber besser als
-    TMRs "nie rot" unter reliableWords; alternativ wie TMR ganz weglassen, wenn 36 % Erkennung als zu
-    unzuverlässig gilt. Empfehlung: setzen, mit dem Wissen, dass es deutlich hinter desklib
-    zurückbleibt.
-  - `yellowFrom`: in dieser Messung nicht kalibriert (kein Fehlalarm-Ziel für Gelb definiert) -
-    vorläufig z. B. 0,90 (analog TMRs Abstand yellow→red von ~0,03, hier großzügiger wegen der
-    steilen Score-Verteilung nahe 1,0), WP-07/Folgemessung sollte das mit echten Gelb-FA-Zahlen
-    prüfen.
-- **Rolle**: als schnelle Alternative zu TMR (gleiche Latenz-/Größenklasse, ~125 MB, ~45-80 ms/Text),
-  aber mit spürbar besserer Trennschärfe (AUROC 0,964 vs. 0,929) und deutlich weniger falschen Alarmen
-  bei gleicher Erkennungsrate - besonders auf `howto`, wo TMR bisher am schwächsten ist. Bleibt aber
-  klar hinter desklib zurück (v. a. `reviews`-Domäne und kurze Absätze) - ersetzt desklib als
-  genaueste Option nicht, sondern verbessert die schnelle Option.
+- **Browser integration**: ready-made ONNX from [`MedAliFarhat/ai-text-detector-onnx`](https://huggingface.co/MedAliFarhat/ai-text-detector-onnx)
+  (Apache-2.0, `sha 0c809a8de6e600ec2fd0fcdeb595a5461d93e8dc`, explicitly built for transformers.js
+  - `onnx/model_quantized.onnx`, 125 MB int8). Just like the TMR entry: pin `repo`/`revision`,
+  `marker: "onnx/model_quantized.onnx"`, `download: "125 MB"`. **No** `desklib_build.js`-
+  style conversion step needed - simplest of the three cases in the current catalogue.
+- **Thresholds** (derived from the 99th-percentile calibration of this suite, as originally for
+  desklib - fine calibration/cross-validation is a WP-07 task):
+  - `reliableWords: 120` (keep the convention)
+  - `redFrom ≈ 0.999` (≥ 120 words: ~1.1% false alarms, ~90% detected)
+  - `shortRedFrom ≈ 0.999` (< 120 words: ~1.5% false alarms, ~36% detected) - weak, but better than
+    TMR's "never red" below reliableWords; alternatively leave it out entirely like TMR if 36% detection counts as too
+    unreliable. Recommendation: set it, knowing that it falls clearly behind
+    desklib.
+  - `yellowFrom`: not calibrated in this measurement (no false alarm target defined for yellow) -
+    provisionally e.g. 0.90 (analogous to TMR's yellow→red gap of ~0.03, more generous here because of the
+    steep score distribution near 1.0), WP-07/a follow-up measurement should
+    check this with real yellow FA numbers.
+- **Role**: as a fast alternative to TMR (same latency/size class, ~125 MB, ~45-80 ms/text),
+  but with noticeably better separation (AUROC 0.964 vs. 0.929) and clearly fewer false alarms
+  at the same detection rate - especially on `howto`, where TMR has been weakest so far. Still stays
+  clearly behind desklib (above all the `reviews` domain and short paragraphs) - does not replace desklib as
+  the most accurate option, but improves the fast option.
 
-## Einschränkungen
+## Limitations
 
-- fakespot-ai dokumentiert seine Trainingsdaten nicht im Detail (nur Verweis auf ein GitHub-Repo ohne
-  konkrete Quellenliste) - anders als bei TMR/desklib ist unklar, ob/wie stark Overlap mit
-  MAGE/M4GT/HC3 (unseren Eval-Quellen) besteht. Die AUROC-Zahlen könnten dadurch optimistisch sein,
-  wie bei den anderen Modellen bereits in EVAL_RESULTS.md vermerkt.
-- Die Modellkarte empfiehlt eine `clean_text`-Vorverarbeitung (Markdown/Whitespace-Normalisierung) für
-  bessere Ergebnisse; diese Messung nutzt rohen Fließtext ohne diese Bereinigung (wie auch TMR/desklib
-  hier ohne Sonderbehandlung laufen) - die Eval-Suite besteht aus bereits bereinigtem Fließtext ohne
-  Markdown, der Effekt dürfte daher klein sein, ist aber nicht separat geprüft.
-- `reviews`-Domäne bleibt schwach (32 % erkannt bei fakespot) - wer stark auf Yelp/IMDb-artige Inhalte
-  scannt, sollte hier keine hohe Erkennungsrate erwarten, unabhängig vom gewählten Backend.
-- Schwellen sind aus derselben Stichprobe abgeleitet, mit der sie bewertet wurden (keine
-  Kreuzvalidierung wie bei WP-07 für TMR/desklib) - vor einer Übernahme in `extension/models.js`
-  lohnt sich dieselbe Kreuzvalidierung, die WP-07 für TMR/desklib durchgeführt hat.
-- ShantanuT01/gradient-ai-text-detector wurde nicht gemessen (Zeitbudget, Größenziel klar verfehlt),
-  behauptet aber selbst eine bessere OOD-AUROC als desklib - falls eine spätere Runde noch näher an
-  desklib-Qualität will und 400+ MB akzeptabel sind, wäre das ein Kandidat für eine echte Messung.
-- Wie bei der breiteren Eval-Suite generell: kein Claude/Gemini als Generator, Quelldaten teils vor
-  2023, TMR/desklib/fakespot könnten Teile der Quell-Datensätze im eigenen Training gesehen haben.
+- fakespot-ai does not document its training data in detail (only a reference to a GitHub repo without a
+  concrete list of sources) - unlike TMR/desklib it is unclear whether/how much overlap with
+  MAGE/M4GT/HC3 (our eval sources) exists. The AUROC numbers could therefore be optimistic,
+  as already noted for the other models in EVAL_RESULTS.md.
+- The model card recommends `clean_text` preprocessing (Markdown/whitespace normalisation) for
+  better results; this measurement uses raw running text without this cleaning (just as TMR/desklib
+  run here without special treatment) - the eval suite consists of already cleaned running text without
+  Markdown, so the effect should be small, but has not been checked separately.
+- The `reviews` domain remains weak (32% detected with fakespot) - anyone scanning heavily for Yelp/IMDb-like content
+  should not expect a high detection rate here, regardless of the chosen backend.
+- Thresholds are derived from the same sample they were evaluated on (no
+  cross-validation as in WP-07 for TMR/desklib) - before adopting them in `extension/models.js`
+  the same cross-validation that WP-07 performed for TMR/desklib is worthwhile.
+- ShantanuT01/gradient-ai-text-detector was not measured (time budget, size target clearly missed),
+  but itself claims a better OOD AUROC than desklib - if a later round wants to get even closer to
+  desklib quality and 400+ MB is acceptable, this would be a candidate for a real measurement.
+- As with the broader eval suite in general: no Claude/Gemini as a generator, source data partly from before
+  2023, TMR/desklib/fakespot may have seen parts of the source datasets in their own training.
 
-## ONNX-Abgleich und Einbindung (WP-09)
+## ONNX comparison and integration (WP-09)
 
-Anschluss an WP-06: Bevor fakespot als dritter Eintrag in `extension/models.js` landet, muss geprüft
-werden, ob das fertige Dritt-ONNX (`MedAliFarhat/ai-text-detector-onnx`, nicht vom Modell-Ersteller
-selbst gebaut) dieselben Gewichte/Labels wie das PyTorch-Original liefert und ob die Ampel (Regel 9,
-`orchestration/README.md`) sich dadurch nennenswert ändert.
+Follow-up to WP-06: Before fakespot lands as the third entry in `extension/models.js`, it must be checked
+whether the ready-made third-party ONNX (`MedAliFarhat/ai-text-detector-onnx`, not built by the model creator
+themselves) delivers the same weights/labels as the PyTorch original and whether the traffic light (rule 9,
+`orchestration/README.md`) changes appreciably as a result.
 
-### Label-Zuordnung geprüft
+### Label mapping checked
 
-`config.json` von Original und ONNX sind identisch: `id2label = {"0": "Human", "1": "AI"}`,
-`label2id = {"AI": 1, "Human": 0}` - keine vertauschten Klassen. `offscreen.js` findet mit seiner
-Regex (`/^(ai|machine|generated)$/i`) korrekt Index 1. `tokenizer_config.json` nennt
-`tokenizer_class: "RobertaTokenizer"` - bereits in `offscreen.js` (`TOKENIZER_CLASSES`) unterstützt,
-keine Änderung an `offscreen.js` nötig (einfachster der drei Katalog-Fälle, wie erwartet).
+The `config.json` of original and ONNX are identical: `id2label = {"0": "Human", "1": "AI"}`,
+`label2id = {"AI": 1, "Human": 0}` - no swapped classes. `offscreen.js` correctly finds index 1 with its
+regex (`/^(ai|machine|generated)$/i`). `tokenizer_config.json` names
+`tokenizer_class: "RobertaTokenizer"` - already supported in `offscreen.js` (`TOKENIZER_CLASSES`),
+no change to `offscreen.js` needed (simplest of the three catalogue cases, as expected).
 
-### Methodik (`training/compare_onnx.py`, neu)
+### Method (`training/compare_onnx.py`, new)
 
-Lädt beide Modelle (ONNX per `onnxruntime` + `transformers`-Tokenizer, PyTorch-Original per
-`transformers`) und wertet sie auf derselben `eval_suite.jsonl` (1200 Texte) mit **identischer
-Vorverarbeitung** aus: `clip_text()` (Python-Nachbau von `content.js` `clipText`, 2000 Zeichen,
-bevorzugt am Satzende gekürzt - wie beim TMR-Eintrag) gefolgt von Tokenizer-Truncation auf 512 Tokens
-(`offscreen.js`, `maxTokens`). Wichtig: Die in WP-06 erzeugten PyTorch-Rohscores
-(`eval_scores_fakespot-ai_roberta-base-ai-text-detection-v1_suite.jsonl`) wurden **ohne** `clipText`
-erzeugt (nur Tokenizer-Truncation) - 31 % der Suite-Texte sind länger als 2000 Zeichen, ein direkter
-Vergleich gegen diese alten Scores hätte also auch den clipText-Effekt mitgemessen. Deshalb rechnet
-`compare_onnx.py` die PyTorch-Referenz mit identischer Vorverarbeitung frisch mit, für einen sauberen,
-isolierten ONNX-vs-PyTorch-Vergleich.
+Loads both models (ONNX via `onnxruntime` + `transformers` tokenizer, PyTorch original via
+`transformers`) and scores them on the same `eval_suite.jsonl` (1200 texts) with **identical
+preprocessing**: `clip_text()` (Python re-implementation of `content.js` `clipText`, 2000 characters,
+preferably cut at the end of a sentence - as for the TMR entry) followed by tokenizer truncation to 512 tokens
+(`offscreen.js`, `maxTokens`). Important: The raw PyTorch scores produced in WP-06
+(`eval_scores_fakespot-ai_roberta-base-ai-text-detection-v1_suite.jsonl`) were produced **without** `clipText`
+(tokenizer truncation only) - 31% of the suite texts are longer than 2000 characters, so a direct
+comparison against these old scores would also have measured the clipText effect. That is why
+`compare_onnx.py` freshly recomputes the PyTorch reference with identical preprocessing, for a clean,
+isolated ONNX-vs-PyTorch comparison.
 
-### Ergebnis: ONNX vs. PyTorch (n=1200, gleiche Vorverarbeitung)
+### Result: ONNX vs. PyTorch (n=1200, same preprocessing)
 
-| Metrik | Wert |
+| Metric | Value |
 |---|---|
-| AUROC ONNX | 0,9554 |
-| AUROC PyTorch (mit clipText) | 0,9598 |
-| Pearson-Korrelation der Scores | 0,9819 |
-| Mittlere Abweichung \|ONNX − PyTorch\| | 0,0369 |
-| Median Abweichung | 0,0017 |
-| Max. Abweichung | 0,5198 (Einzelfall) |
-| Abweichung > 0,01 | 458/1200 Texte (38,2 %) |
-| Abweichung > 0,05 | 245/1200 Texte (20,4 %) |
-| Nur clipText-Effekt (PyTorch mit vs. ohne, gleiches Modell) | mittlere Abweichung 0,0247, max 0,9395 |
+| AUROC ONNX | 0.9554 |
+| AUROC PyTorch (with clipText) | 0.9598 |
+| Pearson correlation of the scores | 0.9819 |
+| Mean deviation \|ONNX − PyTorch\| | 0.0369 |
+| Median deviation | 0.0017 |
+| Max. deviation | 0.5198 (single case) |
+| Deviation > 0.01 | 458/1200 texts (38.2%) |
+| Deviation > 0.05 | 245/1200 texts (20.4%) |
+| clipText effect only (PyTorch with vs. without, same model) | mean deviation 0.0247, max 0.9395 |
 
-Die int8-Quantisierung des Dritt-ONNX bewegt einen spürbaren Teil der Scores messbar (AUROC 0,4
-Punkte niedriger, ~38 % der Texte weichen um mehr als 0,01 ab, einzelne Ausreißer bis 0,52) - **aber**
-die Scores dieses Modells ballen sich ohnehin nahe 1 (siehe WP-06), und genau dort, wo die
-Produktions-Schwelle liegt (~0,999), bleiben ONNX und PyTorch praktisch deckungsgleich:
+The int8 quantisation of the third-party ONNX measurably moves a noticeable share of the scores (AUROC 0.4
+points lower, ~38% of the texts deviate by more than 0.01, individual outliers up to 0.52) - **but**
+the scores of this model cluster near 1 anyway (see WP-06), and exactly where the
+production threshold lies (~0.999), ONNX and PyTorch remain practically identical:
 
-| Kandidaten-Schwelle (redFrom, ≥120 Wörter) | ONNX: FA / erkannt | PyTorch: FA / erkannt | Delta FA / erkannt |
+| Candidate threshold (redFrom, ≥120 words) | ONNX: FA / detected | PyTorch: FA / detected | Delta FA / detected |
 |---|---|---|---|
-| 0,9990 | 1,1 % / 89,5 % | 1,1 % / 89,5 % | 0,0 / 0,0 Punkte |
-| 0,9994 | 0,6 % / 88,2 % | 0,6 % / 87,6 % | 0,0 / 0,6 Punkte |
-| 0,9988 | 1,5 % / 90,3 % | 1,3 % / 89,9 % | 0,2 / 0,4 Punkte |
-| 0,9966 | 3,2 % / 93,5 % | 3,0 % / 93,3 % | 0,2 / 0,2 Punkte |
+| 0.9990 | 1.1% / 89.5% | 1.1% / 89.5% | 0.0 / 0.0 points |
+| 0.9994 | 0.6% / 88.2% | 0.6% / 87.6% | 0.0 / 0.6 points |
+| 0.9988 | 1.5% / 90.3% | 1.3% / 89.9% | 0.2 / 0.4 points |
+| 0.9966 | 3.2% / 93.5% | 3.0% / 93.3% | 0.2 / 0.2 points |
 
-**Einordnung:** An jeder realistischen Kandidaten-Schwelle liegt die Abweichung bei Fehlalarmen und
-Erkennung wie angezeigt bei höchstens 0,2 bzw. 0,6 Prozentpunkten - deutlich innerhalb der
-Stichproben-Unsicherheit dieser Suite (vgl. Kreuzvalidierungs-Spannen unten, die für sich genommen
-schon mehrere Prozentpunkte betragen). Die Ampel ändert sich durch die ONNX-Umwandlung **nicht
-nennenswert** - **Einbindung freigegeben** (Abnahmekriterium erfüllt).
+**Assessment:** At every realistic candidate threshold the deviation in false alarms and
+detection as displayed is at most 0.2 and 0.6 percentage points respectively - well within the
+sampling uncertainty of this suite (cf. the cross-validation ranges below, which on their own already amount to
+several percentage points). The traffic light does **not change
+appreciably** through the ONNX conversion - **integration approved** (acceptance criterion met).
 
-### Kreuzvalidierte Schwellen (ONNX-Scores, Methode wie `crossval_thresholds.py`, WP-07)
+### Cross-validated thresholds (ONNX scores, method as in `crossval_thresholds.py`, WP-07)
 
-`crossval_thresholds.py` um `--backend fakespot` erweitert, liest jetzt `data/eval_scores_fakespot_suite.jsonl`
-(die ONNX-Scores aus `compare_onnx.py` - **genau die Zahlen, die die Extension tatsächlich sähe**, wie
-vom Brief gefordert, nicht die PyTorch-Referenz). 200 stratifizierte Hälfte/Hälfte-Splits, Ziel 1 % FA:
+`crossval_thresholds.py` extended with `--backend fakespot`, now reads `data/eval_scores_fakespot_suite.jsonl`
+(the ONNX scores from `compare_onnx.py` - **exactly the numbers the extension would actually see**, as
+required by the brief, not the PyTorch reference). 200 stratified half/half splits, target 1% FA:
 
-| Bucket | Kreuzvalidierte Schwelle (Median, 5.–95. Perzentil) | FA auf Testhälfte (Median, 5.–95. Perzentil) | KI erkannt (Median, 5.–95. Perzentil) |
+| Bucket | Cross-validated threshold (median, 5th–95th percentile) | FA on test half (median, 5th–95th percentile) | AI detected (median, 5th–95th percentile) |
 |---|---|---|---|
-| ≥120 Wörter (redFrom) | 0,9989 (0,9982–0,9995) | 1,29 % (0–3,45 %) | 89,5 % (86,6–92,9 %) |
-| <120 Wörter (shortRedFrom) | 0,9994 (0,9987–0,9995) | 1,45 % (0–7,25 %) | 34,4 % (28,1–43,8 %) |
+| ≥120 words (redFrom) | 0.9989 (0.9982–0.9995) | 1.29% (0–3.45%) | 89.5% (86.6–92.9%) |
+| <120 words (shortRedFrom) | 0.9994 (0.9987–0.9995) | 1.45% (0–7.25%) | 34.4% (28.1–43.8%) |
 
-Kein "aktueller Wert" zum Vergleich (Modell ist neu) - anders als bei TMR/desklib in WP-07 gibt es hier
-keine Spalte "aktuelle Schwelle auf Testhälften".
+No "current value" for comparison (the model is new) - unlike TMR/desklib in WP-07 there is
+no column "current threshold on test halves" here.
 
-**Gewählte Werte für `extension/models.js`:** `redFrom = 0,999` (innerhalb der kreuzvalidierten Spanne,
-deckt sich mit der einmaligen WP-06-Schätzung 0,9988), `shortRedFrom = 0,9994` (Median der
-Kreuzvalidierung). `yellowFrom = 0,95` nicht kreuzvalidiert (kein Fehlalarm-Ziel für Gelb definiert,
-wie bei TMR/desklib rein informativ) - bei 0,95 sind noch 12,8 % der menschlichen Scores "gelb oder
-höher", bei 0,999 nur noch 1,5 %.
+**Chosen values for `extension/models.js`:** `redFrom = 0.999` (within the cross-validated range,
+matches the one-off WP-06 estimate 0.9988), `shortRedFrom = 0.9994` (median of the
+cross-validation). `yellowFrom = 0.95` not cross-validated (no false alarm target defined for yellow,
+purely informative as with TMR/desklib) - at 0.95, 12.8% of the human scores are still "yellow or
+higher", at 0.999 only 1.5%.
 
-### Vergleichstabelle TMR / fakespot / desklib, wie angezeigt (identische Methode + Suite)
+### Comparison table TMR / fakespot / desklib, as displayed (identical method + suite)
 
-Aus den crossval-Medianen dieses WP und aus `EVAL_RESULTS.md`, "Schwellen absichern" (WP-07,
-gleiche Methode, gleiche Suite):
+From the crossval medians of this WP and from `EVAL_RESULTS.md`, "Securing the thresholds" (WP-07,
+same method, same suite):
 
-| Backend | Bucket | Kreuzvalidierte Schwelle (Median) | FA auf Testhälfte (Median, 5.–95. Perz.) | KI erkannt (Median, 5.–95. Perz.) |
+| Backend | Bucket | Cross-validated threshold (median) | FA on test half (median, 5th–95th perc.) | AI detected (median, 5th–95th perc.) |
 |---|---|---|---|---|
-| TMR | ≥120 W. (redFrom) | 0,9850 | 1,29 % (0,43–3,45 %) | 65,3 % (55,2–75,3 %) |
-| **fakespot** | **≥120 W. (redFrom)** | **0,9989** | **1,29 % (0–3,45 %)** | **89,5 % (86,6–92,9 %)** |
-| desklib | ≥120 W. (redFrom) | 0,9466 | 1,29 % (0–3,45 %) | 97,1 % (95,4–98,7 %) |
-| TMR | <120 W. (shortRedFrom) | 0,9867 | 2,90 % (0–5,87 %) | 13,3 % (4,7–23,4 %) |
-| **fakespot** | **<120 W. (shortRedFrom)** | **0,9994** | **1,45 % (0–7,25 %)** | **34,4 % (28,1–43,8 %)** |
-| desklib | <120 W. (shortRedFrom) | 0,9758 | 1,45 % (0–5,87 %) | 78,1 % (64,1–87,5 %) |
+| TMR | ≥120 w. (redFrom) | 0.9850 | 1.29% (0.43–3.45%) | 65.3% (55.2–75.3%) |
+| **fakespot** | **≥120 w. (redFrom)** | **0.9989** | **1.29% (0–3.45%)** | **89.5% (86.6–92.9%)** |
+| desklib | ≥120 w. (redFrom) | 0.9466 | 1.29% (0–3.45%) | 97.1% (95.4–98.7%) |
+| TMR | <120 w. (shortRedFrom) | 0.9867 | 2.90% (0–5.87%) | 13.3% (4.7–23.4%) |
+| **fakespot** | **<120 w. (shortRedFrom)** | **0.9994** | **1.45% (0–7.25%)** | **34.4% (28.1–43.8%)** |
+| desklib | <120 w. (shortRedFrom) | 0.9758 | 1.45% (0–5.87%) | 78.1% (64.1–87.5%) |
 
-Bestätigt WP-06: fakespot liegt bei identischer Fehlalarmrate klar zwischen TMR und desklib, bei
-langen Absätzen deutlich näher an desklib (89,5 % vs. 97,1 %) als an TMR (65,3 %); bei kurzen
-Absätzen etwa in der Mitte (34,4 % gegen TMRs 13,3 % und desklibs 78,1 %). Mit den fest gewählten
-Werten (0,999 / 0,9994 statt der Crossval-Mediane) liegt fakespot "wie angezeigt" gesamt bei ~1,2 %
-Fehlalarmen und 77,8 % erkannten KI-Texten (alle Längen zusammen); je Domäne: forum 1,0 %/93,0 %,
-howto 3,0 %/73,0 %, news 2,0 %/85,0 %, reviews 0 %/31,0 %, sci_abstract 0 %/91,0 %,
-wikipedia 1,0 %/94,0 % (ONNX-Scores, gewählte Schwellen). `reviews` bleibt wie bei allen drei
-Backends die schwächste Domäne.
+Confirms WP-06: at an identical false alarm rate, fakespot is clearly between TMR and desklib, for
+long paragraphs much closer to desklib (89.5% vs. 97.1%) than to TMR (65.3%); for short
+paragraphs roughly in the middle (34.4% against TMR's 13.3% and desklib's 78.1%). With the fixed chosen
+values (0.999 / 0.9994 instead of the crossval medians) fakespot "as displayed" overall is at ~1.2%
+false alarms and 77.8% detected AI texts (all lengths together); per domain: forum 1.0%/93.0%,
+howto 3.0%/73.0%, news 2.0%/85.0%, reviews 0%/31.0%, sci_abstract 0%/91.0%,
+wikipedia 1.0%/94.0% (ONNX scores, chosen thresholds). `reviews` remains the weakest domain, as with all three
+backends.
 
-### Einbindung
+### Integration
 
-fakespot als dritter Eintrag in `extension/models.js` (Schlüssel `fakespot`, Titel „Ausgewogen –
-fakespot"): `repo: "MedAliFarhat/ai-text-detector-onnx"`, `revision` gepinnt auf
-`0c809a8de6e600ec2fd0fcdeb595a5461d93e8dc` (laut Modellkarte "für transformers.js gebaut"),
-`maxTokens: 512`/`maxChars: 2000` (wie TMR, gleiche Architektur/Größenklasse), Schwellen wie oben.
-**Kein Code in `offscreen.js` geändert** - die vorhandene generische Katalog-/Tokenizer-/Label-Logik
-deckt fakespot bereits vollständig ab (siehe Label-Prüfung oben). `desklib` bleibt Default-Modell,
-`fakespot` ist eine dritte, zusätzliche Wahl.
+fakespot as the third entry in `extension/models.js` (key `fakespot`, title "Balanced –
+fakespot"): `repo: "MedAliFarhat/ai-text-detector-onnx"`, `revision` pinned to
+`0c809a8de6e600ec2fd0fcdeb595a5461d93e8dc` (according to the model card "built for transformers.js"),
+`maxTokens: 512`/`maxChars: 2000` (like TMR, same architecture/size class), thresholds as above.
+**No code in `offscreen.js` changed** - the existing generic catalogue/tokenizer/label logic
+already covers fakespot completely (see label check above). `desklib` stays the default model,
+`fakespot` is a third, additional choice.
 
-**Server-Abschnitt:** `server/shim_server.py` um `fakespot`-Backend ergänzt (fast identischer Code zu
-`tmr`: `AutoModelForSequenceClassification` + Softmax + `ai_index`-Heuristik, keine Sonderbehandlung
-wie bei desklibs eigener Pooling-Klasse nötig) - geringer Aufwand, deshalb mitgenommen. Revision dort:
-`f9cdb14d1f8b105f597d80fa7b56f20c6ea0e9db` (PyTorch-Original, letzter Commit).
+**Server section:** `server/shim_server.py` extended with a `fakespot` backend (almost identical code to
+`tmr`: `AutoModelForSequenceClassification` + softmax + `ai_index` heuristic, no special treatment
+as with desklib's own pooling class needed) - little effort, so included. Revision there:
+`f9cdb14d1f8b105f597d80fa7b56f20c6ea0e9db` (PyTorch original, last commit).
 
-**Lizenz:** `extension/THIRD_PARTY_NOTICES.md` um den fakespot-Eintrag ergänzt (Apache-2.0 für
-Original und Dritt-ONNX, Basismodell RoBERTa-base MIT).
+**License:** `extension/THIRD_PARTY_NOTICES.md` extended with the fakespot entry (Apache-2.0 for
+original and third-party ONNX, base model RoBERTa-base MIT).
 
-### Einschränkungen (zusätzlich zu WP-06)
+### Limitations (in addition to WP-06)
 
-- Die Abweichung zwischen ONNX und PyTorch ist bei mittleren Scores (weder klar Mensch noch klar KI)
-  teils erheblich (Median 0,002, aber einzelne Texte bis 0,52) - für die Ampel unerheblich, weil dort
-  ohnehin "unsicher"/"gelb" gilt statt einer harten Entscheidung, aber relevant für jeden, der die
-  rohen Prozentzahlen im Popover unreflektiert vergleicht.
-- Kreuzvalidierte Schwellen für den "kurz"-Bucket stützen sich auf nur ~130 Mensch-Scores pro
-  Trainhälfte (wie bei TMR/desklib in WP-07) - die Spanne (0–7,25 % FA) ist entsprechend breit, ernst
-  zu nehmen.
-- ONNX-Abgleich lief auf CPU mit `onnxruntime` (Python), nicht mit `onnxruntime-web`/WASM wie im
-  Browser - eine WASM-spezifische Abweichung (andere Kernel-Implementierung) ist theoretisch möglich,
-  aber laut den TMR/desklib-Erfahrungen in diesem Repo bisher nie beobachtet worden.
-- Manueller Lade-Test (`@huggingface/transformers` in Node, gleiche Optionen wie `offscreen.js`:
-  `dtype: "q8"`, gepinnte Revision) bestätigt: Tokenizer und Modell laden aus dem realen ONNX-Pfad,
-  `id2label`/`aiIndex` werden korrekt erkannt, Inferenz liefert plausible Wahrscheinlichkeiten in
-  [0,1]. Die beiden Testsätze dafür waren allerdings selbst von einem Sprachmodell formuliert (dieser
-  Bericht) und daher ungeeignet als "menschliche" Gegenprobe - beide kamen entsprechend hoch heraus
-  (0,997 und 0,9999). Aussagekräftig ist die 1200-Text-Suite oben, nicht dieser Rauchtest.
+- The deviation between ONNX and PyTorch is partly considerable for mid-range scores (neither clearly human nor clearly AI)
+  (median 0.002, but individual texts up to 0.52) - irrelevant for the traffic light, because there
+  "uncertain"/"yellow" applies anyway instead of a hard decision, but relevant for anyone who compares the
+  raw percentages in the popover uncritically.
+- Cross-validated thresholds for the "short" bucket rely on only ~130 human scores per
+  train half (as with TMR/desklib in WP-07) - the range (0–7.25% FA) is correspondingly wide, to be taken
+  seriously.
+- The ONNX comparison ran on CPU with `onnxruntime` (Python), not with `onnxruntime-web`/WASM as in the
+  browser - a WASM-specific deviation (different kernel implementation) is theoretically possible,
+  but according to the TMR/desklib experience in this repo has never been observed so far.
+- Manual load test (`@huggingface/transformers` in Node, same options as `offscreen.js`:
+  `dtype: "q8"`, pinned revision) confirms: tokenizer and model load from the real ONNX path,
+  `id2label`/`aiIndex` are detected correctly, inference returns plausible probabilities in
+  [0, 1]. The two test sentences for it were themselves formulated by a language model (this
+  report) and therefore unsuitable as a "human" control - both accordingly came out high
+  (0.997 and 0.9999). The 1200-text suite above is what is meaningful, not this smoke test.

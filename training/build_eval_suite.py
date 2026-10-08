@@ -1,48 +1,48 @@
 """
-Baut eine breitere, reproduzierbare Eval-Suite (TODO Punkt 3 / WP-01) aus dem öffentlichen
-Datensatz Jinyan1/COLING_2025_MGT_en (Hugging Face). Dieser Datensatz fasst drei Forschungs-
-Benchmarks fürs Human-vs-KI-Erkennen zusammen (Spalte "source"): MAGE (Apache-2.0), M4GT-Bench
-(EACL 2024, mbzuai-nlp/M4 - keine explizite Lizenzdatei im Repo gefunden, reine Recherche-
-Nutzung) und HC3 (**CC BY-SA 4.0**, nicht Apache-2.0 - per Dataset-Card verifiziert, siehe
-orchestration/LOG.md WP-11; wird in diesem Projekt bereits für prepare_dataset.py genutzt).
-Für die eigene Zusammenstellung (Jinyan1/COLING_2025_MGT_en) selbst ist im Dataset-Karten-YAML
-keine Lizenz eingetragen - siehe ENTSCHEIDUNG im Log. Nur zur lokalen Auswertung genutzt, Rohdaten
-bleiben unter training/data/ (gitignored), werden nicht weiterverteilt.
+Builds a broader, reproducible eval suite (TODO item 3 / WP-01) from the public
+dataset Jinyan1/COLING_2025_MGT_en (Hugging Face). This dataset combines three research
+benchmarks for human-vs-AI detection (column "source"): MAGE (Apache-2.0), M4GT-Bench
+(EACL 2024, mbzuai-nlp/M4 - no explicit license file found in the repo, pure research
+use) and HC3 (**CC BY-SA 4.0**, not Apache-2.0 - verified via the dataset card, see
+git history of orchestration/LOG.md, WP-11; already used in this project for prepare_dataset.py).
+For the compilation itself (Jinyan1/COLING_2025_MGT_en) no license is entered in the dataset card YAML
+- see DECISION in the log. Used only for local evaluation, raw data
+stays under training/data/ (gitignored), is not redistributed.
 
-Domänen (unsere Kategorie -> sub_source-Werte des Datensatzes):
-    news         xsum, cnn, tldr, dialogsum      (Nachrichten/Zusammenfassungen)
+Domains (our category -> sub_source values of the dataset):
+    news         xsum, cnn, tldr, dialogsum      (news/summaries)
     wikipedia    wikipedia, wiki_csai
     forum        reddit, cmv, reddit_eli5, eli5
-    sci_abstract arxiv, sci_gen, peerread, pubmed (wissenschaftliche Abstracts)
+    sci_abstract arxiv, sci_gen, peerread, pubmed (scientific abstracts)
     reviews      yelp, imdb
     howto        wikihow
 
-Achtung Lizenz/Herkunft je sub_source (Spalte "source", per Abgleich verifiziert, WP-11):
+Note on license/origin per sub_source (column "source", verified by cross-check, WP-11):
 finance/medicine/open_qa/reddit_eli5/wiki_csai = hc3 (CC BY-SA 4.0); cmv/cnn/dialogsum/eli5/
-hswag/imdb/pubmed/roct/sci_gen/tldr/wp/xsum/yelp = mage (Apache-2.0, aber menschliche
-Ursprungstexte teils mit eigenen Nutzungsbedingungen, z.B. Yelp/IMDb); arxiv/outfox/peerread/
-reddit/wikihow/**wikipedia** = m4gt (**keine Lizenz**, M4GT-Bench/M4 ohne LICENSE-Datei/-Feld).
-Der sub_source "wikipedia" oben stammt NICHT aus MAGE, sondern aus M4GT - anders als der Name
-nahelegt. Die MAGE-eigene Wikipedia/SQuAD-Domäne heißt hier "squad" (nicht in DOMAINS oben
-enthalten) und hat nur ältere Generatoren (gpt-3.5-turbo, sonst text-davinci-00x/flan-t5/opt/
-t0/bloom/GLM130B/gpt-j/gpt-neox - die in diesem Skript bewusst ausgeschlossene Kategorie
-"älterer/kleiner Modelle"). training/build_reference_set.py nutzt deshalb weder "wikipedia"
-noch "squad" aus diesem Datensatz, sondern RAID (liamdugan/raid, MIT) für die Wikipedia-Domäne.
+hswag/imdb/pubmed/roct/sci_gen/tldr/wp/xsum/yelp = mage (Apache-2.0, but human
+source texts partly with their own terms of use, e.g. Yelp/IMDb); arxiv/outfox/peerread/
+reddit/wikihow/**wikipedia** = m4gt (**no license**, M4GT-Bench/M4 without a LICENSE file/field).
+The sub_source "wikipedia" above does NOT come from MAGE but from M4GT - contrary to what the name
+suggests. MAGE's own Wikipedia/SQuAD domain is called "squad" here (not included in DOMAINS above)
+and only has older generators (gpt-3.5-turbo, otherwise text-davinci-00x/flan-t5/opt/
+t0/bloom/GLM130B/gpt-j/gpt-neox - the category "older/smaller models" deliberately excluded in this
+script). training/build_reference_set.py therefore uses neither "wikipedia"
+nor "squad" from this dataset, but RAID (liamdugan/raid, MIT) for the Wikipedia domain.
 
-Generatoren (Spalte "model"): human sowie, soweit für die Domäne vorhanden,
-gpt4, gpt4o, gpt-3.5-turbo, llama3-70b, mixtral-8x7b, gemma2-9b-it, cohere - die aktuellsten
-öffentlich verfügbaren Generatoren in diesem Datensatz (siehe Log: "news" und "reviews" haben im
-Datensatz nur gpt-3.5-turbo als KI-Generator, keine neueren). Ältere/kleine Modelle (davinci,
-opt_*, flan_t5_*, t0_*, bloom*, gpt_j, gpt_neox, GLM130B, dolly*) bewusst ausgelassen - nicht
-mehr repräsentativ für heutigen KI-Text im Web.
+Generators (column "model"): human and, where available for the domain,
+gpt4, gpt4o, gpt-3.5-turbo, llama3-70b, mixtral-8x7b, gemma2-9b-it, cohere - the most current
+publicly available generators in this dataset (see log: "news" and "reviews" only have
+gpt-3.5-turbo as the AI generator in the dataset, no newer ones). Older/small models (davinci,
+opt_*, flan_t5_*, t0_*, bloom*, gpt_j, gpt_neox, GLM130B, dolly*) deliberately left out - no longer
+representative of today's AI text on the web.
 
-Text -> Absatz (40-400 Wörter, wie extension/length-buckets.js / content.js MIN_WORDS):
-Whitespace wird zu einem einzigen Absatz zusammengefasst (reale Webseiten-Absätze haben auch
-keine Leerzeilen mehr, wenn man sie ausliest) und bei Bedarf am nächsten Satzende auf 400 Wörter
-gekürzt (wie clip() in evaluate_false_alarms.py, nur wortbasiert statt zeichenbasiert).
+Text -> paragraph (40-400 words, like extension/length-buckets.js / content.js MIN_WORDS):
+Whitespace is merged into a single paragraph (real web page paragraphs no longer have
+blank lines either when read out) and, if needed, cut at the nearest sentence end to 400 words
+(like clip() in evaluate_false_alarms.py, just word-based instead of character-based).
 
-Nutzung:
-    .venv/Scripts/python.exe build_eval_suite.py                 # Standardgrößen (siehe unten)
+Usage:
+    .venv/Scripts/python.exe build_eval_suite.py                 # default sizes (see below)
     .venv/Scripts/python.exe build_eval_suite.py --out data/eval_suite.jsonl --seed 42
 """
 
@@ -63,7 +63,7 @@ DOMAINS = {
 }
 SUB2DOM = {s: d for d, subs in DOMAINS.items() for s in subs}
 
-# Generatoren in Prioritätsreihenfolge (die je Domäne fehlenden werden übersprungen, siehe Log)
+# Generators in priority order (those missing per domain are skipped, see log)
 GENERATORS = ["gpt4", "gpt4o", "gpt-3.5-turbo", "llama3-70b", "mixtral-8x7b", "gemma2-9b-it", "cohere"]
 
 MIN_WORDS = 40
@@ -71,18 +71,18 @@ MAX_WORDS = 400
 
 SENT_END = re.compile(r"[.!?…][\"'”’»)\]]?(?=\s|$)")
 
-# Tokenisierungs-Artefakt aus reddit_eli5/wikihow-Teilen mehrerer Quell-Datensätze ("wax .", "1 )") -
-# gleiches Problem wie in prepare_dataset.py dokumentiert und in evaluate_false_alarms.py normalisiert.
-# Ohne Normalisierung würde ein Modell "Leerzeichen vor Satzzeichen" als Shortcut für "menschlich" lernen
-# können, was auf echten Webseiten (ohne dieses Artefakt) nicht zutrifft.
+# Tokenisation artefact from reddit_eli5/wikihow parts of several source datasets ("wax .", "1 )") -
+# same problem as documented in prepare_dataset.py and normalised in evaluate_false_alarms.py.
+# Without normalisation a model could learn "space before punctuation" as a shortcut for "human",
+# which does not hold on real web pages (without this artefact).
 ARTIFACT_SPACE = re.compile(r"\s+([.,!?;:)\]'])")
 
 
 def extract_excerpt(text: str, min_words=MIN_WORDS, max_words=MAX_WORDS):
-    """Ein Absatz (40-400 Wörter) aus einem ggf. längeren Dokument. Whitespace/Zeilenumbrüche
-    werden zu einem Absatz zusammengefasst (wie ein realer Webseiten-Absatz), Tokenisierungs-
-    Artefakte entfernt, bei Bedarf am nächsten Satzende gekürzt. None, wenn der Text auch
-    komplett unter min_words bleibt."""
+    """One paragraph (40-400 words) from a possibly longer document. Whitespace/line breaks
+    are merged into one paragraph (like a real web page paragraph), tokenisation
+    artefacts removed, cut at the nearest sentence end if needed. None if the text stays
+    entirely below min_words."""
     text = " ".join(text.split())
     text = ARTIFACT_SPACE.sub(r"\1", text)
     words = text.split(" ")
@@ -104,9 +104,9 @@ def extract_excerpt(text: str, min_words=MIN_WORDS, max_words=MAX_WORDS):
 
 
 def load_rows():
-    """Liest den kompletten Datensatz (train+dev, ~870k Zeilen) einmalig ein und gruppiert
-    Text nach (domain, generator). Nur Zeilen aus den gewünschten Domänen/Generatoren landen im
-    Speicher (nicht alle 870k Volltexte)."""
+    """Reads the complete dataset (train+dev, ~870k rows) once and groups
+    text by (domain, generator). Only rows from the desired domains/generators end up in
+    memory (not all 870k full texts)."""
     from datasets import concatenate_datasets, load_dataset
 
     ds = load_dataset("Jinyan1/COLING_2025_MGT_en")
@@ -122,7 +122,7 @@ def load_rows():
                 continue
             rows[(dom, model)].append(text)
 
-    full.map(collect, batched=True, batch_size=20_000, desc="Filtere/gruppiere")
+    full.map(collect, batched=True, batch_size=20_000, desc="Filtering/grouping")
     return rows
 
 
@@ -158,7 +158,7 @@ def build_suite(rows, per_domain_human: int, per_domain_ai: int, seed: int):
         available_gens = [g for g in GENERATORS if rows.get((domain, g))]
         if not available_gens:
             continue
-        # gleichmäßig auf verfügbare Generatoren verteilen (Rest den ersten zugeschlagen)
+        # distribute evenly across available generators (remainder goes to the first ones)
         base = per_domain_ai // len(available_gens)
         extra = per_domain_ai - base * len(available_gens)
         for j, gen in enumerate(available_gens):
@@ -176,14 +176,14 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", default="data/eval_suite.jsonl")
     ap.add_argument("--seed", type=int, default=42)
-    ap.add_argument("--per-domain-human", type=int, default=100, help="Menschliche Texte je Domäne")
-    ap.add_argument("--per-domain-ai", type=int, default=100, help="KI-Texte je Domäne, auf verfügbare Generatoren verteilt")
+    ap.add_argument("--per-domain-human", type=int, default=100, help="Human texts per domain")
+    ap.add_argument("--per-domain-ai", type=int, default=100, help="AI texts per domain, distributed across available generators")
     args = ap.parse_args()
 
-    print("Lade/filtere Jinyan1/COLING_2025_MGT_en (einmaliger Download, danach HF-Cache) ...")
+    print("Loading/filtering Jinyan1/COLING_2025_MGT_en (one-time download, then HF cache) ...")
     rows = load_rows()
     for k in sorted(rows):
-        print(f"  verfügbar {k}: {len(rows[k])}")
+        print(f"  available {k}: {len(rows[k])}")
 
     suite, stats, skipped_short = build_suite(rows, args.per_domain_human, args.per_domain_ai, args.seed)
 
@@ -194,17 +194,17 @@ def main():
         for row in suite:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
-    print(f"\nGeschrieben: {len(suite)} Texte -> {out_path}")
-    print(f"Übersprungen (nach Kürzung < {MIN_WORDS} Wörter oder Quelle leer): {skipped_short}")
-    print("\nSoll/Ist je (Domäne, Generator):")
+    print(f"\nWritten: {len(suite)} texts -> {out_path}")
+    print(f"Skipped (< {MIN_WORDS} words after cutting or source empty): {skipped_short}")
+    print("\nTarget/actual per (domain, generator):")
     for k in sorted(stats):
         s = stats[k]
-        flag = "  <-- Ziel nicht erreicht" if s["got"] < s["target"] else ""
+        flag = "  <-- target not reached" if s["got"] < s["target"] else ""
         print(f"  {k}: {s['got']}/{s['target']}{flag}")
 
     n_human = sum(1 for r in suite if r["label"] == 0)
     n_ai = sum(1 for r in suite if r["label"] == 1)
-    print(f"\nGesamt: {len(suite)} (human={n_human}, KI={n_ai})")
+    print(f"\nTotal: {len(suite)} (human={n_human}, AI={n_ai})")
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "AI Content Flag",
   "version": "0.5.0",
-  "description": "Bewertet Textabsätze mit einem KI-Text-Klassifikator – direkt im Browser, lokal oder per Cloud – und markiert sie grün/gelb/rot mit Score.",
+  "description": "Scores paragraphs of text with an AI-text classifier – directly in the browser, locally or via cloud – and marks them green/yellow/red with a score.",
   "permissions": [
     "storage",
     "activeTab",
@@ -79,19 +79,19 @@
       "suggested_key": {
         "default": "Alt+Shift+A"
       },
-      "description": "Extension an-/ausschalten"
+      "description": "Switch extension on/off"
     },
     "scan-page": {
       "suggested_key": {
         "default": "Alt+Shift+S"
       },
-      "description": "Aktuelle Seite jetzt scannen"
+      "description": "Scan current page now"
     },
     "check-selection": {
       "suggested_key": {
         "default": "Alt+Shift+C"
       },
-      "description": "Markierten Text auf KI prüfen"
+      "description": "Check selected text for AI"
     }
   }
 }

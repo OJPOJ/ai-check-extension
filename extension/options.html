@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>AI Content Flag – Einstellungen</title>
+<title>AI Content Flag – Settings</title>
 <link rel="stylesheet" href="ui.css" />
 <style>
   body { background: var(--surface); }
@@ -90,198 +90,198 @@
   <div class="top-inner">
     <div>
       <h1>AI Content Flag</h1>
-      <div class="sub muted">Einstellungen</div>
+      <div class="sub muted">Settings</div>
     </div>
     <label class="master">
-      <span>Extension aktiv <small class="muted">· Alt+Shift+A</small></span>
-      <span class="switch"><input type="checkbox" id="enabled" aria-label="Extension aktiv" /><span></span></span>
+      <span>Extension enabled <small class="muted">· Alt+Shift+A</small></span>
+      <span class="switch"><input type="checkbox" id="enabled" aria-label="Extension enabled" /><span></span></span>
     </label>
   </div>
 </header>
 
 <div class="layout">
-  <nav class="toc" aria-label="Abschnitte">
-    <a href="#detection">Erkennung</a>
-    <a href="#display">Anzeige</a>
-    <a href="#scanning">Scannen</a>
-    <a href="#blocklist">Sperrliste</a>
-    <a href="#data">Daten &amp; Datenschutz</a>
+  <nav class="toc" aria-label="Sections">
+    <a href="#detection">Detection</a>
+    <a href="#display">Display</a>
+    <a href="#scanning">Scanning</a>
+    <a href="#blocklist">Blocklist</a>
+    <a href="#data">Data &amp; privacy</a>
   </nav>
 
   <main>
-    <p class="intro muted">Bewertet längere Textabsätze mit einem KI-Text-Klassifikator und markiert sie
-      grün / gelb / rot. Scores sind Schätzungen – sie können sich irren, besonders bei kurzen,
-      übersetzten oder stark redigierten Texten.</p>
+    <p class="intro muted">Scores longer paragraphs of text with an AI-text classifier and marks them
+      green / yellow / red. Scores are estimates – they can be wrong, especially for short,
+      translated or heavily edited texts.</p>
 
     <section class="card" id="detection">
-      <h2>Erkennung</h2>
-      <p class="lead">Wo die Texte bewertet werden und mit welchem Modell.</p>
-      <!-- Auswahl und Formulare kommen aus AIVSAI.PROVIDERS (config.js) und models.js -->
-      <div class="choices two" id="providerChoices" role="radiogroup" aria-label="Erkennungs-Backend"></div>
+      <h2>Detection</h2>
+      <p class="lead">Where the texts are scored and with which model.</p>
+      <!-- Selection and forms come from AIVSAI.PROVIDERS (config.js) and models.js -->
+      <div class="choices two" id="providerChoices" role="radiogroup" aria-label="Detection backend"></div>
       <div id="providerForms"></div>
       <p class="warn" id="privacyWarn" hidden style="margin:14px 0 0">
-        Textausschnitte (bis <span id="privacyChars">2000</span> Zeichen pro Absatz) werden an
-        <b id="privacyTarget"></b> gesendet. Nutze „Nur auf Knopfdruck“ oder eine Seitenliste, wenn du das nicht
-        für jede Seite willst.
+        Text excerpts (up to <span id="privacyChars">2000</span> characters per paragraph) are sent to
+        <b id="privacyTarget"></b>. Use "Only on button press" or a site list if you do not want that
+        for every site.
       </p>
     </section>
 
     <section class="card" id="display">
-      <h2>Anzeige</h2>
-      <p class="lead">Ab welchem Score ein Absatz gelb bzw. rot markiert wird.</p>
+      <h2>Display</h2>
+      <p class="lead">From which score a paragraph is marked yellow or red.</p>
       <div class="slider-row">
-        <label for="yellowFrom">Gelb ab</label>
+        <label for="yellowFrom">Yellow from</label>
         <input type="range" id="yellowFrom" min="0.05" max="0.98" step="0.01" />
         <output id="yellowFromValue"></output>
       </div>
       <div class="slider-row">
-        <label for="redFrom">Rot ab</label>
+        <label for="redFrom">Red from</label>
         <input type="range" id="redFrom" min="0.06" max="0.99" step="0.01" />
         <output id="redFromValue"></output>
       </div>
       <div class="scale" id="scale" aria-hidden="true"></div>
       <div class="scale-legend">
-        <span><i class="dot green"></i>unauffällig</span>
-        <span><i class="dot yellow"></i>unklar</span>
-        <span><i class="dot red"></i>auffällig (ähnelt KI-Text)</span>
+        <span><i class="dot green"></i>not flagged</span>
+        <span><i class="dot yellow"></i>unclear</span>
+        <span><i class="dot red"></i>flagged (resembles AI text)</span>
       </div>
-      <div class="hint">Der Score (0–100) ist ein Rohwert des Modells, keine Wahrscheinlichkeit. Kurze Absätze
-        (unter 120 Wörtern) werden nicht gelb, sondern grau „unsicher“, und rot nur, wenn das Modell dafür eine
-        strengere Schwelle hat (desklib: 98); Absätze in Sprachen, die das
-        Modell nicht kennt, werden nicht bewertet.</div>
+      <div class="hint">The score (0–100) is a raw value of the model, not a probability. Short paragraphs
+        (under 120 words) are not marked yellow but gray "uncertain", and red only if the model has a
+        stricter threshold for it (desklib: 98); paragraphs in languages the
+        model does not know are not scored.</div>
       <div class="row" style="margin-top:12px;justify-content:flex-start">
-        <button id="applyPreset">Empfohlene Werte fürs gewählte Modell</button>
+        <button id="applyPreset">Recommended values for the selected model</button>
         <span class="hint" id="presetInfo" style="margin:0"></span>
       </div>
 
       <label class="check"><input type="checkbox" id="showGreen" />
-        <div>Auch unauffällige Absätze grün markieren<div class="hint">So siehst du, was geprüft und <i>nicht</i> als KI erkannt wurde.</div></div></label>
+        <div>Also mark unflagged paragraphs green<div class="hint">This shows you what was checked and <i>not</i> detected as AI.</div></div></label>
       <label class="check"><input type="checkbox" id="showBadge" />
-        <div>Score als Badge am Absatz anzeigen („KI-Score 97“)<div class="hint">Ohne Badge steht der Score weiterhin im Tooltip.</div></div></label>
+        <div>Show score as a badge on the paragraph ("AI score 97")<div class="hint">Without a badge the score is still shown in the tooltip.</div></div></label>
     </section>
 
     <section class="card" id="scanning">
-      <h2>Scannen</h2>
-      <p class="lead">Wann Seiten automatisch geprüft werden. Einzelne Stellen prüfst du jederzeit per Auswahl
-        oder Rechtsklick; Alt+Shift+S scannt die aktuelle Seite.</p>
+      <h2>Scanning</h2>
+      <p class="lead">When sites are checked automatically. You can check individual passages at any time via selection
+        or right-click; Alt+Shift+S scans the current page.</p>
       <div class="choices">
         <label class="choice"><input type="radio" name="scanMode" value="manual" />
-          <div><b>Nur auf Knopfdruck</b><span>Über das Popup oder Alt+Shift+S. Es werden keine Texte ohne Klick verschickt.</span></div></label>
+          <div><b>Only on button press</b><span>Via the popup or Alt+Shift+S. No texts are sent without a click.</span></div></label>
         <label class="choice"><input type="radio" name="scanMode" value="sites" />
-          <div><b>Auf ausgewählten Seiten automatisch</b><span>Seiten per Schalter im Popup hinzufügen oder unten eintragen.</span></div></label>
+          <div><b>Automatically on selected sites</b><span>Add sites via the switch in the popup or enter them below.</span></div></label>
         <label class="choice"><input type="radio" name="scanMode" value="all" />
-          <div><b>Auf allen Seiten automatisch</b><span>Jede besuchte Seite wird analysiert – mit Cloud-Backends ggf. teuer.</span></div></label>
+          <div><b>Automatically on all sites</b><span>Every visited site is analyzed – possibly expensive with cloud backends.</span></div></label>
       </div>
 
       <div class="field" id="sitesField">
-        <label for="sites">Automatisch scannen auf</label>
+        <label for="sites">Scan automatically on</label>
         <textarea id="sites" rows="4" placeholder="example.com&#10;news.example.org"></textarea>
-        <div class="hint">Eine Domain pro Zeile, Subdomains sind eingeschlossen.</div>
+        <div class="hint">One domain per line, subdomains are included.</div>
       </div>
 
       <label class="check"><input type="checkbox" id="lazyScan" />
-        <div>Nur Absätze in der Nähe des sichtbaren Bereichs bewerten
-          <div class="hint">Bis 1,5 Bildschirmhöhen über/unter der aktuellen Position, der Rest beim Scrollen.
-            Spart Rechenzeit und bei Cloud-Backends Kosten für Stellen, die du nie liest.</div></div></label>
+        <div>Only score paragraphs near the visible area
+          <div class="hint">Up to 1.5 screen heights above/below the current position, the rest on scrolling.
+            Saves computing time and, with cloud backends, costs for passages you never read.</div></div></label>
       <label class="check"><input type="checkbox" id="groupShortParagraphs" />
-        <div>Kurze Absätze zusammen bewerten
-          <div class="hint">Benachbarte kurze Absätze ohne Überschrift dazwischen werden als ein Text bewertet und
-            teilen sich das Ergebnis. Einzeln sind sie oft zu kurz für eine sichere Aussage.</div></div></label>
+        <div>Score short paragraphs together
+          <div class="hint">Adjacent short paragraphs with no heading in between are scored as one text and
+            share the result. On their own they are often too short for a reliable verdict.</div></div></label>
     </section>
 
     <section class="card" id="blocklist">
-      <h2>Sperrliste</h2>
-      <p class="lead">Gesperrte Seiten werden weder automatisch noch per „Seite jetzt scannen“ geprüft – das gilt
-        vor allen anderen Einstellungen. Einzelne Stellen kannst du dort weiterhin bewusst per Auswahl oder
-        Rechtsklick prüfen.</p>
+      <h2>Blocklist</h2>
+      <p class="lead">Blocked sites are checked neither automatically nor via "Scan page now" – this takes
+        precedence over all other settings. You can still deliberately check individual passages there via selection or
+        right-click.</p>
       <label class="check" style="margin-top:0"><input type="checkbox" id="builtinBlocklist" />
-        <div>Mitgelieferte Liste verwenden (Online-Banking, Webmail, Zahlungsdienste, Behördenportale)
+        <div>Use the bundled list (online banking, webmail, payment services, government portals)
           <div class="hint" id="builtinInfo"></div></div></label>
       <label class="check"><input type="checkbox" id="sensitiveHeuristic" />
-        <div>Seiten mit Passwort- oder Zahlungsfeld nicht scannen
-          <div class="hint">Fängt Login- und Bezahlseiten ab, die in keiner Liste stehen. Felder in Pop-ups
-            (z.B. Login-Fenster einer Nachrichtenseite) zählen nicht.</div></div></label>
+        <div>Do not scan sites with a password or payment field
+          <div class="hint">Catches login and checkout pages that are on no list. Fields in pop-ups
+            (e.g. the login window of a news site) do not count.</div></div></label>
 
       <div class="cols field">
         <div>
-          <label class="label" for="blockedSites">Zusätzlich sperren</label>
+          <label class="label" for="blockedSites">Additionally block</label>
           <textarea id="blockedSites" rows="4" placeholder="intranet.example.com"></textarea>
         </div>
         <div>
-          <label class="label" for="unblockedSites">Ausnahmen von der mitgelieferten Liste</label>
+          <label class="label" for="unblockedSites">Exceptions from the bundled list</label>
           <textarea id="unblockedSites" rows="4" placeholder="blog.bank.example"></textarea>
         </div>
       </div>
-      <div class="hint">Eine Domain pro Zeile, Subdomains sind eingeschlossen. Beides geht auch per Popup
-        („Hier nie scannen“ / „Von der Sperrliste nehmen“).</div>
+      <div class="hint">One domain per line, subdomains are included. Both also work via the popup
+        ("Never scan here" / "Remove from blocklist").</div>
     </section>
 
     <section class="card" id="data">
-      <h2>Daten &amp; Datenschutz</h2>
-      <p class="lead">Was die Extension in diesem Browser speichert. Nichts davon wird synchronisiert oder verschickt.</p>
+      <h2>Data &amp; privacy</h2>
+      <p class="lead">What the extension stores in this browser. None of it is synced or sent.</p>
       <div class="field">
-        <label for="scoreRetentionDays">Bewertungen merken für</label>
+        <label for="scoreRetentionDays">Remember scores for</label>
         <select id="scoreRetentionDays">
-          <option value="0">Nicht speichern</option>
-          <option value="1">1 Tag</option>
-          <option value="7">7 Tage</option>
-          <option value="30">30 Tage</option>
-          <option value="90">90 Tage</option>
-          <option value="365">1 Jahr</option>
+          <option value="0">Do not store</option>
+          <option value="1">1 day</option>
+          <option value="7">7 days</option>
+          <option value="30">30 days</option>
+          <option value="90">90 days</option>
+          <option value="365">1 year</option>
         </select>
-        <div class="hint">Bereits bewertete Absätze werden beim nächsten Besuch sofort markiert, statt erneut
-          gerechnet (bzw. bei Cloud-Backends erneut bezahlt) zu werden. Gespeichert wird nur ein Fingerabdruck
-          (Hash) des Absatzes mit Score, Modell und Zeitpunkt – <b>kein Text und keine Adresse</b>. Ca. 0,25 KB
-          pro Absatz – 30 Tage intensives Surfen ergeben einige MB.</div>
+        <div class="hint">Paragraphs that have already been scored are marked immediately on the next visit instead of being
+          computed again (or paid for again with cloud backends). Only a fingerprint
+          (hash) of the paragraph is stored, with score, model and time – <b>no text and no address</b>. About 0.25 KB
+          per paragraph – 30 days of heavy browsing add up to a few MB.</div>
       </div>
       <div class="row field">
-        <div class="hint" id="storeStatus" style="margin:0">Prüfe…</div>
-        <button id="storeClear">Alle löschen</button>
+        <div class="hint" id="storeStatus" style="margin:0">Checking…</div>
+        <button id="storeClear">Delete all</button>
       </div>
 
       <h3>Feedback</h3>
       <label class="check" style="margin-top:0"><input type="checkbox" id="feedbackButtons" />
-        <div>Im Prüfergebnis fragen, woher der Text wirklich stammt<div class="hint">Nach einer Prüfung per
-          Markierung oder Rechtsklick (auch auf bereits markierte Absätze) kannst du angeben, ob der Text von
-          einem Menschen oder einer KI stammt – und woher du das weißt. Beim ersten Mal wirst du gefragt, ob
-          der Text dafür gespeichert werden darf.</div></div></label>
-      <div class="hint">Die Sammlung enthält den <b>Text</b> (bis 2000 Zeichen), deine Angabe, Score, Modell und
-        die Sprache der Seite – keine Adresse. Sie bleibt in diesem Browser; die Extension sendet sie nirgendwohin.
-        Als JSONL exportiert dient sie als Testmaterial bzw. Trainingsdaten (<code>training/import_feedback.py</code>).
-        Einträge „nur mein Eindruck“ werden dort standardmäßig nicht als Trainingslabel verwendet.</div>
+        <div>Ask in the check result where the text really comes from<div class="hint">After a check via
+          selection or right-click (also on paragraphs that are already marked) you can state whether the text comes from
+          a human or an AI – and how you know. The first time you are asked whether
+          the text may be stored for this.</div></div></label>
+      <div class="hint">The collection contains the <b>text</b> (up to 2000 characters), your answer, score, model and
+        the language of the page – no address. It stays in this browser; the extension sends it nowhere.
+        Exported as JSONL it serves as test material or training data (<code>training/import_feedback.py</code>).
+        Entries "just my impression" are not used as a training label there by default.</div>
       <div class="row field">
-        <div class="hint" id="feedbackStatus" style="margin:0">Prüfe…</div>
+        <div class="hint" id="feedbackStatus" style="margin:0">Checking…</div>
         <div style="display:flex;gap:8px;flex:none">
-          <button id="feedbackExport">Exportieren</button>
-          <button id="feedbackClear">Löschen und Einwilligung widerrufen</button>
+          <button id="feedbackExport">Export</button>
+          <button id="feedbackClear">Delete and withdraw consent</button>
         </div>
       </div>
 
-      <p class="small muted" style="margin:16px 0 0"><a href="privacy.html" target="_blank">Datenschutzerklärung</a> ·
-        <a href="about.html">Über / Lizenzen</a> ·
-        Messwerte der Modelle: training/EVAL_RESULTS.md. Laya ist absichtlich nicht wählbar, bis ein fine-getunter
-        Checkpoint existiert (training/README.md).</p>
+      <p class="small muted" style="margin:16px 0 0"><a href="privacy.html" target="_blank">Privacy policy</a> ·
+        <a href="about.html">About / licenses</a> ·
+        Model measurements: training/EVAL_RESULTS.md. Laya is deliberately not selectable until a fine-tuned
+        checkpoint exists (training/README.md).</p>
     </section>
   </main>
 </div>
 
-<!-- Zusätze zu einzelnen Providern, options.js hängt sie an deren Formular an (id = "extra-<provider>") -->
+<!-- Additions for individual providers, options.js appends them to their form (id = "extra-<provider>") -->
 <template id="extra-browser">
   <div class="row field">
-    <div class="hint" id="modelStatus" style="margin:0">Prüfe…</div>
+    <div class="hint" id="modelStatus" style="margin:0">Checking…</div>
     <div style="display:flex;gap:8px;flex:none">
-      <button id="modelDelete" hidden>Löschen</button>
-      <button id="modelDownload" class="primary" hidden>Herunterladen</button>
+      <button id="modelDelete" hidden>Delete</button>
+      <button id="modelDownload" class="primary" hidden>Download</button>
     </div>
   </div>
   <progress id="modelProgress" max="1" value="0" hidden></progress>
 </template>
 <template id="extra-custom">
-  <div class="hint field">Erwarteter Vertrag (shim_server.py erfüllt ihn, Details in server/README.md):</div>
+  <div class="hint field">Expected contract (shim_server.py fulfills it, details in server/README.md):</div>
   <pre>POST …/v1/score  {"texts": ["…", "…"], "model": "…", "lang": "en"}
-→    {"scores": [0.93, 0.12]}   // P(KI) 0..1 pro Text, gleiche Reihenfolge
+→    {"scores": [0.93, 0.12]}   // P(AI) 0..1 per text, same order
 
-GET  …/v1/info?model=…   // optional, neben dem Score-Endpunkt
+GET  …/v1/info?model=…   // optional, next to the score endpoint
 →    {"name": "…", "version": "…", "maxChars": 2000, "languages": ["en"],
       "suggestedThresholds": {"yellowFrom": 0.6, "redFrom": 0.9}}</pre>
 </template>
@@ -289,8 +289,8 @@ GET  …/v1/info?model=…   // optional, neben dem Score-Endpunkt
 <div class="bar">
   <div class="bar-inner">
     <div id="status" role="status"></div>
-    <button id="test" title="Speichert und schickt einen Beispieltext ans gewählte Backend">Verbindung testen</button>
-    <button id="save" class="primary" title="Strg+S">Speichern</button>
+    <button id="test" title="Saves and sends a sample text to the selected backend">Test connection</button>
+    <button id="save" class="primary" title="Ctrl+S">Save</button>
   </div>
 </div>
 

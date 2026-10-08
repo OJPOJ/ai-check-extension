@@ -1,24 +1,24 @@
 """
-Wertet die breitere Eval-Suite (build_eval_suite.py, training/data/eval_suite.jsonl) für TMR und
-desklib aus: AUROC gesamt/je Domäne/je Generator/je Längen-Bucket, Fehlalarmrate an den aktuellen
-Schwellen (extension/models.js - nur gelesen, nicht verändert) und eine Schwellen-Empfehlung für
-~1% Fehlalarme. Ergänzt training/EVAL_RESULTS.md nicht automatisch (Zahlen von Hand übernommen,
-wie bei den bisherigen Läufen in diesem Ordner) - druckt stattdessen alle Tabellen auf stdout und
-schreibt Rohscores nach data/eval_scores_<backend>_suite.jsonl.
+Evaluates the broader eval suite (build_eval_suite.py, training/data/eval_suite.jsonl) for TMR and
+desklib: AUROC overall/per domain/per generator/per length bucket, false alarm rate at the current
+thresholds (extension/models.js - only read, not changed) and a threshold recommendation for
+~1% false alarms. Does not update training/EVAL_RESULTS.md automatically (numbers taken over by hand,
+as in the previous runs in this folder) - instead prints all tables to stdout and
+writes raw scores to data/eval_scores_<backend>_suite.jsonl.
 
-desklib ist langsam (CPU, ~2-3 s/Text) - standardmäßig nur eine Stichprobe (--desklib-n, Default
-400, stratifiziert über Domäne x Mensch/KI). TMR läuft immer auf der vollen Suite.
+desklib is slow (CPU, ~2-3 s/text) - by default only a sample (--desklib-n, default
+400, stratified by domain x human/AI). TMR always runs on the full suite.
 
-WP-06: `--backend hf:<repo>` wertet ein beliebiges HF-Sequenzklassifikations-Repo (Kandidat
-zwischen TMR und desklib) genauso aus - AUROC, wie angezeigt (reliableWords/shortRedFrom), Perzentil-
-Schwellen. Da es dafür keine "aktuelle" Produktions-Schwelle gibt, wird die 99%-Perzentil-Schwelle
-(getrennt nach < 120 / >= 120 Wörtern) automatisch als redFrom/shortRedFrom fuer die "wie angezeigt"-
-Sektion verwendet - macht die Sektionen unten vergleichbar, ist aber aus denselben Daten abgeleitet
-(kein Train/Test-Split, siehe EVAL_RESULTS.md "Korrektur"-Hinweis zur Stichproben-Unsicherheit).
---candidate-n begrenzt die Stichprobe fuer hf:-Kandidaten (Default: volle Suite, stratifiziert wenn
-kleiner).
+WP-06: `--backend hf:<repo>` evaluates any HF sequence classification repo (candidate
+between TMR and desklib) the same way - AUROC, as displayed (reliableWords/shortRedFrom), percentile
+thresholds. Since there is no "current" production threshold for it, the 99th-percentile threshold
+(separately for < 120 / >= 120 words) is automatically used as redFrom/shortRedFrom for the "as displayed"
+section - this makes the sections below comparable, but it is derived from the same data
+(no train/test split, see the EVAL_RESULTS.md "Correction" note on sampling uncertainty).
+--candidate-n limits the sample for hf: candidates (default: full suite, stratified if
+smaller).
 
-Nutzung (aus diesem Ordner):
+Usage (from this folder):
     python evaluate_suite.py --backend tmr
     python evaluate_suite.py --backend desklib --desklib-n 400
     python evaluate_suite.py --backend both --desklib-n 400
@@ -32,10 +32,10 @@ from pathlib import Path
 
 import evaluate_backends as eb
 
-SUITE_PATH = Path("data/eval_suite.jsonl")  # per --suite überschreibbar (Worktree hat data/ nicht verlinkt)
+SUITE_PATH = Path("data/eval_suite.jsonl")  # overridable via --suite (the worktree has no data/ linked)
 
-# Aktuelle Ampel-Startwerte, nur gelesen aus extension/models.js (Stand siehe dortigen Kommentaren) -
-# dieses Skript ändert die Extension nicht, sondern misst nur gegen diese Werte.
+# Current traffic light starting values, only read from extension/models.js (state: see the comments there) -
+# this script does not change the extension, it only measures against these values.
 CURRENT = {
     "tmr": {"yellowFrom": 0.95, "redFrom": 0.98, "reliableWords": 120, "shortRedFrom": None},
     "desklib": {"yellowFrom": 0.5, "redFrom": 0.87, "reliableWords": 120, "shortRedFrom": 0.98},
@@ -58,7 +58,7 @@ def load_suite(path):
 
 
 def stratified_subsample(rows, n, seed):
-    """n Texte, gleichmäßig über (domain, label) verteilt (Mensch/KI je Domäne gleich stark)."""
+    """n texts, distributed evenly over (domain, label) (human/AI equally strong per domain)."""
     by_key = defaultdict(list)
     for r in rows:
         by_key[(r["domain"], r["label"])].append(r)
@@ -83,20 +83,20 @@ def score_rows(rows, backend):
     elif backend.startswith("hf:"):
         scores = eb.score_hf(texts, backend[len("hf:") :])
     else:
-        raise ValueError(f"unbekanntes Backend: {backend}")
+        raise ValueError(f"unknown backend: {backend}")
     return [{**r, "score": s} for r, s in zip(rows, scores)]
 
 
 def share(scores, thresh):
-    # thresh=None (z.B. yellowFrom bei WP-06-Kandidaten ohne Produktions-Schwelle) -> nicht auswertbar
+    # thresh=None (e.g. yellowFrom for WP-06 candidates without a production threshold) -> cannot be evaluated
     if not scores or thresh is None:
         return float("nan")
     return sum(s >= thresh for s in scores) / len(scores)
 
 
 def percentile(values, p):
-    """p in [0,1]. Einfache lineare Interpolation, keine Zusatz-Abhängigkeit (numpy wäre ok, aber
-    unnötig für diese Größenordnung)."""
+    """p in [0,1]. Simple linear interpolation, no extra dependency (numpy would be fine, but
+    unnecessary for this order of magnitude)."""
     if not values:
         return float("nan")
     s = sorted(values)
@@ -112,8 +112,8 @@ def report(backend, scored, out_dir: Path):
     a = eb.auroc(labels, scores)
     n_human = sum(1 for l in labels if l == 0)
     n_ai = sum(1 for l in labels if l == 1)
-    print(f"\n{'=' * 70}\n{backend.upper()}  (n={len(scored)}, human={n_human}, KI={n_ai})\n{'=' * 70}")
-    print(f"AUROC gesamt: {a:.4f}")
+    print(f"\n{'=' * 70}\n{backend.upper()}  (n={len(scored)}, human={n_human}, AI={n_ai})\n{'=' * 70}")
+    print(f"AUROC overall: {a:.4f}")
 
     human_scores = [r["score"] for r in scored if r["label"] == 0]
     ai_scores = [r["score"] for r in scored if r["label"] == 1]
@@ -121,11 +121,11 @@ def report(backend, scored, out_dir: Path):
     if backend in CURRENT:
         cur = CURRENT[backend]
     else:
-        # WP-06-Kandidat ohne Produktions-Schwelle: 99%-Perzentil der Mensch-Scores (getrennt nach
-        # reliableWords=120) als redFrom/shortRedFrom benutzen, damit die Sektionen unten (wie
-        # angezeigt, je Domäne/Generator/Bucket) trotzdem gegen eine realistische ~1%-FA-Schwelle
-        # rechnen statt gegen einen willkuerlichen Default. Aus denselben Daten abgeleitet wie die
-        # Perzentil-Empfehlung weiter unten - keine unabhaengige Bestaetigung, siehe Docstring.
+        # WP-06 candidate without a production threshold: use the 99th percentile of the human scores (separated by
+        # reliableWords=120) as redFrom/shortRedFrom, so that the sections below (as
+        # displayed, per domain/generator/bucket) still compute against a realistic ~1% FA threshold
+        # instead of an arbitrary default. Derived from the same data as the
+        # percentile recommendation further below - no independent confirmation, see docstring.
         reliable_words = 120
         long_h = [r["score"] for r in scored if r["label"] == 0 and r["words"] >= reliable_words]
         short_h = [r["score"] for r in scored if r["label"] == 0 and r["words"] < reliable_words]
@@ -136,20 +136,20 @@ def report(backend, scored, out_dir: Path):
             "shortRedFrom": percentile(short_h, 0.99) if short_h else None,
         }
         print(
-            f"(Kein Produktions-Wert fuer {backend} - genutzte Schwellen aus 99%-Perzentil dieser "
-            f"Messung: redFrom={cur['redFrom']:.4f} shortRedFrom={cur['shortRedFrom']})"
+            f"(No production value for {backend} - thresholds used from the 99th percentile of this "
+            f"measurement: redFrom={cur['redFrom']:.4f} shortRedFrom={cur['shortRedFrom']})"
         )
 
     fa_yellow = share(human_scores, cur["yellowFrom"])
     fa_red = share(human_scores, cur["redFrom"])
     det_red = share(ai_scores, cur["redFrom"])
     print(
-        f"Aktuelle Schwellen yellowFrom={cur['yellowFrom']} redFrom={cur['redFrom']}: "
-        f"Fehlalarme (Mensch) >=yellow {fa_yellow:.3f}, >=red {fa_red:.3f}; KI erkannt >=red {det_red:.3f}"
+        f"Current thresholds yellowFrom={cur['yellowFrom']} redFrom={cur['redFrom']}: "
+        f"False alarms (human) >=yellow {fa_yellow:.3f}, >=red {fa_red:.3f}; AI detected >=red {det_red:.3f}"
     )
 
-    # Rot wie in der Extension (config.js, levelOf): unter reliableWords erst ab shortRedFrom, ohne
-    # shortRedFrom nie rot ("unsicher"). Das ist die Fehlalarmrate, die Nutzer tatsächlich sehen.
+    # Red as in the extension (config.js, levelOf): below reliableWords only from shortRedFrom, without
+    # shortRedFrom never red ("uncertain"). This is the false alarm rate that users actually see.
     def shown_red(r):
         if r["words"] >= cur["reliableWords"]:
             return r["score"] >= cur["redFrom"]
@@ -159,11 +159,11 @@ def report(backend, scored, out_dir: Path):
         return sum(map(shown_red, rs)) / len(rs) if rs else float("nan")
 
     print(
-        f"Wie angezeigt (kurze Absätze nach shortRedFrom): Fehlalarme rot "
-        f"{rate([r for r in scored if r['label'] == 0]):.3f}; KI rot {rate([r for r in scored if r['label'] == 1]):.3f}"
+        f"As displayed (short paragraphs by shortRedFrom): false alarms red "
+        f"{rate([r for r in scored if r['label'] == 0]):.3f}; AI red {rate([r for r in scored if r['label'] == 1]):.3f}"
     )
 
-    print("\nAUROC je Domäne:")
+    print("\nAUROC per domain:")
     by_domain = defaultdict(list)
     for r in scored:
         by_domain[r["domain"]].append(r)
@@ -175,19 +175,19 @@ def report(backend, scored, out_dir: Path):
         fa_shown = rate([r for r in rs if r["label"] == 0])
         det_shown = rate([r for r in rs if r["label"] == 1])
         print(
-            f"  {dom:14} n={len(rs):4d}  AUROC={a_d:.3f}  FA@red={fa_d:.3f}  erkannt@red={det_d:.3f}  "
-            f"wie angezeigt: FA={fa_shown:.3f} erkannt={det_shown:.3f}"
+            f"  {dom:14} n={len(rs):4d}  AUROC={a_d:.3f}  FA@red={fa_d:.3f}  detected@red={det_d:.3f}  "
+            f"as displayed: FA={fa_shown:.3f} detected={det_shown:.3f}"
         )
 
-    print("\nErkennung je Generator (Anteil >= redFrom, nur KI-Zeilen):")
+    print("\nDetection per generator (share >= redFrom, AI rows only):")
     by_gen = defaultdict(list)
     for r in scored:
         if r["label"] == 1:
             by_gen[r["generator"]].append(r["score"])
     for gen in sorted(by_gen):
-        print(f"  {gen:16} n={len(by_gen[gen]):4d}  erkannt@red={share(by_gen[gen], cur['redFrom']):.3f}  mean={sum(by_gen[gen]) / len(by_gen[gen]):.3f}")
+        print(f"  {gen:16} n={len(by_gen[gen]):4d}  detected@red={share(by_gen[gen], cur['redFrom']):.3f}  mean={sum(by_gen[gen]) / len(by_gen[gen]):.3f}")
 
-    print("\nFehlalarme je Längen-Bucket (nur Mensch-Zeilen):")
+    print("\nFalse alarms per length bucket (human rows only):")
     by_bucket_human = defaultdict(list)
     by_bucket_ai = defaultdict(list)
     for r in scored:
@@ -202,47 +202,47 @@ def report(backend, scored, out_dir: Path):
             continue
         print(
             f"  {bucket_label(b):8} n_human={len(hs):4d} FA@yellow={share(hs, cur['yellowFrom']):.3f} "
-            f"FA@red={share(hs, cur['redFrom']):.3f}  n_ki={len(ais):4d} erkannt@red={share(ais, cur['redFrom']):.3f}"
+            f"FA@red={share(hs, cur['redFrom']):.3f}  n_ai={len(ais):4d} detected@red={share(ais, cur['redFrom']):.3f}"
         )
 
-    print("\nSchwellen-Empfehlung für ~1% Fehlalarme auf dieser Suite (Perzentil der Mensch-Scores):")
+    print("\nThreshold recommendation for ~1% false alarms on this suite (percentile of the human scores):")
     t_all = percentile(human_scores, 0.99)
-    print(f"  gesamt (alle Längen): Schwelle {t_all:.4f} -> FA {share(human_scores, t_all):.3f}, KI erkannt {share(ai_scores, t_all):.3f}")
+    print(f"  overall (all lengths): threshold {t_all:.4f} -> FA {share(human_scores, t_all):.3f}, AI detected {share(ai_scores, t_all):.3f}")
     short_human = [r["score"] for r in scored if r["label"] == 0 and r["words"] < cur["reliableWords"]]
     long_human = [r["score"] for r in scored if r["label"] == 0 and r["words"] >= cur["reliableWords"]]
     short_ai = [r["score"] for r in scored if r["label"] == 1 and r["words"] < cur["reliableWords"]]
     long_ai = [r["score"] for r in scored if r["label"] == 1 and r["words"] >= cur["reliableWords"]]
     if short_human:
         t_short = percentile(short_human, 0.99)
-        print(f"  < {cur['reliableWords']} Wörter: Schwelle {t_short:.4f} -> FA {share(short_human, t_short):.3f}, KI erkannt {share(short_ai, t_short):.3f}")
+        print(f"  < {cur['reliableWords']} words: threshold {t_short:.4f} -> FA {share(short_human, t_short):.3f}, AI detected {share(short_ai, t_short):.3f}")
     if long_human:
         t_long = percentile(long_human, 0.99)
-        print(f"  >= {cur['reliableWords']} Wörter: Schwelle {t_long:.4f} -> FA {share(long_human, t_long):.3f}, KI erkannt {share(long_ai, t_long):.3f}")
+        print(f"  >= {cur['reliableWords']} words: threshold {t_long:.4f} -> FA {share(long_human, t_long):.3f}, AI detected {share(long_ai, t_long):.3f}")
 
     backend_safe = backend.replace("hf:", "").replace("/", "_")
     out_path = out_dir / f"eval_scores_{backend_safe}_suite.jsonl"
     with out_path.open("w", encoding="utf-8") as f:
         for r in scored:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
-    print(f"\nRohscores -> {out_path}")
+    print(f"\nRaw scores -> {out_path}")
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--backend", default="both", help="tmr | desklib | both | hf:<repo> (WP-06-Kandidat)")
-    ap.add_argument("--desklib-n", type=int, default=400, help="Stichprobengröße für desklib (langsam)")
-    ap.add_argument("--candidate-n", type=int, default=None, help="Stichprobengröße für hf:-Kandidaten (Default: volle Suite)")
+    ap.add_argument("--backend", default="both", help="tmr | desklib | both | hf:<repo> (WP-06 candidate)")
+    ap.add_argument("--desklib-n", type=int, default=400, help="sample size for desklib (slow)")
+    ap.add_argument("--candidate-n", type=int, default=None, help="sample size for hf: candidates (default: full suite)")
     ap.add_argument("--seed", type=int, default=42)
-    ap.add_argument("--suite", default=str(SUITE_PATH), help="Pfad zu eval_suite.jsonl")
+    ap.add_argument("--suite", default=str(SUITE_PATH), help="path to eval_suite.jsonl")
     args = ap.parse_args()
     if args.backend not in ("tmr", "desklib", "both") and not args.backend.startswith("hf:"):
-        ap.error("--backend muss tmr, desklib, both oder hf:<repo> sein")
+        ap.error("--backend must be tmr, desklib, both or hf:<repo>")
 
     suite_path = Path(args.suite)
     out_dir = suite_path.parent
 
     rows = load_suite(suite_path)
-    print(f"Eval-Suite: {len(rows)} Texte aus {suite_path}")
+    print(f"Eval suite: {len(rows)} texts from {suite_path}")
 
     if args.backend in ("tmr", "both"):
         scored = score_rows(rows, "tmr")
@@ -250,14 +250,14 @@ def main():
 
     if args.backend in ("desklib", "both"):
         sub = stratified_subsample(rows, args.desklib_n, args.seed)
-        print(f"\ndesklib: Stichprobe {len(sub)}/{len(rows)} (stratifiziert nach Domäne x Mensch/KI)")
+        print(f"\ndesklib: sample {len(sub)}/{len(rows)} (stratified by domain x human/AI)")
         scored = score_rows(sub, "desklib")
         report("desklib", scored, out_dir)
 
     if args.backend.startswith("hf:"):
         if args.candidate_n and args.candidate_n < len(rows):
             sub = stratified_subsample(rows, args.candidate_n, args.seed)
-            print(f"\n{args.backend}: Stichprobe {len(sub)}/{len(rows)} (stratifiziert nach Domäne x Mensch/KI)")
+            print(f"\n{args.backend}: sample {len(sub)}/{len(rows)} (stratified by domain x human/AI)")
         else:
             sub = rows
         scored = score_rows(sub, args.backend)

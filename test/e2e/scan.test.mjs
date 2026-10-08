@@ -1,5 +1,5 @@
-// Scan, Anzeige und Bedienung: Auto-Scan, Badge, dynamische Inhalte, Caches, Schwellen,
-// manuelle Prüfung (Auswahl/Rechtsklick), An/Aus, Lazy-Scan, Freigabe pro Seite, Sperrliste (eigene, mitgelieferte, Heuristik), Backend-Status.
+// Scan, display and operation: auto-scan, badge, dynamic content, caches, thresholds,
+// manual check (selection/right-click), on/off, lazy scan, permission per site, blocklist (own, shipped, heuristic), backend status.
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -13,7 +13,7 @@ const para = (i) => `<p id="p${i}">Paragraph ${i} ` + "lorem ipsum dolor sit ame
 const tall = `<html><body>${Array.from({ length: 60 }, (_, i) => para(i)).join("\n")}</body></html>`;
 const scored = (page) => page.$$eval("[data-aivsai-level]", (els) => els.map((e) => e.dataset.aivsaiLevel));
 
-describe("Scan und Bedienung", () => {
+describe("Scan and operation", () => {
   let backend, ext, page;
 
   before(async () => {
@@ -24,19 +24,19 @@ describe("Scan und Bedienung", () => {
         "tall.test": tall,
         "bank.test": tall,
         "sub.bank.test": tall,
-        "www.chase.com": tall, // steht in der mitgelieferten Sperrliste
+        "www.chase.com": tall, // is on the bundled blocklist
         "login.test": tall.replace("<body>", '<body><form><input type="password"></form>'),
         "news.test": tall.replace("<body>", '<body><div role="dialog"><input type="password"></div><input type="password" hidden>')
       }
     });
     await ext.configure({ provider: "local", localUrl: backend.url, sites: ["harness.test", "tall.test"], lazyScan: false });
-    // STATS-Nachrichten mitschneiden (das Popup lebt davon statt von Polling)
+    // Record STATS messages (the popup relies on them instead of polling)
     await ext.options.evaluate(() => {
       window.__stats = [];
       chrome.runtime.onMessage.addListener((m) => m.type === "STATS" && window.__stats.push(m.stats));
     });
     page = await ext.open("http://harness.test/");
-    // harness.html fügt nach 2 s selbst einen Absatz ein - danach ist die Seite stabil
+    // harness.html inserts a paragraph itself after 2 s - the page is stable after that
     await page.waitForFunction(() => document.querySelector("#dynamic-slot p")?.dataset.aivsaiLevel, null, { timeout: 20_000 });
     await page.waitForFunction(() => !document.querySelector(".aivsai-pending"));
   });
@@ -46,7 +46,7 @@ describe("Scan und Bedienung", () => {
     await backend?.close();
   });
 
-  it("zählt im Popup-Status genau die markierten Absätze", async () => {
+  it("counts exactly the marked paragraphs in the popup status", async () => {
     const stats = await ext.sendToTab("harness.test", { type: "GET_STATS" });
     const levels = await scored(page);
     const count = (l) => levels.filter((x) => x === l).length;
@@ -55,28 +55,28 @@ describe("Scan und Bedienung", () => {
       [stats.red, stats.yellow, stats.green, stats.uncertain],
       [count("red"), count("yellow"), count("green"), count("uncertain")]
     );
-    assert.ok((await page.$$(".aivsai-badge")).length > 0, "Prozent-Badges fehlen");
+    assert.ok((await page.$$(".aivsai-badge")).length > 0, "percent badges are missing");
   });
 
-  it("schickt STATS an Extension-Seiten und setzt das Icon-Badge", async () => {
+  it("sends STATS to extension pages and sets the icon badge", async () => {
     assert.ok((await ext.options.evaluate(() => window.__stats.length)) > 0);
     const tabId = await ext.tabId("harness.test");
     const badge = await ext.options.evaluate((id) => chrome.action.getBadgeText({ tabId: id }), tabId);
     assert.notEqual(badge, "");
   });
 
-  it("bewertet nachgeladene Absätze", async () => {
+  it("scores lazy-loaded paragraphs", async () => {
     await page.evaluate(() => {
       const p = document.createElement("p");
       p.id = "dyn";
-      // echtes Englisch - die Harness-Seite ist lang="de", unklare Sprache würde übersprungen
+      // real English - the harness page is lang="en", an unclear language would be skipped
       p.textContent = "This paragraph was inserted by a script after the page had loaded. ".repeat(4);
       document.body.append(p);
     });
     await page.waitForFunction(() => document.querySelector("#dyn")?.dataset.aivsaiLevel, null, { timeout: 5000 });
   });
 
-  it("holt beim Neu-Scan alles aus dem Cache, ohne Backend-Anfrage", async () => {
+  it("takes everything from the cache on rescan, without a backend request", async () => {
     const before = backend.requests;
     await ext.sendToTab("harness.test", { type: "SCAN_NOW" });
     await page.waitForFunction(() => document.querySelectorAll("[data-aivsai-level]").length >= 5 && !document.querySelector(".aivsai-pending"));
@@ -84,7 +84,7 @@ describe("Scan und Bedienung", () => {
     assert.equal(backend.requests, before);
   });
 
-  it("färbt nach geänderten Schwellen neu ein, ohne neu zu bewerten", async () => {
+  it("recolors after changed thresholds without rescoring", async () => {
     const before = backend.requests;
     await ext.configure({ yellowFrom: 0.1, redFrom: 0.15 });
     await page.waitForFunction(() => !document.querySelector(".aivsai-green, .aivsai-yellow"));
@@ -95,7 +95,7 @@ describe("Scan und Bedienung", () => {
     await ext.configure({ yellowFrom: 0.6, redFrom: 0.9 });
   });
 
-  it("prüft markierten Text und zeigt das Ergebnis im Popover", async () => {
+  it("checks selected text and shows the result in the popover", async () => {
     await page.evaluate(() => {
       const r = document.createRange();
       r.selectNodeContents(document.querySelector("#long-example"));
@@ -103,13 +103,13 @@ describe("Scan und Bedienung", () => {
       getSelection().addRange(r);
     });
     await ext.sendToTab("harness.test", { type: "CHECK_SELECTION" });
-    await page.waitForFunction(() => /Hinweis, kein Beweis/.test(document.querySelector("aivsai-popover")?.shadowRoot.textContent || ""));
+    await page.waitForFunction(() => /Hint, not proof/.test(document.querySelector("aivsai-popover")?.shadowRoot.textContent || ""));
     assert.ok(await page.evaluate(() => ["green", "yellow", "red", "uncertain"].some((l) => CSS.highlights.get(`aivsai-${l}`)?.size)));
     await page.keyboard.press("Escape");
     assert.equal(await page.$("aivsai-popover"), null);
   });
 
-  it("prüft per Rechtsklick auch kurze Blöcke und weist auf wenig Text hin", async () => {
+  it("checks short blocks via right-click too and points out little text", async () => {
     await page.evaluate(() => {
       const d = document.createElement("div");
       d.id = "short";
@@ -119,17 +119,17 @@ describe("Scan und Bedienung", () => {
     await page.click("#short", { button: "right" });
     await ext.sendToTab("harness.test", { type: "CHECK_ELEMENT" });
     await page.waitForFunction(() => document.querySelector("#short").dataset.aivsaiLevel);
-    // grün mit Hinweis oder - bei hohem Score - „unsicher“ statt gelb/rot
-    assert.match(await page.evaluate(() => document.querySelector("aivsai-popover").shadowRoot.textContent), /Kurzer Text|Nur 8 Wörter/);
+    // green with a note or - at a high score - "uncertain" instead of yellow/red
+    assert.match(await page.evaluate(() => document.querySelector("aivsai-popover").shadowRoot.textContent), /Short text|Only 8 words/);
   });
 
-  it("zeigt kurze Absätze mit hohem Score als „unsicher“ statt gelb/rot", async () => {
-    // Provider "Lokal" mit TMR, Schwellen seit dem Test oben 0.6/0.9
+  it("shows short paragraphs with a high score as “uncertain” instead of yellow/red", async () => {
+    // Provider "Local" with TMR, thresholds 0.6/0.9 since the test above
     const min = AIVSAI_MODELS.tmr.reliableWords;
     const wrong = await page.$$eval(
       "[data-aivsai-level]",
-      // words: die Wortzahl, die tatsächlich über die Ampel entschieden hat (bei gruppierten Absätzen die
-      // der ganzen Gruppe, siehe content.js style()) - nicht die des einzelnen Absatzes (el.innerText)
+      // words: the word count that actually decided the traffic light (for grouped paragraphs that
+      // of the whole group, see content.js style()) - not that of the single paragraph (el.innerText)
       (els, min) =>
         els
           .map((el) => ({ level: el.dataset.aivsaiLevel, p: Number(el.dataset.aivsaiScore), words: Number(el.dataset.aivsaiWords) }))
@@ -137,17 +137,17 @@ describe("Scan und Bedienung", () => {
       min
     );
     assert.deepEqual(wrong, []);
-    assert.ok(await page.$(".aivsai-uncertain[data-aivsai-label='unsicher']"), "kein Absatz „unsicher“ im Harness");
+    assert.ok(await page.$(".aivsai-uncertain[data-aivsai-label='uncertain']"), "no paragraph \"uncertain\" in the harness");
   });
 
-  it("bewertet Absätze in anderer Sprache nicht und nennt sie im Popup-Status", async () => {
+  it("does not score paragraphs in another language and names them in the popup status", async () => {
     const stats = await ext.sendToTab("harness.test", { type: "GET_STATS" });
-    assert.equal(stats.skipped, 2); // Einleitung und Beispiel C
-    assert.equal(await page.$$eval("[data-aivsai-skipped='de']", (els) => els.length), 2);
-    assert.ok(!backend.texts.some((t) => t.includes("Wärmeleitfähigkeit")), "deutscher Text ging ans Backend");
+    assert.equal(stats.skipped, 1); // example C (the harness intro is English now)
+    assert.equal(await page.$$eval("[data-aivsai-skipped='de']", (els) => els.length), 1);
+    assert.ok(!backend.texts.some((t) => t.includes("Wärmeleitfähigkeit")), "German text went to the backend");
 
-    // Polnisch kennt die Funktionswort-Heuristik nicht - erkannt von Chromes CLD3 (chrome.i18n.detectLanguage),
-    // sonst stünde hier das lang-Attribut der Seite ("de")
+    // The function-word heuristic does not know Polish - detected by Chrome's CLD3 (chrome.i18n.detectLanguage),
+    // otherwise the page's lang attribute ("en") would be here
     await page.evaluate(() => {
       const p = document.createElement("p");
       p.id = "polish";
@@ -161,20 +161,20 @@ describe("Scan und Bedienung", () => {
     assert.equal(await page.$eval("#polish", (el) => el.dataset.aivsaiSkipped), "pl");
     await page.evaluate(() => document.querySelector("#polish").remove());
 
-    // Rechtsklick: erst Hinweis, auf Wunsch trotzdem prüfen - Ergebnis dann „unsicher“, nie rot
+    // Right-click: note first, check anyway on request - result then "uncertain", never red
     await page.click("text=Wärmeleitfähigkeit", { button: "right" });
     await ext.sendToTab("harness.test", { type: "CHECK_ELEMENT" });
     const popover = () => page.evaluate(() => document.querySelector("aivsai-popover")?.shadowRoot.textContent || "");
-    await page.waitForFunction(() => /Trotzdem prüfen/.test(document.querySelector("aivsai-popover")?.shadowRoot.textContent || ""));
-    assert.match(await popover(), /Text auf Deutsch/);
-    await page.getByRole("button", { name: "Trotzdem prüfen", exact: true }).click();
-    await page.waitForFunction(() => /Nicht bewertbar/.test(document.querySelector("aivsai-popover")?.shadowRoot.textContent || ""));
+    await page.waitForFunction(() => /Check anyway/.test(document.querySelector("aivsai-popover")?.shadowRoot.textContent || ""));
+    assert.match(await popover(), /Text in German/);
+    await page.getByRole("button", { name: "Check anyway", exact: true }).click();
+    await page.waitForFunction(() => /Cannot be scored/.test(document.querySelector("aivsai-popover")?.shadowRoot.textContent || ""));
     assert.ok(backend.texts.some((t) => t.includes("Wärmeleitfähigkeit")));
-    // erkannte Sprache geht als `lang` mit (Vertrag in server/README.md) - englische Absätze des Auto-Scans
-    // als "en", der erzwungene deutsche als "de"
+    // the detected language goes along as `lang` (contract in server/README.md) - English paragraphs of the auto-scan
+    // as "en", the forced German one as "de"
     const langOf = (word) => backend.langs[backend.batches.findIndex((b) => b.some((t) => t.includes(word)))];
     assert.equal(langOf("Wärmeleitfähigkeit"), "de");
-    assert.ok(backend.langs.includes("en"), `lang der Anfragen: ${backend.langs}`);
+    assert.ok(backend.langs.includes("en"), `lang of the requests: ${backend.langs}`);
     const levels = await page.$$eval("[data-aivsai-level]", (els) =>
       els.filter((el) => el.textContent.includes("Wärmeleitfähigkeit")).map((el) => el.dataset.aivsaiLevel)
     );
@@ -182,10 +182,10 @@ describe("Scan und Bedienung", () => {
     await page.keyboard.press("Escape");
   });
 
-  it("entfernt beim Ausschalten alles und scannt nichts Neues", async () => {
+  it("removes everything on switching off and scans nothing new", async () => {
     await ext.configure({ enabled: false });
     await page.waitForFunction(() => !document.querySelector("[data-aivsai-level], .aivsai-pending"));
-    assert.equal(await ext.options.evaluate(() => chrome.action.getBadgeText({})), "AUS");
+    assert.equal(await ext.options.evaluate(() => chrome.action.getBadgeText({})), "OFF");
     const before = backend.requests;
     await page.evaluate(() => {
       const p = document.createElement("p");
@@ -198,24 +198,24 @@ describe("Scan und Bedienung", () => {
     assert.equal(await page.$eval("#off", (e) => e.className), "");
   });
 
-  it("holt beim Einschalten nach, was in der Zwischenzeit dazukam", async () => {
+  it("catches up on switching on with what was added in the meantime", async () => {
     await ext.configure({ enabled: true });
     await page.waitForFunction(() => document.querySelector("#off")?.dataset.aivsaiLevel, null, { timeout: 5000 });
   });
 
-  it("bewertet mit Lazy-Scan nur die Nähe und den Rest beim Scrollen", async () => {
+  it("scores only the vicinity with lazy scan and the rest on scrolling", async () => {
     await ext.configure({ lazyScan: true });
     const tallPage = await ext.open("http://tall.test/");
     await tallPage.waitForFunction(() => document.querySelector("#p0")?.dataset.aivsaiLevel && !document.querySelector(".aivsai-pending"));
     const stats = await ext.sendToTab("tall.test", { type: "GET_STATS" });
-    assert.ok(stats.deferred > 0, "nichts zurückgestellt");
+    assert.ok(stats.deferred > 0, "nothing deferred");
     assert.equal(await tallPage.$eval("#p59", (e) => e.dataset.aivsaiLevel ?? null), null);
     await tallPage.evaluate(() => document.querySelector("#p59").scrollIntoView());
     await tallPage.waitForFunction(() => document.querySelector("#p59")?.dataset.aivsaiLevel, null, { timeout: 15_000 });
     await tallPage.close();
   });
 
-  it("scannt nicht freigegebene Seiten nicht", async () => {
+  it("does not scan sites that are not allowed", async () => {
     await ext.configure({ sites: ["harness.test"] });
     const tallPage = await ext.open("http://tall.test/");
     await sleep(1500);
@@ -225,7 +225,7 @@ describe("Scan und Bedienung", () => {
     await tallPage.close();
   });
 
-  it("scannt Seiten der Sperrliste weder automatisch noch auf Knopfdruck", async () => {
+  it("scans blocklisted sites neither automatically nor on button press", async () => {
     await ext.configure({ scanMode: "all", blockedSites: ["bank.test"] });
     const before = backend.requests;
     const bank = await ext.open("http://sub.bank.test/");
@@ -234,29 +234,29 @@ describe("Scan und Bedienung", () => {
     assert.equal(stats.blocked, true);
     assert.equal(stats.active, false);
     await sleep(1200);
-    assert.equal(backend.requests, before, "Text von gesperrter Seite gesendet");
-    assert.match(await bank.evaluate(() => document.querySelector("aivsai-popover").shadowRoot.textContent), /Sperrliste/);
+    assert.equal(backend.requests, before, "text from blocked site was sent");
+    assert.match(await bank.evaluate(() => document.querySelector("aivsai-popover").shadowRoot.textContent), /blocklist/);
     await bank.keyboard.press("Escape");
 
-    // Einzelprüfung bleibt erlaubt, mit Hinweis
+    // Single check remains allowed, with a note
     await bank.click("#p0", { button: "right" });
     await ext.sendToTab("sub.bank.test", { type: "CHECK_ELEMENT" });
     await bank.waitForFunction(() => document.querySelector("#p0").dataset.aivsaiLevel);
-    assert.match(await bank.evaluate(() => document.querySelector("aivsai-popover").shadowRoot.textContent), /Sperrliste – geprüft/);
+    assert.match(await bank.evaluate(() => document.querySelector("aivsai-popover").shadowRoot.textContent), /blocklist – checked/);
     assert.equal(await bank.$$eval("[data-aivsai-level]", (els) => els.length), 1);
     await bank.close();
   });
 
-  it("scannt nach dem Entfernen von der Sperrliste wieder", async () => {
+  it("scans again after removal from the blocklist", async () => {
     const bank = await ext.open("http://bank.test/");
     await ext.configure({ blockedSites: [] });
     await bank.waitForFunction(() => document.querySelector("#p0")?.dataset.aivsaiLevel, null, { timeout: 10_000 });
     await bank.close();
   });
 
-  it("sperrt Domains der mitgelieferten Liste, mit Ausnahme pro Host", async () => {
+  it("blocks domains of the bundled list, with an exception per host", async () => {
     const info = await ext.options.evaluate(() => ({ count: AIVSAI_BLOCKLIST.count, reason: AIVSAI.blockReason("secure.chase.com", AIVSAI.DEFAULTS) }));
-    assert.ok(info.count > 5000, "mitgelieferte Liste fehlt oder ist zu klein");
+    assert.ok(info.count > 5000, "bundled list is missing or too small");
     assert.equal(info.reason, "builtin");
 
     const before = backend.requests;
@@ -274,7 +274,7 @@ describe("Scan und Bedienung", () => {
     await bank.close();
   });
 
-  it("scannt keine Seiten mit sichtbarem Passwortfeld, Login-Dialoge zählen nicht", async () => {
+  it("does not scan sites with a visible password field, login dialogs do not count", async () => {
     const before = backend.requests;
     const login = await ext.open("http://login.test/");
     await sleep(1500);
@@ -283,48 +283,48 @@ describe("Scan und Bedienung", () => {
     assert.equal(backend.requests, before);
     await login.close();
 
-    // Passwortfeld nur im Dialog bzw. versteckt: normal scannen
+    // Password field only in a dialog or hidden: scan normally
     const news = await ext.open("http://news.test/");
     await news.waitForFunction(() => document.querySelector("#p0")?.dataset.aivsaiLevel, null, { timeout: 10_000 });
 
-    // SPA wechselt auf eine Login-Ansicht: Markierungen verschwinden, nichts Neues wird gesendet
+    // SPA switches to a login view: markings disappear, nothing new is sent
     await news.evaluate(() => document.body.insertAdjacentHTML("afterbegin", '<input type="password" id="pw">'));
     await news.waitForFunction(() => !document.querySelector("[data-aivsai-level]"), null, { timeout: 5000 });
     assert.equal((await ext.sendToTab("news.test", { type: "GET_STATS" })).blockReason, "sensitive");
 
-    // Heuristik abschaltbar
+    // Heuristic can be switched off
     await ext.configure({ sensitiveHeuristic: false });
     await news.waitForFunction(() => document.querySelector("#p0")?.dataset.aivsaiLevel, null, { timeout: 10_000 });
     await ext.configure({ sensitiveHeuristic: true, scanMode: "sites" });
     await news.close();
   });
 
-  it("meldet Backend-Status und Verbindungstest", async () => {
+  it("reports backend status and connection test", async () => {
     assert.equal((await ext.send({ type: "HEALTH" })).ok, true);
     const test = await ext.send({ type: "TEST_PROVIDER" });
     assert.equal(test.ok, true);
     assert.equal(typeof test.score, "number");
   });
 
-  it("erreicht das Offscreen-Dokument für das Browser-Modell", async () => {
+  it("reaches the offscreen document for the browser model", async () => {
     await ext.configure({ provider: "browser", browserModel: "tmr" });
     const status = await ext.send({ type: "MODEL_STATUS" });
     assert.equal(status.ok, true);
     assert.ok("tmr" in status.models && "desklib" in status.models);
     const health = await ext.send({ type: "HEALTH" });
-    // ohne heruntergeladenes Modell: klarer Hinweis statt Fehler
-    if (!status.models.tmr.downloaded) assert.match(health.error, /nicht heruntergeladen/);
+    // without a downloaded model: clear note instead of error
+    if (!status.models.tmr.downloaded) assert.match(health.error, /not downloaded/);
   });
 
-  it("zeigt Modell-Infos und Presets aus models.js in den Einstellungen", async () => {
+  it("shows model info and presets from models.js in the settings", async () => {
     await ext.options.reload();
     await ext.options.check('input[name="browserModel"][value="desklib"]');
     assert.equal(await ext.options.inputValue("#yellowFrom"), "0.5");
     assert.equal(await ext.options.inputValue("#redFrom"), "0.94");
-    assert.match(await ext.options.textContent("#browserModelInfo"), /1,7 GB/);
+    assert.match(await ext.options.textContent("#browserModelInfo"), /1\.7 GB/);
   });
 
-  it("hat keine Konsolenfehler", () => {
+  it("has no console errors", () => {
     assert.deepEqual(ext.errors, []);
   });
 });

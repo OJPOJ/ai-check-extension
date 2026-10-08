@@ -1,59 +1,59 @@
 """
-Erzeugt das Referenzset für „Modell prüfen“ (extension/bg/reference-set.js): Mensch- und KI-Texte
-aus zwei weiterverteilbaren Quellen, kurze (40..119 Wörter) und lange (ab 120 Wörter) Absätze
-getrennt gebucketed - damit "Modell prüfen" daraus ggf. eine eigene Kurztext-Schwelle
-(reliableWords/shortRedFrom, wie config.js RELIABLE_WORDS/models.js) vorschlagen kann.
+Generates the reference set for "Check model" (extension/bg/reference-set.js): human and AI texts
+from two redistributable sources, short (40..119 words) and long (from 120 words) paragraphs
+bucketed separately - so that "Check model" can, if needed, propose its own short-text threshold
+(reliableWords/shortRedFrom, like config.js RELIABLE_WORDS/models.js) from it.
 
-Lizenzprüfung (Details: orchestration/LOG.md WP-11, ENTSCHEIDUNG-Einträge; im Zweifel weggelassen):
-  - HC3 (Hello-SimpleAI/HC3), CC BY-SA 4.0 - wie bisher, fünf Domänen, Generator ChatGPT (2023).
-  - RAID (liamdugan/raid), MIT-Lizenz - Domäne "wiki" (menschliche Texte aus Wikipedia, CC BY-SA-
-    kompatibel), Generatoren llama-chat/mistral/mistral-chat/mpt/mpt-chat/gpt2 (offene Modelle,
-    im MIT-lizenzierten train-Split enthalten). Nur `attack == "none"` (unverfälschter Text, keine
-    RAID-Adversarial-Variante wie z.B. "synonym"/"paraphrase") und `decoding == "greedy"`
-    (deterministisch, gängiger Standardwert - "sampling" wäre laufzeitgleich verfügbar, aber ohne
-    Vorteil für einen einmalig erzeugten, festen Referenztext). RAID enthält im train-Split für die
-    Wiki-Domäne vereinzelt auch gpt4/gpt3/chatgpt/cohere/cohere-chat - bewusst NICHT verwendet, um
-    beim vom Orchestrator vorgegebenen Rahmen (offene Modelle) zu bleiben; siehe Bericht für Details.
-  Zuvor fälschlich als Quelle angenommen und jetzt entfernt: die Teilquelle "wikipedia" aus
-  Jinyan1/COLING_2025_MGT_en - per Spalte "source" verifiziert stammt sie aus M4GT-Bench/M4
-  (source == "m4gt"), nicht aus MAGE wie zunächst angenommen. M4GT-Bench/M4 haben auf GitHub keine
-  Lizenz ("license": null) - nicht weiterverteilbar, "im Zweifel weglassen".
-  Bewusst NICHT verwendet (andere Domänen von Jinyan1/COLING_2025_MGT_en bzw. RAID):
-  - reviews (Yelp/IMDb): Yelp Open Dataset ausdrücklich nur akademisch, keine Weiterverteilung an
-    Dritte; IMDb-Datensatz ohne klare Weiterverteilungs-Lizenz.
-  - news (XSum/CNN/TLDR/DialogSum): Presseartikel-Text (BBC/CNN), XSum-Lizenz auf Hugging Face
-    "unknown"; der Apache-2.0-Tag am CNN/DailyMail-Ladeskript deckt nicht den Copyright-Status
-    der eigentlichen Nachrichtentexte ab. Ebenso RAID-Domänen "news"/"reviews"/"reddit"/"books"/
-    "abstracts"/"recipes"/"poetry": menschliche Ursprungstexte dort sind Presseartikel, Amazon-/
-    Goodreads-Rezensionen, Reddit-Posts, Buchauszüge, wissenschaftliche Abstracts, Rezepte bzw.
-    Gedichte mit eigenen, ungeklärten bzw. bekannt einschränkenden Rechten - nicht verwendet.
-  - sci_abstract (arXiv/PeerRead/SciGen/PubMed): Lizenz je Paper bzw. Verlag, arXivs Standard-
-    Lizenz erlaubt nur arXiv selbst die Weiterverteilung; nicht im großen Stil prüfbar.
-  - howto (WikiHow): Inhalte von wikihow.com stehen unter CC BY-NC-SA 3.0 - NonCommercial passt
-    nicht zu einem weiterverteilten Datenset.
-  - forum-Anteile außerhalb HC3 (reddit, cmv, eli5): uneinheitliche/ungeklärte Herkunft
-    (u.a. Pushshift.io, dessen rechtlicher Status selbst umstritten ist); anders als bei HC3 keine
-    vom Autor:innen-Team explizit gewählte Weiterverteilungs-Lizenz gefunden.
+License check (details: git history of orchestration/LOG.md, WP-11, DECISION entries; left out when in doubt):
+  - HC3 (Hello-SimpleAI/HC3), CC BY-SA 4.0 - as before, five domains, generator ChatGPT (2023).
+  - RAID (liamdugan/raid), MIT license - domain "wiki" (human texts from Wikipedia, CC BY-SA-
+    compatible), generators llama-chat/mistral/mistral-chat/mpt/mpt-chat/gpt2 (open models,
+    contained in the MIT-licensed train split). Only `attack == "none"` (unaltered text, no
+    RAID adversarial variant such as "synonym"/"paraphrase") and `decoding == "greedy"`
+    (deterministic, common default - "sampling" would be equally available, but without
+    advantage for a fixed reference text generated once). In the train split for the
+    wiki domain RAID also contains the occasional gpt4/gpt3/chatgpt/cohere/cohere-chat - deliberately NOT used, to
+    stay within the framework (open models) set by the orchestrator; see report for details.
+  Previously wrongly assumed as a source and now removed: the sub-source "wikipedia" from
+  Jinyan1/COLING_2025_MGT_en - verified via the column "source" it comes from M4GT-Bench/M4
+  (source == "m4gt"), not from MAGE as first assumed. M4GT-Bench/M4 have no license on GitHub
+  ("license": null) - not redistributable, "left out when in doubt".
+  Deliberately NOT used (other domains of Jinyan1/COLING_2025_MGT_en or RAID):
+  - reviews (Yelp/IMDb): Yelp Open Dataset explicitly academic only, no redistribution to
+    third parties; IMDb dataset without a clear redistribution license.
+  - news (XSum/CNN/TLDR/DialogSum): press article text (BBC/CNN), XSum license on Hugging Face
+    "unknown"; the Apache-2.0 tag on the CNN/DailyMail loading script does not cover the copyright status
+    of the actual news texts. Likewise RAID domains "news"/"reviews"/"reddit"/"books"/
+    "abstracts"/"recipes"/"poetry": human source texts there are press articles, Amazon/
+    Goodreads reviews, Reddit posts, book excerpts, scientific abstracts, recipes and
+    poems respectively, with their own rights that are unresolved or known to be restrictive - not used.
+  - sci_abstract (arXiv/PeerRead/SciGen/PubMed): license per paper or publisher, arXiv's default
+    license only allows arXiv itself to redistribute; cannot be checked at scale.
+  - howto (WikiHow): content from wikihow.com is under CC BY-NC-SA 3.0 - NonCommercial does not fit
+    a redistributed dataset.
+  - forum parts outside HC3 (reddit, cmv, eli5): inconsistent/unresolved origin
+    (among others Pushshift.io, whose legal status is itself disputed); unlike HC3, no
+    redistribution license explicitly chosen by the authors' team found.
 
-Extraktion wie build_eval_suite.py (extract_excerpt, von dort importiert statt dupliziert):
-Whitespace/Tokenisierungs-Artefakte normalisiert ("Leerzeichen vor Satzzeichen", u.a. aus
-reddit_eli5-Anteilen bekannt), an einer Satzgrenze auf 40..400 Wörter gekürzt. Buckets nach
-natürlicher Länge des Ergebnisses (kein künstliches Kürzen auf eine Ziellänge). Bei HC3 bleibt das
-Prinzip aus der bisherigen Fassung erhalten: menschliche und KI-Antwort je aus derselben Frage
-(gleiches Thema - das Modell muss am Stil unterscheiden, nicht am Inhalt), und beide in derselben
-Längenklasse (sonst wäre die Textlänge selbst ein Hinweis auf das Label). Bei RAID/wiki gibt es
-diese Themenpaarung nicht (Datensatz nicht so strukturiert) - Limitation, aber geringeres Risiko
-bei einer stilistisch homogenen Domäne (Sachtext) als bei den persönlichen HC3-Antworten.
+Extraction as in build_eval_suite.py (extract_excerpt, imported from there instead of duplicated):
+whitespace/tokenisation artefacts normalised ("space before punctuation", known among others from
+reddit_eli5 parts), cut at a sentence boundary to 40..400 words. Buckets by the
+natural length of the result (no artificial cutting to a target length). For HC3 the
+principle from the previous version is kept: human and AI answer each from the same question
+(same topic - the model has to distinguish by style, not by content), and both in the same
+length class (otherwise the text length itself would be a hint for the label). For RAID/wiki there is
+no such topic pairing (dataset not structured that way) - a limitation, but lower risk
+for a stylistically homogeneous domain (factual text) than for the personal HC3 answers.
 
-RAID/train.csv ist eine 11,8-GB-CSV (nicht über die HF-`datasets`-Bibliothek als Ganzes ladbar,
-ohne alle Domänen/Angriffe herunterzuladen). `pick_raid_wiki()` streamt die Datei daher direkt
-per HTTP und CSV-Reader, verwirft alles vor/nach dem "wiki"-Datenblock und bricht danach ab -
-das dauert trotzdem einige Minuten und lädt mehrere GB (die Domänen vor "wiki" müssen erst
-durchlaufen werden). Netzwerk-Timeouts sind möglich, dann einfach erneut laufen lassen.
+RAID/train.csv is an 11.8 GB CSV (cannot be loaded as a whole via the HF `datasets` library
+without downloading all domains/attacks). `pick_raid_wiki()` therefore streams the file directly
+via HTTP and a CSV reader, discards everything before/after the "wiki" data block and aborts afterwards -
+this still takes a few minutes and downloads several GB (the domains before "wiki" have to be
+run through first). Network timeouts are possible, then simply run again.
 
-Nutzung (aus diesem Ordner):
+Usage (from this folder):
     .venv/Scripts/python.exe build_reference_set.py
-    .venv/Scripts/python.exe build_reference_set.py --check tmr desklib   # AUROC der Modelle auf dem neuen Set
+    .venv/Scripts/python.exe build_reference_set.py --check tmr desklib   # AUROC of the models on the new set
 """
 
 import argparse
@@ -68,18 +68,18 @@ from evaluate_length import auroc
 
 OUT = Path(__file__).resolve().parent.parent / "extension" / "bg" / "reference-set.js"
 
-RELIABLE_WORDS = 120  # wie extension/models.js reliableWords / config.js RELIABLE_WORDS
+RELIABLE_WORDS = 120  # like extension/models.js reliableWords / config.js RELIABLE_WORDS
 
 HC3_DOMAINS = ["reddit_eli5", "finance", "medicine", "open_qa", "wiki_csai"]
-HC3_PAIRS = {"short": 4, "long": 4}  # Frage-Paare (Mensch+KI) je Domäne und Längenklasse
+HC3_PAIRS = {"short": 4, "long": 4}  # question pairs (human+AI) per domain and length class
 
 RAID_URL = "https://huggingface.co/datasets/liamdugan/raid/resolve/main/train.csv"
 RAID_GENERATORS = ["llama-chat", "mistral", "mistral-chat", "mpt", "mpt-chat", "gpt2"]
-RAID_DECODING = "greedy"  # deterministisch, gängiger Standardwert (Begründung: Kopf dieser Datei)
-# Nur "long": die menschlichen RAID/wiki-Texte sind (Ausschnitte aus) ganzen Wikipedia-Artikeln und
-# daher nach extract_excerpt praktisch nie unter RELIABLE_WORDS - kurze Absätze liefert weiter allein
-# HC3 (s.o.). Ohne kurze Mensch-Texte hier wäre eine "short"-Zielvorgabe für die KI-Seite unbalanciert.
-WIKI_PER_GEN = {"long": 3}  # Texte je Generator
+RAID_DECODING = "greedy"  # deterministic, common default (rationale: head of this file)
+# Only "long": the human RAID/wiki texts are (excerpts from) whole Wikipedia articles and
+# therefore practically never below RELIABLE_WORDS after extract_excerpt - short paragraphs continue to come from
+# HC3 alone (see above). Without short human texts here, a "short" target for the AI side would be unbalanced.
+WIKI_PER_GEN = {"long": 3}  # texts per generator
 
 
 def bucket(words: int) -> str:
@@ -102,13 +102,13 @@ def pick_hc3() -> list[dict]:
                 continue
             wh, wa = len(human.split()), len(ai.split())
             b = bucket(wh)
-            if b == bucket(wa):  # gleiche Längenklasse, sonst verrät die Länge das Label
+            if b == bucket(wa):  # same length class, otherwise the length gives away the label
                 candidates[b].append((human, wh, ai, wa))
         for key, target in HC3_PAIRS.items():
             pool = candidates[key]
             n = min(target, len(pool))
             if n < target:
-                print(f"WARNUNG: HC3 {domain}/{key}: nur {n} von {target} Paaren verfügbar")
+                print(f"WARNING: HC3 {domain}/{key}: only {n} of {target} pairs available")
             for human, wh, ai, wa in rng.sample(pool, n):
                 rows.append({"ai": False, "domain": domain, "generator": "human", "words": wh, "text": human})
                 rows.append({"ai": True, "domain": domain, "generator": "chatgpt-2023", "words": wa, "text": ai})
@@ -116,13 +116,13 @@ def pick_hc3() -> list[dict]:
 
 
 def _raid_wiki_rows():
-    """Streamt RAID train.csv (11,8 GB, kein anderer Weg an nur die "wiki"-Domäne heranzukommen)
-    per HTTP und liefert Zeilen der Domäne "wiki", sobald sie im (nach Domäne gruppierten) Datensatz
-    auftauchen; bricht ab, sobald die Domäne wieder wechselt. Große Textfelder in dieser CSV
-    (Code-Domäne) brauchen ein angehobenes csv-Feldlimit."""
+    """Streams RAID train.csv (11.8 GB, no other way to get at only the "wiki" domain)
+    via HTTP and yields rows of the domain "wiki" as soon as they appear in the dataset (grouped by domain);
+    aborts as soon as the domain changes again. Large text fields in this CSV
+    (code domain) need a raised csv field limit."""
     import requests
 
-    csv.field_size_limit(2**31 - 1)  # sys.maxsize überläuft auf Windows (32-bit C long)
+    csv.field_size_limit(2**31 - 1)  # sys.maxsize overflows on Windows (32-bit C long)
     resp = requests.get(RAID_URL, stream=True, timeout=120)
     resp.raw.decode_content = True
     reader = csv.reader(io.TextIOWrapper(resp.raw, encoding="utf-8", newline=""))
@@ -138,9 +138,9 @@ def _raid_wiki_rows():
         yield row, idx
 
 
-CAP = {"human": 20, **{g: 10 for g in RAID_GENERATORS}}  # Kandidaten je Bucket, dann erst zufällig auswählen
-# (mehr als der Zielwert, für echte Zufallsauswahl statt "die ersten n gefundenen")
-RAID_ROW_LIMIT = 300_000  # Sicherheitsnetz, falls ein Bucket/Modell in der Datei extrem selten vorkommt
+CAP = {"human": 20, **{g: 10 for g in RAID_GENERATORS}}  # candidates per bucket, only then select randomly
+# (more than the target value, for a real random selection instead of "the first n found")
+RAID_ROW_LIMIT = 300_000  # safety net in case a bucket/model occurs extremely rarely in the file
 
 
 def _pool_full(pool: dict) -> bool:
@@ -152,8 +152,8 @@ def pick_raid_wiki() -> list[dict]:
     wanted = {"human", *RAID_GENERATORS}
     pool: dict[str, dict[str, list]] = {}
     n = 0
-    attempts = 3  # die Verbindung zu RAID/train.csv (11,8 GB) bricht gelegentlich vorzeitig ab - neu
-    # verbinden reicht (dieselben Zeilen kommen erneut, `pool` bleibt über Versuche hinweg erhalten)
+    attempts = 3  # the connection to RAID/train.csv (11.8 GB) occasionally drops early - reconnecting
+    # is enough (the same rows come again, `pool` is kept across attempts)
     for attempt in range(1, attempts + 1):
         try:
             for row, idx in _raid_wiki_rows():
@@ -169,39 +169,39 @@ def pick_raid_wiki() -> list[dict]:
                 w = len(ex.split())
                 b = bucket(w)
                 bucket_list = pool.setdefault(model, {"short": [], "long": []})[b]
-                if len(bucket_list) < CAP[model]:  # danach für dieses (Modell, Bucket) genug Kandidaten
+                if len(bucket_list) < CAP[model]:  # afterwards enough candidates for this (model, bucket)
                     bucket_list.append((ex, w))
                 if n % 20_000 == 0:
-                    print(f"  ... {n} RAID-wiki-Zeilen gelesen (Kandidaten bislang: { {m: {k: len(v) for k, v in bs.items()} for m, bs in pool.items()} })")
+                    print(f"  ... {n} RAID wiki rows read (candidates so far: { {m: {k: len(v) for k, v in bs.items()} for m, bs in pool.items()} })")
                 if n >= RAID_ROW_LIMIT or _pool_full(pool):
                     break
-            break  # Stream normal zu Ende gelesen (oder Sicherheitsnetz/genug Kandidaten) - kein Retry nötig
+            break  # stream read to the end normally (or safety net/enough candidates) - no retry needed
         except Exception as err:
-            print(f"WARNUNG: RAID-Stream abgebrochen ({err}) - Versuch {attempt}/{attempts}")
+            print(f"WARNING: RAID stream aborted ({err}) - attempt {attempt}/{attempts}")
             if attempt == attempts or _pool_full(pool):
                 break
-    print(f'RAID: {n} Zeilen der Domäne "wiki" gelesen (genug Kandidaten gefunden oder Sicherheitsnetz erreicht)')
+    print(f'RAID: read {n} rows of the domain "wiki" (enough candidates found or safety net reached)')
 
     rng = random.Random(1)
     ai_rows = []
-    achieved = {"short": 0, "long": 0}  # tatsächlich gezogene KI-Texte je Bucket - Mensch-Texte unten in
-    # gleicher Zahl ziehen, sonst entsteht eine Schieflage Mensch/KI
+    achieved = {"short": 0, "long": 0}  # AI texts actually drawn per bucket - draw human texts below in
+    # the same number, otherwise a human/AI imbalance arises
     for gen in RAID_GENERATORS:
         gen_pool = pool.get(gen, {"short": [], "long": []})
         for key, target in WIKI_PER_GEN.items():
             n = min(target, len(gen_pool[key]))
             if n < target:
-                print(f"WARNUNG: raid wiki {gen}/{key}: nur {n} von {target}")
+                print(f"WARNING: raid wiki {gen}/{key}: only {n} of {target}")
             achieved[key] += n
             for text, w in rng.sample(gen_pool[key], n):
                 ai_rows.append({"ai": True, "domain": "wikipedia", "generator": gen, "words": w, "text": text})
 
     human_pool = pool.get("human", {"short": [], "long": []})
     human_rows = []
-    for key, target in achieved.items():  # genauso viele Mensch- wie KI-Texte je Bucket
+    for key, target in achieved.items():  # as many human as AI texts per bucket
         n = min(target, len(human_pool[key]))
         if n < target:
-            print(f"WARNUNG: raid wiki human/{key}: nur {n} von {target}")
+            print(f"WARNING: raid wiki human/{key}: only {n} of {target}")
         for text, w in rng.sample(human_pool[key], n):
             human_rows.append({"ai": False, "domain": "wikipedia", "generator": "human", "words": w, "text": text})
     return human_rows + ai_rows
@@ -217,14 +217,14 @@ def write(rows: list[dict]) -> None:
     items = ",\n".join(item(r) for r in rows)
     n_human, n_ai = sum(1 for r in rows if not r["ai"]), sum(1 for r in rows if r["ai"])
     OUT.write_text(
-        "// Referenzset für „Modell prüfen“ (bg/model-check.js): "
-        f"{n_human} menschliche und {n_ai} KI-Texte, Englisch, kurze\n"
-        "// (< 120 Wörter) und lange Absätze getrennt gebucketed (Feld `words`, siehe RELIABLE_WORDS in\n"
-        "// model-check.js). Domänen/Generatoren: fünf aus HC3 (Hello-SimpleAI/HC3, CC BY-SA 4.0, Generator\n"
-        "// ChatGPT 2023) plus „wikipedia“ aus RAID (liamdugan/raid, MIT-Lizenz, Domäne \"wiki\"; menschliche\n"
-        "// Texte sind Wikipedia-Artikel; Generatoren llama-chat/mistral/mistral-chat/mpt/mpt-chat/gpt2).\n"
-        "// Lizenzabwägung je Teilquelle: Kommentar am Kopf von training/build_reference_set.py.\n"
-        "// Erzeugt von training/build_reference_set.py - nicht von Hand ändern.\n"
+        "// Reference set for \"Check model\" (bg/model-check.js): "
+        f"{n_human} human and {n_ai} AI texts, English, short\n"
+        "// (< 120 words) and long paragraphs bucketed separately (field `words`, see RELIABLE_WORDS in\n"
+        "// model-check.js). Domains/generators: five from HC3 (Hello-SimpleAI/HC3, CC BY-SA 4.0, generator\n"
+        "// ChatGPT 2023) plus \"wikipedia\" from RAID (liamdugan/raid, MIT license, domain \"wiki\"; human\n"
+        "// texts are Wikipedia articles; generators llama-chat/mistral/mistral-chat/mpt/mpt-chat/gpt2).\n"
+        "// License weighing per sub-source: comment at the top of training/build_reference_set.py.\n"
+        "// Generated by training/build_reference_set.py - do not edit by hand.\n"
         f"export const REFERENCE_SET = [\n{items}\n];\n",
         encoding="utf-8",
         newline="\n",
@@ -240,9 +240,9 @@ def check(rows: list[dict], backends: list[str]) -> None:
         scores = (eb.score_tmr if name == "tmr" else eb.score_desklib)(texts)
         human = sorted(s for s, l in zip(scores, labels) if not l)
         ai = sorted(s for s, l in zip(scores, labels) if l)
-        print(f"\n{name}: AUROC gesamt {auroc(labels, scores):.3f} (n={len(rows)}), Mittel Mensch {sum(human) / len(human):.3f}, KI {sum(ai) / len(ai):.3f}")
+        print(f"\n{name}: AUROC overall {auroc(labels, scores):.3f} (n={len(rows)}), mean human {sum(human) / len(human):.3f}, AI {sum(ai) / len(ai):.3f}")
 
-        for key, label in (("short", f"kurz (< {RELIABLE_WORDS} Wörter)"), ("long", f"lang (>= {RELIABLE_WORDS} Wörter)")):
+        for key, label in (("short", f"short (< {RELIABLE_WORDS} words)"), ("long", f"long (>= {RELIABLE_WORDS} words)")):
             idx = [i for i, r in enumerate(rows) if bucket(r["words"]) == key]
             if not idx:
                 continue
@@ -254,8 +254,8 @@ def check(rows: list[dict], backends: list[str]) -> None:
             l2, s2 = [labels[i] for i in idx], [scores[i] for i in idx]
             print(f"  {domain}: AUROC {auroc(l2, s2):.3f} (n={len(idx)})")
 
-        print("  Mensch:", " ".join(f"{s:.2f}" for s in human))
-        print("  KI:    ", " ".join(f"{s:.2f}" for s in ai))
+        print("  human:", " ".join(f"{s:.2f}" for s in human))
+        print("  AI:    ", " ".join(f"{s:.2f}" for s in ai))
 
 
 def main() -> None:
@@ -266,7 +266,7 @@ def main() -> None:
     write(rows)
     n_human, n_ai = sum(1 for r in rows if not r["ai"]), sum(1 for r in rows if r["ai"])
     n_short, n_long = sum(1 for r in rows if bucket(r["words"]) == "short"), sum(1 for r in rows if bucket(r["words"]) == "long")
-    print(f"{len(rows)} Texte ({n_human} Mensch/{n_ai} KI, {n_short} kurz/{n_long} lang) -> {OUT}")
+    print(f"{len(rows)} texts ({n_human} human/{n_ai} AI, {n_short} short/{n_long} long) -> {OUT}")
     if args.check:
         check(rows, args.check)
 

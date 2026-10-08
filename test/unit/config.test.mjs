@@ -1,17 +1,17 @@
-// Reine Entscheidungslogik aus extension/config.js: Ampel, Sperrliste, Scan-Freigabe, Modell-Schlüssel,
-// dazu die Beschreibungen der Provider und des Modellkatalogs (models.js).
+// Pure decision logic from extension/config.js: traffic light, blocklist, scan permission, model key,
+// plus the descriptions of the providers and the model catalog (models.js).
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-// Kleine Ersatzliste statt der echten (die prüft blocklist.test.mjs) - Format wie generated/blocklist.js
-globalThis.AIVSAI_BLOCKLIST = { domains: "\nbank.example\nmail.anbieter.example\n" };
+// Small stand-in list instead of the real one (blocklist.test.mjs checks that) - format like generated/blocklist.js
+globalThis.AIVSAI_BLOCKLIST = { domains: "\nbank.example\nmail.provider.example\n" };
 await import("../../extension/models.js");
 await import("../../extension/config.js");
 const A = globalThis.AIVSAI;
 const cfg = (over = {}) => ({ ...A.DEFAULTS, ...A.SECRET_DEFAULTS, ...over });
 
 describe("level", () => {
-  it("teilt an den Schwellen: Schwelle selbst gehört zur höheren Stufe", () => {
+  it("splits at the thresholds: the threshold itself belongs to the higher level", () => {
     const c = { yellowFrom: 0.6, redFrom: 0.9 };
     assert.equal(A.level(0, c), "green");
     assert.equal(A.level(0.599, c), "green");
@@ -21,17 +21,17 @@ describe("level", () => {
     assert.equal(A.level(1, c), "red");
   });
 
-  it("kurzer Text: gelb/rot werden „unsicher“, grün bleibt grün", () => {
+  it("short text: yellow/red become “uncertain”, green stays green", () => {
     const c = cfg({ yellowFrom: 0.6, redFrom: 0.9 });
     const min = A.reliableWords(c);
     assert.equal(A.level(0.95, c, min - 1), "uncertain");
     assert.equal(A.level(0.7, c, min - 1), "uncertain");
     assert.equal(A.level(0.2, c, min - 1), "green");
     assert.equal(A.level(0.95, c, min), "red");
-    assert.equal(A.level(0.95, c), "red"); // ohne Wortzahl wie bisher
+    assert.equal(A.level(0.95, c), "red"); // without word count as before
   });
 
-  it("desklib: kurzer Text ab shortRedFrom rot, darunter „unsicher“; TMR und unbekannte Modelle nie rot", () => {
+  it("desklib: short text red from shortRedFrom, “uncertain” below it; TMR and unknown models never red", () => {
     const desklib = cfg({ provider: "browser", browserModel: "desklib", yellowFrom: 0.5, redFrom: 0.87 });
     const short = A.reliableWords(desklib) - 1;
     assert.equal(A.shortRedFrom(desklib), 0.98);
@@ -39,8 +39,8 @@ describe("level", () => {
     assert.equal(A.level(0.979, desklib, short), "uncertain");
     assert.equal(A.level(0.6, desklib, short), "uncertain");
     assert.equal(A.level(0.4, desklib, short), "green");
-    assert.equal(A.level(0.9, desklib, short + 1), "red"); // ab reliableWords die normale Schwelle
-    // nie lockerer als die eingestellte Rot-Schwelle
+    assert.equal(A.level(0.9, desklib, short + 1), "red"); // from reliableWords the normal threshold
+    // never looser than the configured red threshold
     assert.equal(A.shortRedFrom({ ...desklib, redFrom: 0.99 }), 0.99);
     assert.equal(A.level(0.985, { ...desklib, redFrom: 0.99 }, short), "uncertain");
 
@@ -50,18 +50,18 @@ describe("level", () => {
     assert.equal(A.shortRedFrom(cfg({ provider: "custom", customUrl: "https://x.example/v1/score" })), null);
   });
 
-  it("fakespot: wie desklib eigene shortRedFrom-Schwelle, deutlich strenger als redFrom", () => {
+  it("fakespot: own shortRedFrom threshold like desklib, clearly stricter than redFrom", () => {
     const fakespot = cfg({ provider: "browser", browserModel: "fakespot", yellowFrom: 0.95, redFrom: 0.999 });
     const short = A.reliableWords(fakespot) - 1;
     assert.equal(A.shortRedFrom(fakespot), 0.9994);
     assert.equal(A.level(0.9994, fakespot, short), "red");
-    assert.equal(A.level(0.999, fakespot, short), "uncertain"); // >= redFrom, aber unter shortRedFrom
-    assert.equal(A.level(0.96, fakespot, short), "uncertain"); // >= yellowFrom, aber unter shortRedFrom
-    assert.equal(A.level(0.9, fakespot, short), "green"); // unter yellowFrom bleibt grün, auch kurz
-    assert.equal(A.level(0.999, fakespot, short + 1), "red"); // ab reliableWords die normale Schwelle
+    assert.equal(A.level(0.999, fakespot, short), "uncertain"); // >= redFrom, but below shortRedFrom
+    assert.equal(A.level(0.96, fakespot, short), "uncertain"); // >= yellowFrom, but below shortRedFrom
+    assert.equal(A.level(0.9, fakespot, short), "green"); // below yellowFrom stays green, even when short
+    assert.equal(A.level(0.999, fakespot, short + 1), "red"); // from reliableWords the normal threshold
   });
 
-  it("Mindestlänge und Sprachen kommen vom Modell, bei unbekannten Modellen Standard bzw. keine Angabe", () => {
+  it("minimum length and languages come from the model, for unknown models default or no value", () => {
     for (const key of ["tmr", "desklib", "fakespot"]) {
       const c = cfg({ provider: "browser", browserModel: key });
       assert.equal(A.reliableWords(c), A.MODELS[key].reliableWords);
@@ -74,7 +74,7 @@ describe("level", () => {
 });
 
 describe("siteMatches", () => {
-  it("trifft die Domain selbst und Subdomains, aber keine bloße Namens-Endung", () => {
+  it("matches the domain itself and subdomains, but not a mere name suffix", () => {
     assert.ok(A.siteMatches("example.com", ["example.com"]));
     assert.ok(A.siteMatches("a.b.example.com", ["example.com"]));
     assert.ok(!A.siteMatches("notexample.com", ["example.com"]));
@@ -84,55 +84,55 @@ describe("siteMatches", () => {
 });
 
 describe("builtinMatch", () => {
-  it("findet Host und Eltern-Domains, liefert die gelistete Domain", () => {
+  it("finds host and parent domains, returns the listed domain", () => {
     assert.equal(A.builtinMatch("bank.example"), "bank.example");
     assert.equal(A.builtinMatch("login.online.bank.example"), "bank.example");
-    assert.equal(A.builtinMatch("mail.anbieter.example"), "mail.anbieter.example");
+    assert.equal(A.builtinMatch("mail.provider.example"), "mail.provider.example");
   });
 
-  it("sperrt nicht die Eltern-Domain einer gelisteten Subdomain und keine Teilstrings", () => {
-    assert.equal(A.builtinMatch("anbieter.example"), null);
-    assert.equal(A.builtinMatch("news.anbieter.example"), null);
+  it("does not block the parent domain of a listed subdomain and no substrings", () => {
+    assert.equal(A.builtinMatch("provider.example"), null);
+    assert.equal(A.builtinMatch("news.provider.example"), null);
     assert.equal(A.builtinMatch("mybank.example"), null);
     assert.equal(A.builtinMatch("example"), null);
   });
 });
 
 describe("blockReason", () => {
-  it("eigene Einträge gehen vor, auch wenn die mitgelieferte Liste aus ist", () => {
-    assert.equal(A.blockReason("x.privat.example", cfg({ blockedSites: ["privat.example"] })), "user");
+  it("own entries take precedence, even if the bundled list is off", () => {
+    assert.equal(A.blockReason("x.private.example", cfg({ blockedSites: ["private.example"] })), "user");
     assert.equal(A.blockReason("bank.example", cfg({ blockedSites: ["bank.example"], builtinBlocklist: false })), "user");
   });
 
-  it("mitgelieferte Liste: an/aus und Ausnahmen (auch für Subdomains)", () => {
+  it("bundled list: on/off and exceptions (also for subdomains)", () => {
     assert.equal(A.blockReason("www.bank.example", cfg()), "builtin");
     assert.equal(A.blockReason("www.bank.example", cfg({ builtinBlocklist: false })), null);
     assert.equal(A.blockReason("www.bank.example", cfg({ unblockedSites: ["bank.example"] })), null);
-    // Ausnahme nur für eine Subdomain lässt den Rest gesperrt
+    // an exception for only one subdomain leaves the rest blocked
     const c = cfg({ unblockedSites: ["blog.bank.example"] });
     assert.equal(A.blockReason("blog.bank.example", c), null);
     assert.equal(A.blockReason("online.bank.example", c), "builtin");
   });
 
-  it("eine Ausnahme hebt keinen eigenen Eintrag auf", () => {
+  it("an exception does not override an own entry", () => {
     const c = cfg({ blockedSites: ["bank.example"], unblockedSites: ["bank.example"] });
     assert.equal(A.blockReason("bank.example", c), "user");
   });
 
-  it("kommt mit fehlenden Listen zurecht (alte gespeicherte Einstellungen)", () => {
-    assert.equal(A.blockReason("frei.example", { builtinBlocklist: true }), null);
+  it("copes with missing lists (old stored settings)", () => {
+    assert.equal(A.blockReason("free.example", { builtinBlocklist: true }), null);
   });
 });
 
 describe("scanPolicy", () => {
-  it("aus schlägt alles, gesperrt schlägt jeden Scan-Modus", () => {
+  it("off beats everything, blocked beats every scan mode", () => {
     assert.equal(A.scanPolicy("bank.example", cfg({ enabled: false })), "off");
     for (const scanMode of ["manual", "sites", "all"]) {
       assert.equal(A.scanPolicy("bank.example", cfg({ scanMode, sites: ["bank.example"] })), "blocked");
     }
   });
 
-  it("Scan-Modi", () => {
+  it("scan modes", () => {
     assert.equal(A.scanPolicy("news.example", cfg({ scanMode: "all" })), "auto");
     assert.equal(A.scanPolicy("www.news.example", cfg({ scanMode: "sites", sites: ["news.example"] })), "auto");
     assert.equal(A.scanPolicy("other.example", cfg({ scanMode: "sites", sites: ["news.example"] })), "manual");
@@ -142,27 +142,27 @@ describe("scanPolicy", () => {
 });
 
 describe("modelKey", () => {
-  it("enthält Provider, Modell und bei Browser-Modellen die Version", () => {
-    assert.equal(A.modelKey(cfg()), `browser:desklib@${A.MODELS.desklib.browser.version}`); // Standardmodell
+  it("contains provider, model and, for browser models, the version", () => {
+    assert.equal(A.modelKey(cfg()), `browser:desklib@${A.MODELS.desklib.browser.version}`); // default model
     assert.equal(A.modelKey(cfg({ browserModel: "tmr" })), `browser:tmr@${A.MODELS.tmr.browser.version}`);
     assert.equal(A.modelKey(cfg({ browserModel: "desklib" })), `browser:desklib@${A.MODELS.desklib.browser.version}`);
-    assert.equal(A.modelKey(cfg({ browserModel: "gibtsnicht" })), "browser:gibtsnicht@?");
+    assert.equal(A.modelKey(cfg({ browserModel: "doesnotexist" })), "browser:doesnotexist@?");
     assert.equal(A.modelKey(cfg({ provider: "local", localModel: "desklib" })), "local:desklib");
     assert.equal(A.modelKey(cfg({ provider: "custom", customUrl: "https://s.example/score" })), "custom:https://s.example/score");
     assert.equal(A.modelKey(cfg({ provider: "custom", customUrl: "https://s.example", customModel: "m1" })), "custom:m1");
     assert.equal(A.modelKey(cfg({ provider: "huggingface", hfModel: "org/m" })), "huggingface:org/m");
-    assert.equal(A.modelKey(cfg({ provider: "neu" })), "neu:");
+    assert.equal(A.modelKey(cfg({ provider: "new" })), "new:");
   });
 
-  it("PROVIDER_KEYS enthält alle Provider-Einstellungen", () => {
-    // Alles, was modelKey nicht abbildet, muss in PROVIDER_KEYS stehen (scoring.js, providerSignature)
+  it("PROVIDER_KEYS contains all provider settings", () => {
+    // Everything modelKey does not represent must be in PROVIDER_KEYS (scoring.js, providerSignature)
     for (const k of ["provider", "browserModel", "localModel", "customUrl", "customModel", "hfModel", "hfAiLabel", "localUrl"]) {
       assert.ok(A.PROVIDER_KEYS.includes(k), k);
     }
   });
 });
 
-describe("modelCheck („Modell prüfen“)", () => {
+describe("modelCheck (\"Check model\")", () => {
   const custom = cfg({ provider: "custom", customUrl: "https://s.example/v1/score", customModel: "m1" });
   const passed = (c, over = {}) => ({
     sig: A.checkSignature(c),
@@ -174,33 +174,33 @@ describe("modelCheck („Modell prüfen“)", () => {
   });
   const withCheck = (c, check) => ({ ...c, modelChecks: { [c.provider]: check } });
 
-  it("gilt nur, solange Modell/URL dieselben sind und bestanden wurde", () => {
+  it("only applies as long as model/URL are the same and the check passed", () => {
     assert.ok(A.modelCheck(withCheck(custom, passed(custom))));
     assert.equal(A.modelCheck(custom), null);
     assert.equal(A.modelCheck({ ...withCheck(custom, passed(custom)), customModel: "m2" }), null);
     assert.equal(A.modelCheck({ ...withCheck(custom, passed(custom)), customUrl: "https://t.example/v1/score" }), null);
     assert.equal(A.modelCheck(withCheck(custom, passed(custom, { ok: false }))), null);
-    // anderer Provider mit derselben Prüfung: nein
+    // different provider with the same check: no
     assert.equal(A.modelCheck({ ...withCheck(custom, passed(custom)), provider: "huggingface" }), null);
   });
 
-  it("API-Key/Token gehören nicht zur Signatur", () => {
-    assert.equal(A.checkSignature(custom), A.checkSignature({ ...custom, customApiKey: "neu" }));
+  it("API key/token are not part of the signature", () => {
+    assert.equal(A.checkSignature(custom), A.checkSignature({ ...custom, customApiKey: "new" }));
     const hf = cfg({ provider: "huggingface", hfModel: "org/m" });
-    assert.equal(A.checkSignature(hf), A.checkSignature({ ...hf, hfToken: "hf_neu" }));
+    assert.equal(A.checkSignature(hf), A.checkSignature({ ...hf, hfToken: "hf_new" }));
     assert.notEqual(A.checkSignature(hf), A.checkSignature({ ...hf, hfAiLabel: "AI" }));
   });
 
-  it("Version geht in modelKey ein, Textlänge und Ampel kommen aus der Prüfung", () => {
+  it("version goes into modelKey, text length and traffic light come from the check", () => {
     const c = withCheck(custom, passed(custom));
     assert.equal(A.modelKey(c), "custom:m1@abc1234");
     assert.equal(A.maxChars(c), 800);
     assert.deepEqual(A.presetFor(c), { yellowFrom: 0.3, redFrom: 0.7 });
-    // ohne Version bleibt der Schlüssel wie bisher
+    // without a version the key stays as before
     assert.equal(A.modelKey(withCheck(custom, passed(custom, { info: {} }))), "custom:m1");
   });
 
-  it("Ampel für kurze Absätze aus /v1/info, sonst Standard (120 Wörter, nie rot)", () => {
+  it("traffic light for short paragraphs from /v1/info, otherwise default (120 words, never red)", () => {
     const c = withCheck(custom, passed(custom, { info: { reliableWords: 60, shortRedFrom: 0.97 } }));
     assert.equal(A.reliableWords(c), 60);
     assert.equal(A.shortRedFrom({ ...c, redFrom: 0.7 }), 0.97);
@@ -212,7 +212,7 @@ describe("modelCheck („Modell prüfen“)", () => {
     assert.equal(A.shortRedFrom(plain), null);
   });
 
-  it("Lokal: Modellfamilie aus models.js geht vor, Version aus der Prüfung", () => {
+  it("Local: model family from models.js takes precedence, version from the check", () => {
     const local = cfg({ provider: "local", localModel: "desklib" });
     const c = withCheck(local, passed(local));
     assert.equal(A.modelKey(c), "local:desklib@abc1234");
@@ -220,7 +220,7 @@ describe("modelCheck („Modell prüfen“)", () => {
     assert.equal(A.presetFor(c), A.PRESETS.desklib);
   });
 
-  it("Pflicht für eigene Modelle, freiwillig für den lokalen Server, nicht im Browser", () => {
+  it("required for custom models, optional for the local server, not in the browser", () => {
     assert.equal(A.PROVIDERS.custom.check, "required");
     assert.equal(A.PROVIDERS.huggingface.check, "required");
     assert.equal(A.PROVIDERS.local.check, "optional");
@@ -229,14 +229,14 @@ describe("modelCheck („Modell prüfen“)", () => {
 });
 
 describe("maxChars / presetFor / maxInFlight", () => {
-  it("Browser und Lokal kennen die Modellfamilie, andere Provider nicht", () => {
-    assert.equal(A.maxChars(cfg()), 1500); // Standardmodell desklib
+  it("Browser and Local know the model family, other providers do not", () => {
+    assert.equal(A.maxChars(cfg()), 1500); // default model desklib
     assert.equal(A.maxChars(cfg({ browserModel: "tmr" })), 2000);
     assert.equal(A.maxChars(cfg({ browserModel: "desklib" })), 1500);
     assert.equal(A.maxChars(cfg({ browserModel: "fakespot" })), 2000);
     assert.equal(A.maxChars(cfg({ provider: "local", localModel: "desklib" })), 1500);
     assert.equal(A.maxChars(cfg({ provider: "custom", customModel: "desklib" })), 2000);
-    assert.equal(A.maxChars(cfg({ provider: "local", localModel: "unbekannt" })), 2000);
+    assert.equal(A.maxChars(cfg({ provider: "local", localModel: "unknown" })), 2000);
 
     assert.equal(A.presetFor(cfg({ browserModel: "desklib" })), A.PRESETS.desklib);
     assert.equal(A.presetFor(cfg({ browserModel: "fakespot" })), A.PRESETS.fakespot);
@@ -244,13 +244,13 @@ describe("maxChars / presetFor / maxInFlight", () => {
     assert.equal(A.presetFor(cfg({ provider: "huggingface" })), A.PRESETS.generic);
   });
 
-  it("Presets liegen in 0..1 und gelb vor rot", () => {
+  it("presets lie in 0..1 and yellow before red", () => {
     for (const [name, p] of Object.entries(A.PRESETS)) {
       assert.ok(0 < p.yellowFrom && p.yellowFrom < p.redFrom && p.redFrom <= 1, name);
     }
   });
 
-  it("nur Remote-Backends dürfen parallel", () => {
+  it("only remote backends may run in parallel", () => {
     assert.equal(A.maxInFlight(cfg()), 1);
     assert.equal(A.maxInFlight(cfg({ provider: "local" })), 1);
     assert.equal(A.maxInFlight(cfg({ provider: "custom" })), 2);
@@ -259,7 +259,7 @@ describe("maxChars / presetFor / maxInFlight", () => {
 });
 
 describe("remoteTarget", () => {
-  it("null, solange der Text auf dem Rechner bleibt", () => {
+  it("null as long as the text stays on the computer", () => {
     assert.equal(A.remoteTarget(cfg()), null);
     assert.equal(A.remoteTarget(cfg({ provider: "local" })), null);
     assert.equal(A.remoteTarget(cfg({ provider: "local", localUrl: "" })), null);
@@ -267,45 +267,45 @@ describe("remoteTarget", () => {
     assert.equal(A.remoteTarget(cfg({ provider: "custom", customUrl: "http://127.0.0.1:1234/x" })), null);
   });
 
-  it("nennt das Ziel, sobald Text den Rechner verlässt", () => {
+  it("names the destination as soon as text leaves the computer", () => {
     assert.equal(A.remoteTarget(cfg({ provider: "custom", customUrl: "https://api.example:8443/score" })), "api.example:8443");
     assert.equal(A.remoteTarget(cfg({ provider: "local", localUrl: "http://192.168.0.5:8787" })), "192.168.0.5:8787");
     assert.equal(A.remoteTarget(cfg({ provider: "huggingface" })), "Hugging Face (router.huggingface.co)");
-    assert.equal(A.remoteTarget(cfg({ provider: "custom", customUrl: "kaputt" })), "den eingetragenen Server");
+    assert.equal(A.remoteTarget(cfg({ provider: "custom", customUrl: "broken" })), "the entered server");
   });
 });
 
 describe("providerLabel", () => {
-  it("beschreibt jeden Provider", () => {
-    assert.equal(A.providerLabel(cfg()), "Im Browser (desklib)");
-    assert.equal(A.providerLabel(cfg({ browserModel: "tmr" })), "Im Browser (TMR)");
-    assert.equal(A.providerLabel(cfg({ browserModel: "desklib" })), "Im Browser (desklib)");
-    assert.equal(A.providerLabel(cfg({ browserModel: "weg" })), "Im Browser (TMR)");
-    assert.equal(A.providerLabel(cfg({ provider: "local", localModel: "desklib" })), "Lokal (desklib)");
-    assert.equal(A.providerLabel(cfg({ provider: "custom" })), "Eigener Server");
-    assert.equal(A.providerLabel(cfg({ provider: "custom", customModel: "m" })), "Eigener Server (m)");
+  it("describes every provider", () => {
+    assert.equal(A.providerLabel(cfg()), "In the browser (desklib)");
+    assert.equal(A.providerLabel(cfg({ browserModel: "tmr" })), "In the browser (TMR)");
+    assert.equal(A.providerLabel(cfg({ browserModel: "desklib" })), "In the browser (desklib)");
+    assert.equal(A.providerLabel(cfg({ browserModel: "gone" })), "In the browser (TMR)");
+    assert.equal(A.providerLabel(cfg({ provider: "local", localModel: "desklib" })), "Local (desklib)");
+    assert.equal(A.providerLabel(cfg({ provider: "custom" })), "Custom server");
+    assert.equal(A.providerLabel(cfg({ provider: "custom", customModel: "m" })), "Custom server (m)");
     assert.equal(A.providerLabel(cfg({ provider: "huggingface", hfModel: "org/m" })), "Hugging Face (org/m)");
   });
 });
 
-describe("Provider-Registry und Modellkatalog", () => {
+describe("provider registry and model catalog", () => {
   const fields = Object.values(A.PROVIDERS).flatMap((p) => p.fields);
 
-  it("jedes Feld hat einen Default am richtigen Ort (sync bzw. Secret in local)", () => {
+  it("every field has a default in the right place (sync or secret in local)", () => {
     for (const f of fields) {
       assert.ok(f.key && f.label && f.type, JSON.stringify(f));
       const store = f.secret ? A.SECRET_DEFAULTS : A.DEFAULTS;
       assert.ok(f.key in store, f.key);
       assert.equal(store[f.key], f.default, f.key);
-      assert.ok(!(f.key in (f.secret ? A.DEFAULTS : A.SECRET_DEFAULTS)), `${f.key} doppelt`);
-      // Secrets dürfen nie Teil der Signatur (und damit von Scores/Feedback) werden
+      assert.ok(!(f.key in (f.secret ? A.DEFAULTS : A.SECRET_DEFAULTS)), `${f.key} duplicated`);
+      // Secrets must never become part of the signature (and thus of scores/feedback)
       assert.equal(A.PROVIDER_KEYS.includes(f.key), !f.secret, f.key);
     }
-    assert.equal(new Set(fields.map((f) => f.key)).size, fields.length, "Feld-Schlüssel doppelt");
+    assert.equal(new Set(fields.map((f) => f.key)).size, fields.length, "field key duplicated");
     assert.ok(A.DEFAULTS.provider in A.PROVIDERS);
   });
 
-  it("Standard ist desklib im Browser, mit dessen Ampel-Startwerten", () => {
+  it("default is desklib in the browser, with its traffic light starting values", () => {
     assert.equal(A.DEFAULTS.provider, "browser");
     assert.equal(A.DEFAULTS.browserModel, "desklib");
     assert.equal(A.presetFor(A.DEFAULTS), A.PRESETS.desklib);
@@ -313,7 +313,7 @@ describe("Provider-Registry und Modellkatalog", () => {
     assert.equal(A.DEFAULTS.redFrom, A.PRESETS.desklib.redFrom);
   });
 
-  it("Modell-Felder zeigen auf vorhandene Katalog-Abschnitte mit gültigem Default", () => {
+  it("model fields point to existing catalog sections with a valid default", () => {
     for (const f of fields.filter((x) => x.type === "model")) {
       const keys = A.catalog(f.catalog).map(([k]) => k);
       assert.ok(keys.length > 0, f.catalog);
@@ -321,7 +321,7 @@ describe("Provider-Registry und Modellkatalog", () => {
     }
   });
 
-  it("Katalog: Pflichtangaben, Presets und gepinnte Browser-Modelle", () => {
+  it("catalog: required fields, presets and pinned browser models", () => {
     for (const [key, m] of Object.entries(A.MODELS)) {
       assert.ok(m.name && m.title && m.maxChars > 0 && m.maxTokens > 0, key);
       assert.equal(A.PRESETS[key], m.thresholds, key);
@@ -329,7 +329,7 @@ describe("Provider-Registry und Modellkatalog", () => {
         assert.match(m.browser.revision, /^[0-9a-f]{40}$/, key);
         for (const k of ["repo", "version", "marker", "download", "info"]) assert.ok(m.browser[k], `${key}.browser.${k}`);
       }
-      assert.ok(m.browser || m.server, `${key}: kein Provider bietet das Modell an`);
+      assert.ok(m.browser || m.server, `${key}: no provider offers the model`);
     }
   });
 });

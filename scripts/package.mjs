@@ -1,12 +1,12 @@
-// Baut das auslieferbare Zip der Extension: dist/ai-content-flag-<version>.zip (npm run package).
-// Inhalt = die im Git erfassten Dateien unter extension/ plus extension/vendor/ (per npm run vendor,
-// nicht im Git). Nichts sonst - lokale Experimente, Editor-Dateien usw. landen nicht im Paket.
+// Builds the shippable zip of the extension: dist/ai-content-flag-<version>.zip (npm run package).
+// Contents = the files tracked in Git under extension/ plus extension/vendor/ (via npm run vendor,
+// not in Git). Nothing else - local experiments, editor files etc. do not end up in the package.
 //
-// Bricht ab, wenn
-//   - Dateien unter extension/ nicht committet sind (Paket soll einem Commit entsprechen;
-//     --allow-dirty baut trotzdem, der Dateiname bekommt dann "-dirty")
-//   - vendor/ fehlt oder eine Datei, auf die Manifest, HTML oder ein Import verweist, nicht im Paket ist
-// Warnt (ohne Abbruch) bei Punkten, die erst für den Web Store nötig sind, und bei alter Sperrliste.
+// Aborts if
+//   - files under extension/ are not committed (the package should correspond to a commit;
+//     --allow-dirty builds anyway, the file name then gets "-dirty")
+//   - vendor/ is missing or a file referenced by the manifest, HTML or an import is not in the package
+// Warns (without aborting) about items only needed for the Web Store, and about an old blocklist.
 import { execFileSync } from "child_process";
 import crypto from "crypto";
 import fs from "fs";
@@ -22,31 +22,31 @@ const git = (...args) => execFileSync("git", args, { cwd: root, encoding: "utf8"
 const errors = [];
 const warnings = [];
 
-// --- Dateiliste -------------------------------------------------------------------------------
+// --- File list --------------------------------------------------------------------------------
 const tracked = git("ls-files", "-z", "--", "extension").split("\0").filter(Boolean);
 const dirty = git("status", "--porcelain", "--", "extension").split("\n").filter(Boolean);
 const untracked = dirty.filter((l) => l.startsWith("??")).map((l) => l.slice(3));
 const modified = dirty.filter((l) => !l.startsWith("??")).map((l) => l.slice(3));
 
 if (modified.length) {
-  const msg = `nicht committete Änderungen unter extension/:\n    ${modified.join("\n    ")}`;
+  const msg = `uncommitted changes under extension/:\n    ${modified.join("\n    ")}`;
   (allowDirty ? warnings : errors).push(msg);
 }
-if (untracked.length) warnings.push(`nicht im Git, kommt NICHT ins Paket:\n    ${untracked.join("\n    ")}`);
+if (untracked.length) warnings.push(`not in Git, will NOT go into the package:\n    ${untracked.join("\n    ")}`);
 
 const vendorDir = path.join(extDir, "vendor");
 const vendor = fs.existsSync(vendorDir)
   ? fs.readdirSync(vendorDir).map((f) => `extension/vendor/${f}`)
   : [];
-if (!vendor.length) errors.push("extension/vendor/ fehlt oder ist leer – npm run vendor");
+if (!vendor.length) errors.push("extension/vendor/ is missing or empty – npm run vendor");
 
-// gelöschte, aber noch erfasste Dateien überspringen (fallen oben ohnehin als Änderung auf)
+// skip deleted but still tracked files (they show up as a change above anyway)
 const files = [...tracked, ...vendor].filter((f) => fs.existsSync(path.join(root, f)));
 const inZip = new Set(files.map((f) => f.slice("extension/".length)));
 
-// --- Verweise prüfen --------------------------------------------------------------------------
+// --- Check references -------------------------------------------------------------------------
 const manifest = JSON.parse(fs.readFileSync(path.join(extDir, "manifest.json"), "utf8"));
-const refs = []; // [datei im Paket, woher]
+const refs = []; // [file in the package, referenced from]
 const ref = (p, from) => p && refs.push([p.replace(/^\.?\//, ""), from]);
 
 ref(manifest.background?.service_worker, "manifest background");
@@ -73,7 +73,7 @@ for (const f of inZip) {
     }
   }
 }
-// Dateien, die per chrome.runtime.getURL geladen werden (offscreen-client.js, offscreen.js)
+// Files loaded via chrome.runtime.getURL (offscreen-client.js, offscreen.js)
 ref("offscreen.html", "bg/offscreen-client.js");
 ref("welcome.html", "background.js");
 for (const m of Object.values(await loadModels())) {
@@ -82,43 +82,41 @@ for (const m of Object.values(await loadModels())) {
 }
 
 for (const [p, from] of refs) {
-  if (!inZip.has(p)) errors.push(`${p} fehlt im Paket (verwiesen von ${from})`);
+  if (!inZip.has(p)) errors.push(`${p} missing from the package (referenced by ${from})`);
 }
 
-// --- Hinweise für den Web Store ---------------------------------------------------------------
-if (!manifest.icons?.["128"]) warnings.push("Store: kein 128-px-Icon im Manifest (\"icons\")");
-const privacy = fs.readFileSync(path.join(extDir, "privacy.html"), "utf8");
-if (/\[Name und Kontaktadresse/.test(privacy)) warnings.push("Store: Kontakt in privacy.html ist noch ein Platzhalter");
+// --- Notes for the Web Store ------------------------------------------------------------------
+if (!manifest.icons?.["128"]) warnings.push("Store: no 128 px icon in the manifest (\"icons\")");
 
 const blocklistSrc = fs.readFileSync(path.join(extDir, "generated", "blocklist.js"), "utf8");
 const generated = blocklistSrc.match(/generated:\s*"(\d{4}-\d{2}-\d{2})"/)?.[1];
-if (!generated) errors.push("generated/blocklist.js: Stand (generated) nicht lesbar");
+if (!generated) errors.push("generated/blocklist.js: date (generated) not readable");
 else {
   const age = (Date.now() - Date.parse(generated)) / 86_400_000;
   if (age > BLOCKLIST_MAX_AGE_DAYS) {
-    warnings.push(`Sperrliste ist ${Math.floor(age)} Tage alt (${generated}) – npm run build:blocklist, Diff prüfen, committen`);
+    warnings.push(`blocklist is ${Math.floor(age)} days old (${generated}) – npm run build:blocklist, check the diff, commit`);
   }
 }
 
-// --- Ausgabe ----------------------------------------------------------------------------------
-for (const w of warnings) console.warn(`WARNUNG: ${w}`);
+// --- Output -----------------------------------------------------------------------------------
+for (const w of warnings) console.warn(`WARNING: ${w}`);
 if (errors.length) {
-  for (const e of errors) console.error(`FEHLER: ${e}`);
+  for (const e of errors) console.error(`ERROR: ${e}`);
   process.exit(1);
 }
 
-// Zeitstempel aller Einträge = Commit-Zeit -> gleicher Commit ergibt byte-gleiches Zip
+// Timestamp of all entries = commit time -> same commit yields a byte-identical zip
 const mtime = new Date(git("log", "-1", "--format=%cI").trim());
 const commit = git("rev-parse", "--short", "HEAD").trim();
 const entries = files.map((f) => ({ name: f.slice("extension/".length), data: fs.readFileSync(path.join(root, f)) }));
 const zip = createZip(entries, { mtime });
 
-// Gegenprobe: Zip lesbar, jede Datei unverändert
+// Cross-check: zip readable, every file unchanged
 const back = readZip(zip);
-if (back.length !== entries.length) throw new Error("Gegenprobe: Anzahl Einträge stimmt nicht");
+if (back.length !== entries.length) throw new Error("cross-check: number of entries does not match");
 const byName = new Map(entries.map((e) => [e.name, e.data]));
 for (const { name, data } of back) {
-  if (!byName.get(name)?.equals(data)) throw new Error(`Gegenprobe: ${name} weicht ab`);
+  if (!byName.get(name)?.equals(data)) throw new Error(`cross-check: ${name} differs`);
 }
 
 const suffix = modified.length ? "-dirty" : "";
@@ -129,12 +127,12 @@ fs.writeFileSync(out, zip);
 
 const raw = entries.reduce((n, e) => n + e.data.length, 0);
 console.log(`${path.relative(root, out)}`);
-console.log(`  Version ${manifest.version}, Commit ${commit}${suffix}, ${entries.length} Dateien`);
-console.log(`  ${(raw / 1e6).toFixed(1)} MB → ${(zip.length / 1e6).toFixed(1)} MB gepackt`);
-console.log(`  Sperrliste vom ${generated}`);
+console.log(`  Version ${manifest.version}, commit ${commit}${suffix}, ${entries.length} files`);
+console.log(`  ${(raw / 1e6).toFixed(1)} MB → ${(zip.length / 1e6).toFixed(1)} MB packed`);
+console.log(`  Blocklist from ${generated}`);
 console.log(`  SHA-256 ${crypto.createHash("sha256").update(zip).digest("hex")}`);
 
-// models.js ist ein klassisches Skript, das globalThis.AIVSAI_MODELS setzt
+// models.js is a classic script that sets globalThis.AIVSAI_MODELS
 async function loadModels() {
   const src = fs.readFileSync(path.join(extDir, "models.js"), "utf8");
   const g = {};

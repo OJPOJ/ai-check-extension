@@ -1,137 +1,137 @@
 # TODO
 
-Offene Punkte, Reihenfolge = Priorität. Erledigtes steht in der Roadmap in `DEVELOPMENT.md`.
-Stand: 2026-09-26.
+Open items, order = priority. Completed work is in the roadmap in `DEVELOPMENT.md`.
+Status: 2026-09-26.
 
-## 1. BYOM: Rest
+## 1. BYOM: remainder
 
-Rahmen, „Modell prüfen“ und Hugging-Face-Metadaten sind erledigt (`DEVELOPMENT.md`, „Eigene Modelle prüfen“;
-Vertrag in `server/README.md`). Offen:
+Framework, "Check model" and Hugging Face metadata are done (`DEVELOPMENT.md`, "Check custom models";
+contract in `server/README.md`). Open:
 
-- **Mit echtem Token testen:** 2–3 bekannte Detektor-Modelle über „Modell prüfen“ (Hub-Metadaten,
-  Router-Antwortformen, KI-Label aus `id2label`). Bisher nur gemockt (`providers.test.mjs`,
+- **Test with a real token:** 2–3 known detector models via "Check model" (Hub metadata,
+  router response shapes, AI label from `id2label`). So far only mocked (`providers.test.mjs`,
   `model-check.test.mjs`).
-- **Referenzset: aktuellere Generatoren.** Seit WP-11 HC3 + RAID-Wiki (114 Texte, kurz und lang). RAID
-  hat im selben MIT-Split für „wiki“ auch GPT-4, ChatGPT und Cohere – bisher nicht aufgenommen, wäre
-  eine kleine Erweiterung (`RAID_GENERATORS` in `training/build_reference_set.py`). Kurze Absätze
-  kommen nur aus HC3 (RAID-Wiki liefert keine unter 120 Wörtern).
-- **„Ausführliche Prüfung“ für eigene Modelle** (optional in den Einstellungen): „Modell prüfen“ nutzt
-  jetzt 57 Mensch-Texte und schlägt mit genug kurzen Texten auch `shortRedFrom` vor – „keiner rot“
-  heißt aber weiterhin nur Fehlalarme grob unter ~5 %. Für belastbare Schwellen einige hundert Absätze
-  verschiedener Länge schicken (Methode `training/crossval_thresholds.py`). Dauert Minuten und kostet bei
-  Cloud-Anbietern – nur auf Wunsch, mit Hinweis. Server können beides weiter über `/v1/info` angeben.
-  Dazu UI: `reliableWords`/`shortRedFrom` sind für eigene Modelle nicht per Regler überschreibbar.
-- **Später – eigenes ONNX im Browser:**
-  - HF-Repo mit `onnx/` + Tokenizer.
-  - Architektur aus fester Liste (BERT, RoBERTa, DeBERTa-v2, XLM-R, DistilBERT).
-  - 2 Labels, Größenlimit.
-  - Wäre ein weiterer Eintrag in `models.js`; „Modell prüfen“ ließe sich dafür wiederverwenden.
+- **Reference set: more recent generators.** Since WP-11 HC3 + RAID wiki (114 texts, short and long). RAID
+  also has GPT-4, ChatGPT and Cohere for "wiki" in the same MIT split – not included so far, would be
+  a small extension (`RAID_GENERATORS` in `training/build_reference_set.py`). Short paragraphs
+  come only from HC3 (RAID wiki delivers none under 120 words).
+- **"Detailed check" for custom models** (optional in the settings): "Check model" now uses
+  57 human texts and, with enough short texts, also suggests `shortRedFrom` – "none red"
+  still only means false alarms roughly below ~5%, though. For reliable thresholds, send a few hundred paragraphs
+  of various lengths (method `training/crossval_thresholds.py`). Takes minutes and costs money with
+  cloud providers – only on request, with a notice. Servers can still specify both via `/v1/info`.
+  Plus UI: `reliableWords`/`shortRedFrom` cannot be overridden by a slider for custom models.
+- **Later – custom ONNX in the browser:**
+  - HF repo with `onnx/` + tokenizer.
+  - Architecture from a fixed list (BERT, RoBERTa, DeBERTa-v2, XLM-R, DistilBERT).
+  - 2 labels, size limit.
+  - Would be another entry in `models.js`; "Check model" could be reused for it.
 
-## 2. Fehlalarme reduzieren (Vertrauen)
+## 2. Reduce false alarms (trust)
 
-Der größte Schaden ist Rot auf einem menschlichen Text.
+The biggest harm is red on a human text.
 
-Erledigt: Sprache pro Absatz, Stufe „unsicher“, strengere TMR-Schwellen, Wortwahl, Begrüßung (`DEVELOPMENT.md`,
-„Weniger Fehlalarme“; Messung in `training/EVAL_RESULTS.md`, „Fehlalarme auf Wikipedia“). Offen:
+Done: language per paragraph, "uncertain" level, stricter TMR thresholds, wording, welcome (`DEVELOPMENT.md`,
+"Fewer false alarms"; measurement in `training/EVAL_RESULTS.md`, "False alarms on Wikipedia"). Open:
 
-- **Gruppierung auf Start- und Rubrikseiten prüfen:** Seit WP-10 werden auch Absätze mit 15–39 Wörtern
-  gruppiert (`test/REAL_PAGES.md`: zu kurze Einheiten auf 32 Artikelseiten 95 % → 39 %, BBC jetzt
-  abgedeckt). Gemessen wurden nur Artikelseiten. Risiko: Teaser-Raster und Linklisten als `<ul><li>`
-  ohne Navigations-Semantik könnten zu Gruppen werden. Außerdem bleibt ein Artikel aus lauter
-  isolierten kurzen Absätzen jetzt ganz unbewertet (früher wurde der Container bewertet).
-- **fakespot im echten Browser prüfen:** Eingebunden als „Ausgewogen“ (`training/MODEL_SEARCH.md`,
-  „ONNX-Abgleich und Einbindung“). Der Abgleich lief mit onnxruntime in Python; einzelne Texte weichen
-  bis 0,52 ab, die Ampel an den Schwellen kaum (≤ 0,6 Prozentpunkte). Einmal in Chrome herunterladen und
-  auf der Eval-Suite bzw. dem Harness gegen die Python-Scores vergleichen (WASM).
-- **Weitere Kandidaten**, falls nötig: `ShantanuT01/gradient-ai-text-detector` (MIT, DeBERTa-v3-large,
-  ONNX int4 408 MB, ungeprüft).
-- **Spracherkennung in Firefox prüfen:** In Chromium auf echten Seiten sauber (`test/REAL_PAGES.md`:
-  kein falsch übersprungener englischer Absatz, alle Absätze der 6 nicht-englischen Nachrichtenartikel
-  übersprungen, fremdsprachige Zitate korrekt pro Absatz). Offen: Firefox (CLD2), sobald die Extension
-  dort läuft (Punkt 4). Alternativen, falls nötig: `franc`/`franc-min`, `eld`, fastText `lid.176.ftz`,
-  Chromes `LanguageDetector`.
-- **Übersprungene Absätze sichtbar machen?** Bisher nur als Zahl im Popup. Falls Nutzer denken, die
-  Seite sei nicht gescannt: dezente Markierung oder Hinweis beim ersten Mal.
+- **Check grouping on home and section pages:** Since WP-10, paragraphs with 15–39 words are also
+  grouped (`test/REAL_PAGES.md`: units that are too short on 32 article pages 95% → 39%, BBC now
+  covered). Only article pages were measured. Risk: teaser grids and link lists as `<ul><li>`
+  without navigation semantics could become groups. Also, an article made up entirely of
+  isolated short paragraphs now stays completely unscored (previously the container was scored).
+- **Check fakespot in a real browser:** Integrated as "Balanced" (`training/MODEL_SEARCH.md`,
+  "ONNX comparison and integration"). The comparison ran with onnxruntime in Python; individual texts deviate
+  by up to 0.52, the traffic light at the thresholds barely (≤ 0.6 percentage points). Download once in Chrome and
+  compare against the Python scores on the eval suite or the harness (WASM).
+- **Further candidates**, if needed: `ShantanuT01/gradient-ai-text-detector` (MIT, DeBERTa-v3-large,
+  ONNX int4 408 MB, untested).
+- **Check language detection in Firefox:** Clean in Chromium on real pages (`test/REAL_PAGES.md`:
+  no wrongly skipped English paragraph, all paragraphs of the 6 non-English news articles
+  skipped, foreign-language quotes correctly per paragraph). Open: Firefox (CLD2), once the extension runs
+  there (item 4). Alternatives, if needed: `franc`/`franc-min`, `eld`, fastText `lid.176.ftz`,
+  Chrome's `LanguageDetector`.
+- **Make skipped paragraphs visible?** So far only as a count in the popup. If users think the
+  page was not scanned: subtle marker or a notice the first time.
 
-## 3. Eval-Suite: Rest
+## 3. Eval suite: remainder
 
-Erledigt: 1200 Texte, 6 Domänen, 7 Generatoren bis GPT-4o (`training/EVAL_RESULTS.md`, „Breitere
-Eval-Suite“), desklib auf allen 1200 Texten und kreuzvalidierte Schwellen („Schwellen absichern“).
-Wie angezeigt: TMR 4,7 % Fehlalarme (ohne WikiHow 1,6 %), desklib 1,2 % mit `redFrom` 0.94. Offen:
+Done: 1200 texts, 6 domains, 7 generators up to GPT-4o (`training/EVAL_RESULTS.md`, "Broader
+eval suite"), desklib on all 1200 texts and cross-validated thresholds ("Securing the thresholds").
+As displayed: TMR 4.7% false alarms (without WikiHow 1.6%), desklib 1.2% with `redFrom` 0.94. Open:
 
-- **TMR auf Anleitungen:** 20 % der menschlichen WikiHow-Texte werden rot (alle ≥ 120 Wörter). Auf
-  echten Anleitungsseiten nachprüfen; Optionen: `redFrom` ~0.985 (kostet Erkennung überall), oder
-  desklib als Default (Punkt 2).
-- **Claude/Gemini/GPT-5 fehlen:** kein öffentlicher gelabelter Datensatz gefunden. Eigene Generierung
-  bräuchte API-Keys (einige hundert Absätze zu den Themen der Mensch-Texte).
-- **TMR auf echten Anleitungsseiten messen:** 20 % Fehlalarme auf WikiHow-Text am Stück; ob die
-  Extension das auf gerenderten Seiten (Listen, Zwischenüberschriften, `MIN_WORDS`) genauso sieht, ist
-  offen (`training/EVAL_RESULTS.md`, „Schwellen absichern“). Mit desklib als Standard weniger dringend.
-- **Lizenz:** M4GT-Bench ohne Lizenzangabe – die Suite nur lokal nutzen, nicht als BYOM-Referenzset
-  mitliefern (Punkt 1); dafür MAGE-/HC3-Anteile (Apache-2.0) auswählen.
+- **TMR on how-tos:** 20% of the human WikiHow texts turn red (all ≥ 120 words). Re-check on
+  real how-to pages; options: `redFrom` ~0.985 (costs detection everywhere), or
+  desklib as default (item 2).
+- **Claude/Gemini/GPT-5 are missing:** no public labeled dataset found. Generating our own
+  would need API keys (a few hundred paragraphs on the topics of the human texts).
+- **Measure TMR on real how-to pages:** 20% false alarms on continuous WikiHow text; whether the
+  extension sees the same on rendered pages (lists, subheadings, `MIN_WORDS`) is
+  open (`training/EVAL_RESULTS.md`, "Securing the thresholds"). Less urgent with desklib as the default.
+- **License:** M4GT-Bench without a license statement – use the suite only locally, do not ship it
+  as a BYOM reference set (item 1); select MAGE/HC3 portions (Apache-2.0) for that instead.
 
-## 4. Veröffentlichung
+## 4. Publication
 
-Verteilt wird vorerst nur über GitHub-Releases (Zip aus `npm run package`, Anleitung im `README.md`),
-nicht über Chrome Web Store / Edge Add-ons.
+For now distribution is only via GitHub releases (zip from `npm run package`, instructions in `README.md`),
+not via Chrome Web Store / Edge Add-ons.
 
-Erledigt: Icons, „Über / Lizenzen“, Store-Texte und Begründung der Berechtigungen (`store/`), README
-für Nutzer, Kontakt in `privacy.html` (Verweis auf GitHub-Issues –
-die Entwickler erhalten keine Daten, sind also nicht Verantwortliche im Sinne der DSGVO).
-Offen (für einen späteren Store-Eintrag Details in `store/CHECKLIST.md`):
+Done: icons, "About / licenses", store texts and justification of the permissions (`store/`), README
+for users, contact in `privacy.html` (reference to GitHub issues –
+the developers receive no data, so they are not controllers within the meaning of the GDPR).
+Open (for a later store listing details in `store/CHECKLIST.md`):
 
-- **Erstes GitHub-Release** mit dem Zip anlegen (die README verlinkt auf `releases/latest`).
-- **Impressum:** bewusst keins (Hobbyprojekt ohne Spendenlink). Falls sich das ändert oder eine
-  Abmahnung kommt: Impressum mit c/o-Adresse anlegen.
-- **Nur für den Store:** Datenschutzerklärung öffentlich hosten (z.B. GitHub Pages); der Store
-  verlangt eine URL.
-- **Screenshots mit echtem Modell** auf einer echten Seite neu machen; die aktuellen stammen aus dem
-  Harness mit Fake-Scores. Werbekachel ist nur ein Platzhalter.
-- **Entwicklerkonten:** Chrome 5 $ einmalig, Edge kostenlos.
-- **Firefox:** erstmal nicht. Die Offscreen-API fehlt dort; „Im Browser“ bräuchte eine andere
-  Lösung.
+- **Create the first GitHub release** with the zip (the README links to `releases/latest`).
+- **Legal notice (Impressum):** deliberately none (hobby project without a donation link). If that changes or a
+  cease-and-desist letter arrives: set up a legal notice with a c/o address.
+- **Only for the store:** host the privacy policy publicly (e.g. GitHub Pages); the store
+  requires a URL.
+- **Redo screenshots with a real model** on a real page; the current ones come from the
+  harness with fake scores. The promo tile is only a placeholder.
+- **Developer accounts:** Chrome $5 one time, Edge free.
+- **Firefox:** not for now. The offscreen API is missing there; "In the browser" would need a different
+  solution.
 
-## 5. Score-Kalibrierung pro Modell
+## 5. Score calibration per model
 
-- **Ziel:** Schwellen bedeuten modellübergreifend dasselbe.
-- **Umsetzung:** In `bg/scoring.js` pro `modelKey` auf den Rohwert anwenden. Gespeichert werden
-  Rohwerte, eine neue Kalibrierung braucht also kein Neu-Bewerten.
-- **Datenbasis:** Eval-Suite aus Punkt 3 (`training/evaluate_suite.py`, Rohscores in
-  `training/data/eval_scores_*_suite.jsonl`), kreuzvalidierte Spannen per `training/crossval_thresholds.py`.
+- **Goal:** Thresholds mean the same across models.
+- **Implementation:** In `bg/scoring.js` apply per `modelKey` to the raw value. Raw values
+  are stored, so a new calibration does not require re-scoring.
+- **Data basis:** Eval suite from item 3 (`training/evaluate_suite.py`, raw scores in
+  `training/data/eval_scores_*_suite.jsonl`), cross-validated ranges via `training/crossval_thresholds.py`.
 
-## 6. Deutsch/mehrsprachig
+## 6. German/multilingual
 
-- **Modell:** Fine-Tuning eines mehrsprachigen Encoders (mDeBERTa-v3/XLM-R), ähnlich desklib.
-- **Extension:** `lang` pro Absatz wird schon erkannt und an Server-Backends mitgeschickt; offen ist,
-  dass der Provider danach das Modell wählt (statt andere Sprachen zu überspringen).
-- **Vorarbeit:** Laya-Datensatz liegt fertig (`training/data/`, 142k Beispiele), Training offen
+- **Model:** Fine-tuning of a multilingual encoder (mDeBERTa-v3/XLM-R), similar to desklib.
+- **Extension:** `lang` per paragraph is already detected and sent along to server backends; what is open
+  is that the provider then chooses the model (instead of skipping other languages).
+- **Groundwork:** Laya dataset is ready (`training/data/`, 142k examples), training open
   (`training/README.md`).
 
-## 7. Berichte pro Seite exportieren/importieren
+## 7. Export/import reports per page
 
-- **Inhalt:** URL, Absätze, Scores, Modell, Zeitpunkt – aus dem Ergebnis-Register.
-- **Ausbaustufe:** Konto/Sync/Teilen, braucht Datenschutz/Einwilligung.
+- **Content:** URL, paragraphs, scores, model, timestamp – from the result register.
+- **Expansion stage:** account/sync/sharing, needs privacy/consent.
 
-## 8. Feedback Stufe 2 (nur bei Bedarf)
+## 8. Feedback stage 2 (only if needed)
 
-Freiwilliger Upload an einen eigenen Sammel-Server. Braucht:
+Voluntary upload to a dedicated collection server. Needs:
 
-- Verantwortlichen/Impressum.
-- Löschweg pro Einsender (Pseudonym-ID).
-- Schutz gegen absichtlich falsche Labels (Data Poisoning).
-- Erweiterte Datenschutzerklärung.
+- A controller/legal notice.
+- Deletion path per submitter (pseudonym ID).
+- Protection against deliberately wrong labels (data poisoning).
+- Extended privacy policy.
 
-Fürs Training wichtiger sind generierte Daten mehrerer LLMs (`training/README.md`, „Feedback als
-Datenquelle“).
+More important for training are generated data from several LLMs (`training/README.md`, "Feedback as a data
+source").
 
-## Technische Punkte (aus der v0.5-Analyse)
+## Technical items (from the v0.5 analysis)
 
-- **Batch-Budget pro Modell** (neben `maxInFlight` in `config.js`): Batches sind auf 2500 Zeichen
-  begrenzt und werden vor dem Modell nach Länge aufgeteilt. Ein langer desklib-Absatz braucht im
-  Browser trotzdem mehrere Sekunden; in der Zeit reagiert die Priorisierung nicht aufs Scrollen.
-- **Sperrliste UK:**
-  - Stand: ~60 `.uk`-Domains aus UT1, 71 Banken aus Wikidata, dazu handverlesene Großbanken.
-  - Vollständig wäre das FCA-Register (API mit kostenlosem Key, Weitergabebedingungen noch nicht
-    geprüft).
-- **Sperrliste DE:** Der BaFin-Export hat keine Websites.
-- Lücken der Sperrliste fängt die Passwortfeld-Heuristik ab.
+- **Batch budget per model** (next to `maxInFlight` in `config.js`): Batches are limited to 2500
+  characters and split by length before the model. A long desklib paragraph still takes several
+  seconds in the browser; during that time the prioritization does not react to scrolling.
+- **Blocklist UK:**
+  - Status: ~60 `.uk` domains from UT1, 71 banks from Wikidata, plus hand-picked large banks.
+  - The FCA register would be complete (API with a free key, redistribution terms not yet
+    checked).
+- **Blocklist DE:** The BaFin export has no websites.
+- Gaps in the blocklist are caught by the password-field heuristic.

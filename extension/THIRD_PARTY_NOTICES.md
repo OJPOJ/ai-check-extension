@@ -1,69 +1,69 @@
 # Third-Party Notices
 
-## Mitgelieferte Software (`vendor/`, per `npm run vendor`)
+## Shipped software (`vendor/`, via `npm run vendor`)
 
 - **transformers.js** (`@huggingface/transformers` 4.3.0) – Apache License 2.0,
-  © Hugging Face. Lizenztext: `vendor/LICENSE.transformers.js.txt`.
+  © Hugging Face. License text: `vendor/LICENSE.transformers.js.txt`.
 - **ONNX Runtime Web** (`onnxruntime-web`) – MIT License, © Microsoft Corporation.
 
-## Mitgelieferte Daten (`generated/blocklist.js`, per `npm run build:blocklist`)
+## Shipped data (`generated/blocklist.js`, via `npm run build:blocklist`)
 
-Die mitgelieferte Sperrliste ist aus folgenden Quellen zusammengestellt und steht als Ganzes unter
+The bundled blocklist is compiled from the following sources and as a whole is under
 **CC BY-SA 4.0** (https://creativecommons.org/licenses/by-sa/4.0/):
 
-- **UT1-Blacklists**, Kategorien `bank` und `webmail` – © Université Toulouse Capitole, gepflegt von
-  Fabrice Prigent, CC BY-SA 4.0. https://dsi.ut-capitole.fr/blacklists/ – übernommen nach
-  Normalisierung (Kleinschreibung, ohne `www.`, ohne Einträge, deren Eltern-Domain enthalten ist) und
-  ohne einzelne Portale mit überwiegend redaktionellem Inhalt (Liste `NEVER_BLOCK` im Build-Skript).
-- **FDIC BankFind Suite** – Web-Adressen aller aktiven US-Banken, Werk der US-Bundesregierung
-  (gemeinfrei). https://api.fdic.gov/banks/docs/
-- **NCUA Call Report Data** – Web-Adressen der US-Credit-Unions (Quartalsdaten, Feld `Acct_891`),
-  National Credit Union Administration, Werk der US-Bundesregierung (gemeinfrei).
+- **UT1 blacklists**, categories `bank` and `webmail` – © Université Toulouse Capitole, maintained by
+  Fabrice Prigent, CC BY-SA 4.0. https://dsi.ut-capitole.fr/blacklists/ – adopted after
+  normalization (lowercase, without `www.`, without entries whose parent domain is included) and
+  without individual portals with predominantly editorial content (list `NEVER_BLOCK` in the build script).
+- **FDIC BankFind Suite** – web addresses of all active US banks, work of the US federal government
+  (public domain). https://api.fdic.gov/banks/docs/
+- **NCUA Call Report Data** – web addresses of US credit unions (quarterly data, field `Acct_891`),
+  National Credit Union Administration, work of the US federal government (public domain).
   https://ncua.gov/analysis/credit-union-corporate-call-report-data/quarterly-data
-- **Wikidata** – offizielle Websites (P856) von Banken in Deutschland, Österreich, der Schweiz, dem
-  Vereinigten Königreich und den USA, CC0 1.0. https://www.wikidata.org/
-- Handverlesene Ergänzungen (`scripts/build-blocklist.mjs`, `CURATED`).
+- **Wikidata** – official websites (P856) of banks in Germany, Austria, Switzerland, the
+  United Kingdom and the USA, CC0 1.0. https://www.wikidata.org/
+- Hand-picked additions (`scripts/build-blocklist.mjs`, `CURATED`).
 
-## Mitgelieferte Daten (`bg/reference-set.js`, per `training/build_reference_set.py`)
+## Shipped data (`bg/reference-set.js`, via `training/build_reference_set.py`)
 
-Das Referenzset für „Modell prüfen“ (114 Texte, 57 menschliche und 57 KI-Texte, kurze und lange
-Absätze) stammt aus zwei Quellen:
+The reference set for "Check model" (114 texts, 57 human and 57 AI texts, short and long
+paragraphs) comes from two sources:
 
-- **HC3** („Human ChatGPT Comparison Corpus“, `Hello-SimpleAI/HC3`) – © Biyang Guo et al.,
+- **HC3** ("Human ChatGPT Comparison Corpus", `Hello-SimpleAI/HC3`) – © Biyang Guo et al.,
   **CC BY-SA 4.0** (https://creativecommons.org/licenses/by-sa/4.0/).
-  https://huggingface.co/datasets/Hello-SimpleAI/HC3 – fünf Domänen (reddit_eli5, finance, medicine,
-  open_qa, wiki_csai), Generator ChatGPT (2023). Übernommen mit vereinheitlichten Leerzeichen (vor
-  Satzzeichen entfernt) und an einer Satzgrenze gekürzt.
+  https://huggingface.co/datasets/Hello-SimpleAI/HC3 – five domains (reddit_eli5, finance, medicine,
+  open_qa, wiki_csai), generator ChatGPT (2023). Adopted with normalized whitespace (removed before
+  punctuation) and truncated at a sentence boundary.
 - **RAID** (`liamdugan/raid`, https://github.com/liamdugan/raid) – © Liam Dugan et al., **MIT License**.
-  Domäne „wiki“ (menschliche Texte: Wikipedia-Artikel, CC BY-SA), Generatoren llama-chat, mistral,
-  mistral-chat, mpt, mpt-chat, gpt2; nur unveränderter Text (`attack == "none"`, `decoding == "greedy"`).
+  Domain "wiki" (human texts: Wikipedia articles, CC BY-SA), generators llama-chat, mistral,
+  mistral-chat, mpt, mpt-chat, gpt2; only unmodified text (`attack == "none"`, `decoding == "greedy"`).
 
-Geprüft und verworfen (eigene oder ungeklärte Nutzungsbedingungen): Yelp-/IMDb-Rezensionen,
-Presseartikel (XSum, CNN/DailyMail), arXiv-/PubMed-Abstracts, WikiHow (CC BY-NC-SA), Reddit außerhalb
-HC3, die „wikipedia“-Domäne von `Jinyan1/COLING_2025_MGT_en` (stammt aus M4GT-Bench, ohne Lizenz).
-Lizenzabwägung je Teilquelle: Kopf von `training/build_reference_set.py`.
-Das Referenzset steht als Ganzes unter CC BY-SA 4.0.
+Reviewed and rejected (own or unclear terms of use): Yelp/IMDb reviews,
+press articles (XSum, CNN/DailyMail), arXiv/PubMed abstracts, WikiHow (CC BY-NC-SA), Reddit outside
+HC3, the "wikipedia" domain of `Jinyan1/COLING_2025_MGT_en` (comes from M4GT-Bench, without a license).
+License weighing per sub-source: header of `training/build_reference_set.py`.
+The reference set as a whole is under CC BY-SA 4.0.
 
-## Zur Laufzeit geladene Modelle (nicht im Paket enthalten)
+## Models loaded at runtime (not included in the package)
 
 - **TMR AI Text Detector** – `Oxidane/tmr-ai-text-detector`, MIT License, © Oxidane.
-  ONNX-Konvertierung: `onnx-community/tmr-ai-text-detector-ONNX` (MIT), Revision
+  ONNX conversion: `onnx-community/tmr-ai-text-detector-ONNX` (MIT), revision
   `b9aa251e5bcda7e429fcc936767d921435945b60`.
-  Basismodell RoBERTa-base (MIT, © Facebook AI), Trainingsdaten RAID (MIT, © Liam Dugan).
+  Base model RoBERTa-base (MIT, © Facebook AI), training data RAID (MIT, © Liam Dugan).
 - **desklib AI Text Detector** – `desklib/ai-text-detector-v1.01`, MIT License, © desklib.
-  Revision `5fdea974cd4287c61674951ec78803aa274e2fb7`. Die Gewichte werden nicht mitgeliefert,
-  sondern zur Laufzeit von Hugging Face geladen und im Browser auf 8 Bit quantisiert.
-  Mitgeliefert wird nur der daraus exportierte Rechengraph ohne Gewichte (`models/desklib/`,
-  erzeugt mit `scripts/build_desklib_skeleton.py`). Basismodell DeBERTa-v3-large (MIT, © Microsoft).
+  Revision `5fdea974cd4287c61674951ec78803aa274e2fb7`. The weights are not shipped,
+  but loaded from Hugging Face at runtime and quantized to 8 bits in the browser.
+  Only the compute graph exported from it, without weights, is shipped (`models/desklib/`,
+  generated with `scripts/build_desklib_skeleton.py`). Base model DeBERTa-v3-large (MIT, © Microsoft).
 - **fakespot AI Text Detector** – `fakespot-ai/roberta-base-ai-text-detection-v1`, Apache License 2.0
-  (https://www.apache.org/licenses/LICENSE-2.0), © Fakespot/Mozilla. ONNX-Konvertierung von einem
-  Dritten (nicht dem Modell-Ersteller): `MedAliFarhat/ai-text-detector-onnx` (ebenfalls Apache-2.0),
-  Revision `0c809a8de6e600ec2fd0fcdeb595a5461d93e8dc` – gegen das PyTorch-Original geprüft
-  (`training/compare_onnx.py`, Ergebnisse in `training/MODEL_SEARCH.md`). Basismodell RoBERTa-base
-  (MIT, © Facebook AI); Trainingsdaten nicht im Detail offengelegt (Verweis auf
+  (https://www.apache.org/licenses/LICENSE-2.0), © Fakespot/Mozilla. ONNX conversion by a
+  third party (not the model's creator): `MedAliFarhat/ai-text-detector-onnx` (also Apache-2.0),
+  revision `0c809a8de6e600ec2fd0fcdeb595a5461d93e8dc` – checked against the PyTorch original
+  (`training/compare_onnx.py`, results in `training/MODEL_SEARCH.md`). Base model RoBERTa-base
+  (MIT, © Facebook AI); training data not disclosed in detail (reference to
   github.com/FakespotAILabs/ApolloDFT).
 
-## MIT License (gilt für die oben als MIT gekennzeichneten Komponenten)
+## MIT License (applies to the components marked as MIT above)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this
 software and associated documentation files (the "Software"), to deal in the Software

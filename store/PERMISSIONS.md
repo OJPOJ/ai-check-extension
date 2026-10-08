@@ -1,80 +1,80 @@
-# Berechtigungen – Begründung fürs Store-Formular
+# Permissions – justification for the store form
 
-Deckt die Felder ab, die Chrome Web Store / Edge Add-ons beim Einreichen verlangen: „Single Purpose“,
-Begründung je Berechtigung, Datennutzung, Remote-Code. Bezug: `extension/manifest.json`.
+Covers the fields that Chrome Web Store / Edge Add-ons require on submission: "Single Purpose",
+justification per permission, data usage, remote code. Reference: `extension/manifest.json`.
 
-## Single Purpose (Chrome verlangt eine einzige, zusammenhängende Beschreibung)
+## Single Purpose (Chrome requires a single, coherent description)
 
-„Scans paragraphs on web pages the user opts in, with a locally-run or user-chosen AI-text
-classifier, and flags them with a green/yellow/red score.“ Alle Berechtigungen dienen genau diesem
-einen Zweck (Text lesen und markieren, Ergebnis merken, Modell laufen lassen, Nutzer entscheiden
-lassen, was/wann gescannt wird).
+"Scans paragraphs on web pages the user opts in, with a locally-run or user-chosen AI-text
+classifier, and flags them with a green/yellow/red score." All permissions serve exactly this
+one purpose (read and mark text, remember the result, run the model, let the user decide
+what/when to scan).
 
-## Berechtigungen (`permissions`)
+## Permissions (`permissions`)
 
-- **`storage`** – speichert Einstellungen (`chrome.storage.sync`), API-Zugangsdaten für optionale
-  Backends (`chrome.storage.local`, nie synchronisiert) sowie die Bewertungs- und Feedback-Sammlung
-  (IndexedDB, ebenfalls lokal). Kein Zugriff auf Daten anderer Erweiterungen oder Websites.
-- **`activeTab`** – liefert dem Popup Host/URL des gerade aktiven Tabs, um dort den Sperrlisten-Status
-  und den Seiten-Schalter („diese Seite automatisch scannen“) anzuzeigen. Kein dauerhafter oder
-  hintergründiger Tab-Zugriff.
-- **`offscreen`** – das im Browser laufende KI-Modell (WebAssembly, transformers.js) braucht einen
-  DOM-Kontext mit Worker-Threads; Service Worker haben das nicht. Das Offscreen-Dokument lädt und
-  betreibt ausschließlich das Modell, zeigt nichts an und hat kein UI.
-- **`contextMenus`** – fügt den Rechtsklick-Eintrag „Auf KI prüfen“ für markierten Text bzw. Absätze
-  hinzu (Einzelprüfung unabhängig vom automatischen Scan-Modus).
-- **`alarms`** – stößt das tägliche Aufräumen des Bewertungs-Speichers an (abgelaufene Einträge nach
-  der eingestellten Aufbewahrungsdauer löschen), unabhängig davon, ob die Erweiterung gerade offen ist.
+- **`storage`** – stores settings (`chrome.storage.sync`), API credentials for optional
+  backends (`chrome.storage.local`, never synced) as well as the score and feedback collection
+  (IndexedDB, also local). No access to data of other extensions or websites.
+- **`activeTab`** – gives the popup the host/URL of the currently active tab, in order to show the blocklist status
+  and the page switch ("scan this page automatically") there. No permanent or
+  background tab access.
+- **`offscreen`** – the AI model running in the browser (WebAssembly, transformers.js) needs a
+  DOM context with worker threads; service workers do not have that. The offscreen document loads and
+  runs only the model, displays nothing and has no UI.
+- **`contextMenus`** – adds the right-click entry "Check for AI" for selected text or paragraphs
+  (single check independent of the automatic scan mode).
+- **`alarms`** – triggers the daily cleanup of the score store (delete expired entries after
+  the configured retention period), regardless of whether the extension is currently open.
 
-## Host-Berechtigungen (`host_permissions`)
+## Host permissions (`host_permissions`)
 
-- **`http://127.0.0.1/*`, `http://localhost/*`** – fest eingetragen für den optionalen lokalen Server
-  (`server/shim_server.py`, Provider „Lokal“), der PyTorch-Backends für dieselben Modelle bereitstellt.
-  Ohne Netzwerkzugriff außerhalb des eigenen Rechners.
+- **`http://127.0.0.1/*`, `http://localhost/*`** – hard-coded for the optional local server
+  (`server/shim_server.py`, provider "Local"), which provides PyTorch backends for the same models.
+  No network access outside the own computer.
 
-## Optionale Host-Berechtigungen (`optional_host_permissions`)
+## Optional host permissions (`optional_host_permissions`)
 
-- **`https://*/*`, `http://*/*`** – nicht beim Installieren gewährt, sondern erst zur Laufzeit gezielt
-  für **eine** konkrete Adresse angefragt (`chrome.permissions.request`), wenn der Nutzer in den
-  Einstellungen einen eigenen Server oder Hugging Face als Backend einträgt und speichert bzw. testet
-  (`extension/options.js`, `requestOrigins`). Ohne diesen bewussten Schritt hat die Erweiterung keinen
-  Zugriff auf zusätzliche Hosts.
+- **`https://*/*`, `http://*/*`** – not granted on install, but only requested at runtime, specifically
+  for **one** concrete address (`chrome.permissions.request`), when the user enters and saves or tests
+  their own server or Hugging Face as a backend in the settings
+  (`extension/options.js`, `requestOrigins`). Without this deliberate step the extension has no
+  access to additional hosts.
 
-## Content-Script (`content_scripts`, `matches: ["<all_urls>"]`)
+## Content script (`content_scripts`, `matches: ["<all_urls>"]`)
 
-Liest sichtbaren Absatztext (`innerText`, kein HTML, keine Formulareingaben, keine Passwörter) auf
-Seiten, die der Nutzer zum Scannen freigegeben hat, und markiert bewertete Absätze farbig direkt im
-Dokument (CSS Custom Highlight API). `<all_urls>` ist nötig, weil vorab nicht feststeht, welche Seiten
-der Nutzer freigibt – ausgeschlossen sind `localhost`/`127.0.0.1` (dort läuft ggf. der lokale Server).
-Ob überhaupt gescannt wird, entscheidet zur Laufzeit `scanPolicy` (`extension/config.js`): Scan-Modus,
-Sperrliste (mitgeliefert + eigene Einträge), Passwort-/Zahlungsfeld-Erkennung.
+Reads visible paragraph text (`innerText`, no HTML, no form input, no passwords) on
+pages the user has approved for scanning, and marks scored paragraphs in color directly in the
+document (CSS Custom Highlight API). `<all_urls>` is necessary because it is not known in advance which pages
+the user will approve – `localhost`/`127.0.0.1` are excluded (the local server may run there).
+Whether anything is scanned at all is decided at runtime by `scanPolicy` (`extension/config.js`): scan mode,
+blocklist (bundled + custom entries), password/payment-field detection.
 
 ## `wasm-unsafe-eval` (Content Security Policy)
 
-Nötig, damit ONNX Runtime Web (Teil von transformers.js) WebAssembly-Module kompilieren und ausführen
-darf – für das im Browser laufende KI-Modell (Provider „Im Browser“). Betrifft nur
-Erweiterungsseiten/Offscreen-Dokument, nicht besuchte Webseiten.
+Required so that ONNX Runtime Web (part of transformers.js) may compile and run WebAssembly modules
+– for the AI model running in the browser (provider "In the browser"). Affects only
+extension pages/offscreen document, not visited websites.
 
-## Datennutzung (Chrome-Formular „Data usage“)
+## Data usage (Chrome form "Data usage")
 
-- **Website-Inhalte:** ja – sichtbare Textabsätze der Seiten, die der Nutzer freigibt, zur Bewertung.
-- **Verarbeitung:** standardmäßig **lokal auf dem Gerät** (Modell im Browser oder lokaler Server).
-  Nur wenn der Nutzer ausdrücklich einen eigenen Server oder die Hugging Face Inference API einträgt,
-  gehen Textausschnitte (bis 2000 Zeichen pro Absatz) an diesen selbst gewählten Dienst – die
-  Einstellungen zeigen dafür einen Hinweis, bevor gespeichert wird.
-- **Nicht erhoben:** keine Nutzungsstatistiken/Analytics, keine Werbung, kein Tracking, kein Verkauf
-  oder Weitergabe von Daten an Dritte außer dem selbst gewählten Backend.
-- **Gespeichert wird lokal:** Einstellungen; ein Hash (kein Text) je bewertetem Absatz mit Score,
-  Modell, Zeitpunkt (einstellbare Aufbewahrung, Default 30 Tage); optional, nur nach Einwilligung,
-  eine Feedback-Sammlung mit Text (für Trainings-/Testzwecke, Export als JSONL, jederzeit löschbar).
+- **Website content:** yes – visible text paragraphs of the pages the user approves, for scoring.
+- **Processing:** by default **locally on the device** (model in the browser or local server).
+  Only if the user explicitly enters their own server or the Hugging Face Inference API
+  are text excerpts (up to 2000 characters per paragraph) sent to that self-chosen service – the
+  settings show a notice for this before saving.
+- **Not collected:** no usage statistics/analytics, no ads, no tracking, no sale
+  or sharing of data with third parties other than the self-chosen backend.
+- **Stored locally:** settings; a hash (no text) per scored paragraph with score,
+  model, timestamp (adjustable retention, default 30 days); optionally, only after consent,
+  a feedback collection with text (for training/testing purposes, export as JSONL, deletable at any time).
   Details: `extension/privacy.html`.
 
-## Remote-Code-Erklärung
+## Remote code explanation
 
-**Nein**, die Erweiterung lädt keinen ausführbaren Code nach. Der komplette JavaScript-/WASM-Code
-(inkl. transformers.js und ONNX Runtime Web) ist im Paket enthalten (`extension/vendor/`, per
-`npm run vendor` gebaut und mitausgeliefert). Zur Laufzeit von Hugging Face nachgeladen werden
-ausschließlich **Modellgewichte** (Daten, keine Programmlogik) – einmalig, nach ausdrücklichem Klick
-auf „Herunterladen“ in den Einstellungen, mit Anzeige der Downloadgröße vorher. Bei Nutzung eines
-eigenen Servers/Hugging-Face-Backends werden Textausschnitte zur Bewertung gesendet; auch das ist
-Datenaustausch, kein Nachladen von Code.
+**No**, the extension does not load any executable code remotely. The complete JavaScript/WASM code
+(incl. transformers.js and ONNX Runtime Web) is contained in the package (`extension/vendor/`, built via
+`npm run vendor` and shipped along). What is loaded from Hugging Face at runtime is
+exclusively **model weights** (data, no program logic) – once, after an explicit click
+on "Download" in the settings, with the download size shown beforehand. When using a
+custom server/Hugging Face backend, text excerpts are sent for scoring; that too is
+data exchange, not loading of code.

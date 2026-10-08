@@ -1,5 +1,5 @@
-// Spracherkennung pro Absatz (extension/lang-detect.js): Absätze in Sprachen, die das Modell nicht kennt,
-// bewertet der Auto-Scan nicht (Fehlalarme, TODO.md Punkt 2).
+// Language detection per paragraph (extension/lang-detect.js): paragraphs in languages the model does not know
+// are not scored by the auto-scan (false alarms, TODO.md item 2).
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
@@ -23,24 +23,24 @@ const TEXTS = {
 
 describe("AIVSAI_LANG.detect", () => {
   for (const [lang, text] of Object.entries(TEXTS)) {
-    it(`erkennt ${lang}`, () => assert.equal(detect(text), lang));
+    it(`detects ${lang}`, () => assert.equal(detect(text), lang));
   }
 
-  it("deutscher Fachtext mit vielen englischen Begriffen bleibt Deutsch", () => {
+  it("German technical text with many English terms stays German", () => {
     const text =
       "Die Konfiguration des Kubernetes-Clusters erfolgt über Helm-Charts, wobei das Deployment der Microservices " +
       "mit einem CI/CD-Pipeline-Setup in GitLab automatisiert wird. Für das Monitoring nutzen wir Prometheus und Grafana.";
     assert.equal(detect(text), "de");
   });
 
-  it("englischer Text mit deutschem Zitat bleibt Englisch", () => {
+  it("English text with a German quote stays English", () => {
     const text =
       "The chancellor said that the government would not change its position, and quoted the old saying " +
       "„Wer rastet, der rostet“ before the press conference ended in the early afternoon.";
     assert.equal(detect(text), "en");
   });
 
-  it("zu kurz, Code oder Platzhaltertext: keine Aussage", () => {
+  it("too short, code or placeholder text: no verdict", () => {
     assert.equal(detect("Hello world this is short"), "");
     assert.equal(detect("npm install --save-dev playwright && npx playwright install chromium --with-deps"), "");
     assert.equal(detect("lorem ipsum dolor sit amet consectetur adipiscing elit sed do ".repeat(4)), "");
@@ -48,8 +48,8 @@ describe("AIVSAI_LANG.detect", () => {
 });
 
 describe("AIVSAI_LANG.name", () => {
-  it("liefert deutsche Sprachnamen", () => {
-    assert.equal(name("de"), "Deutsch");
-    assert.equal(name("en"), "Englisch");
+  it("returns English language names", () => {
+    assert.equal(name("de"), "German");
+    assert.equal(name("en"), "English");
   });
 });

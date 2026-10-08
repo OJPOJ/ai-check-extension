@@ -1,8 +1,8 @@
 """
-Evaluiert ein oder mehrere Backends gegen eval_sample.jsonl (100 balancierte
-Beispiele aus dem HC3-Holdout-Split) und druckt Accuracy@0.5 + AUROC.
+Evaluates one or more backends against eval_sample.jsonl (100 balanced
+examples from the HC3 holdout split) and prints Accuracy@0.5 + AUROC.
 
-Nutzung:
+Usage:
     .venv/Scripts/python.exe evaluate_backends.py --backend laya
     .venv/Scripts/python.exe evaluate_backends.py --backend tmr
 """
@@ -69,8 +69,8 @@ def report(name, labels, scores):
     print(f"\n=== {name} ===")
     print(f"Accuracy@0.5: {acc50:.3f}   AUROC: {a:.3f}")
     print(f"Confusion@0.5: TP={tp} FP={fp} FN={fn} TN={tn}")
-    print(f"Score-Range: min={min(scores):.3f} max={max(scores):.3f} mean={sum(scores)/len(scores):.3f}")
-    print(f"Beste Schwelle auf diesem Sample: {best_t:.2f} -> Accuracy={best_acc:.3f}")
+    print(f"Score range: min={min(scores):.3f} max={max(scores):.3f} mean={sum(scores)/len(scores):.3f}")
+    print(f"Best threshold on this sample: {best_t:.2f} -> Accuracy={best_acc:.3f}")
     print(f"Confusion@best: TP={tp2} FP={fp2} FN={fn2} TN={tn2}")
 
     with open(f"eval_scores_{name}.jsonl", "w", encoding="utf-8") as f:
@@ -123,12 +123,12 @@ def score_desklib(texts):
 
         @property
         def all_tied_weights_keys(self):
-            # Kompatibilitaets-Fix: der Original-Code der Model Card (2024)
-            # crasht beim Laden mit transformers>=5 ("no attribute
-            # 'all_tied_weights_keys'"), weil PreTrainedModel diese Property
-            # inzwischen intern beim Laden erwartet und unsere Subklasse sie
-            # nicht sinnvoll vererbt. Leeres Dict ist korrekt, weil der
-            # Classifier-Kopf nichts mit dem Encoder tiedt.
+            # Compatibility fix: the original model card code (2024)
+            # crashes on loading with transformers>=5 ("no attribute
+            # 'all_tied_weights_keys'"), because PreTrainedModel now
+            # expects this property internally on loading and our subclass does not
+            # inherit it sensibly. An empty dict is correct, because the
+            # classifier head ties nothing to the encoder.
             return {}
 
         def forward(self, input_ids, attention_mask=None):
@@ -149,8 +149,8 @@ def score_desklib(texts):
     with torch.no_grad():
         for i in range(0, len(texts), batch_size):
             batch = texts[i : i + batch_size]
-            # nur auf den längsten Text im Batch auffüllen - feste 768 Tokens ändern die Scores nicht
-            # (Mean-Pooling maskiert), kosten aber ein Vielfaches an Rechenzeit
+            # pad only to the longest text in the batch - a fixed 768 tokens does not change the scores
+            # (mean pooling masks), but costs a multiple of compute time
             enc = tok(batch, padding=True, truncation=True, max_length=768, return_tensors="pt")
             logits = model(input_ids=enc["input_ids"], attention_mask=enc["attention_mask"])
             probs = torch.sigmoid(logits).squeeze(-1)
@@ -175,19 +175,19 @@ def score_tmr(texts):
             enc = tok(batch, return_tensors="pt", truncation=True, padding=True, max_length=512)
             logits = model(**enc).logits
             probs = torch.softmax(logits, dim=-1)
-            # id2label ist modell-spezifisch - beim ersten Lauf ausgeben und pruefen
+            # id2label is model-specific - print and check on the first run
             ai_index = [k for k, v in model.config.id2label.items() if "ai" in v.lower() or "machine" in v.lower() or "generated" in v.lower()]
             idx = ai_index[0] if ai_index else 1
             scores.extend(probs[:, idx].tolist())
-    print(f"(id2label war: {model.config.id2label}, genutzter AI-Index: {idx})")
+    print(f"(id2label was: {model.config.id2label}, AI index used: {idx})")
     return scores
 
 
 def score_hf(texts, model_id, batch_size=8, max_length=512):
-    """Generischer Scorer fuer WP-06-Kandidaten: beliebiges HF-Repo mit
-    AutoModelForSequenceClassification. Erkennt selbst, ob das Modell einen
-    einzelnen Logit (Sigmoid, wie desklib/gradient) oder mehrere Klassen
-    (Softmax + AI-Index aus id2label, wie TMR) ausgibt."""
+    """Generic scorer for WP-06 candidates: any HF repo with
+    AutoModelForSequenceClassification. Detects on its own whether the model outputs a
+    single logit (sigmoid, like desklib/gradient) or several classes
+    (softmax + AI index from id2label, like TMR)."""
     import torch
     from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
@@ -201,9 +201,9 @@ def score_hf(texts, model_id, batch_size=8, max_length=512):
         id2label = model.config.id2label
         ai_index = [k for k, v in id2label.items() if "ai" in str(v).lower() or "machine" in str(v).lower() or "generated" in str(v).lower()]
         idx = ai_index[0] if ai_index else 1
-        print(f"({model_id}: id2label={id2label}, genutzter AI-Index={idx})")
+        print(f"({model_id}: id2label={id2label}, AI index used={idx})")
     else:
-        print(f"({model_id}: num_labels=1, Sigmoid-Ausgabe)")
+        print(f"({model_id}: num_labels=1, sigmoid output)")
 
     scores = []
     with torch.no_grad():

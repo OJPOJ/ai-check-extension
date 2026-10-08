@@ -1,6 +1,6 @@
-// Läuft im Offscreen-Dokument (von background.js erzeugt): lädt die Klassifikationsmodelle als
-// ONNX per transformers.js und bewertet Texte komplett im Browser. Modelldaten kommen einmalig
-// von Hugging Face (öffentlich, kein Token) und liegen danach im Cache-Storage der Extension.
+// Runs in the offscreen document (created by background.js): loads the classification models as
+// ONNX via transformers.js and scores texts entirely in the browser. Model data comes once
+// from Hugging Face (public, no token) and is stored afterwards in the extension's cache storage.
 import {
   AutoTokenizer,
   AutoModelForSequenceClassification,
@@ -15,11 +15,11 @@ import { buildWeights } from "./desklib_build.js";
 import { lengthBuckets } from "./length-buckets.js";
 
 const HF = "https://huggingface.co/";
-const CACHE_NAME = "transformers-cache"; // von transformers.js vorgegeben
-const IDLE_CLOSE_MS = 10 * 60 * 1000; // RAM freigeben, wenn länger nichts zu tun ist
+const CACHE_NAME = "transformers-cache"; // mandated by transformers.js
+const IDLE_CLOSE_MS = 10 * 60 * 1000; // free RAM when there is nothing to do for a longer time
 
-// Alle Modelle mit Abschnitt `browser` aus models.js. Modelle mit `build` gibt es nicht als brauchbares
-// ONNX: Original herunterladen und hier umwandeln (desklib_build.js), Cache-Einträge unter `repo`.
+// All models with a `browser` section from models.js. Models with `build` do not exist as a usable
+// ONNX: download the original and convert it here (desklib_build.js), cache entries under `repo`.
 const MODELS = Object.fromEntries(
   AIVSAI.catalog("browser").map(([key, { browser, maxTokens }]) => [
     key,
@@ -27,19 +27,19 @@ const MODELS = Object.fromEntries(
   ])
 );
 
-// Beides aus heißt für transformers.js "ungültige Konfiguration" - auch wenn alles im Cache liegt.
-// Lokale Modelle zeigen daher auf den Extension-Ordner: der Cache wird zuerst geprüft, ohne
-// Treffer gibt es dort nur ein 404 statt eines Netzwerkzugriffs.
+// Both off means "invalid configuration" to transformers.js - even if everything is in the cache.
+// Local models therefore point to the extension folder: the cache is checked first, without
+// a hit there is only a 404 instead of a network access.
 env.allowLocalModels = true;
 env.localModelPath = chrome.runtime.getURL("models/");
 env.useBrowserCache = true;
 env.backends.onnx.wasm.wasmPaths = chrome.runtime.getURL("vendor/");
-// Mehrere Threads gehen nur mit Cross-Origin-Isolation (COOP/COEP im Manifest). Mehr als 8 bringen
-// bei desklib kaum noch etwas und würden den Rechner beim Mitlaufen spürbar belasten.
+// Multiple threads only work with cross-origin isolation (COOP/COEP in the manifest). More than 8 bring
+// hardly anything for desklib and would noticeably burden the computer while running along.
 env.backends.onnx.wasm.numThreads = self.crossOriginIsolated ? Math.min(8, navigator.hardwareConcurrency || 4) : 1;
 
-let current = null; // { key, promise: Promise<{ tokenizer, model, aiIndex }> } - immer nur ein Modell im RAM
-let queue = Promise.resolve(); // ONNX-Sessions nicht parallel ausführen
+let current = null; // { key, promise: Promise<{ tokenizer, model, aiIndex }> } - only one model in RAM at a time
+let queue = Promise.resolve(); // do not run ONNX sessions in parallel
 let idleTimer = null;
 const downloads = new Map(); // key -> { loaded, total }
 
@@ -66,15 +66,15 @@ async function isDownloaded(m) {
 function reportProgress(key, loaded, total) {
   downloads.set(key, { loaded, total });
   chrome.runtime.sendMessage({ type: "MODEL_PROGRESS", model: key, loaded, total }).catch(() => {
-    // niemand hört zu (Einstellungen geschlossen) - egal
+    // nobody is listening (settings closed) - does not matter
   });
 }
 
 const TOKENIZER_CLASSES = { RobertaTokenizer, DebertaV2Tokenizer };
 
-// AutoTokenizer (transformers.js 4.3.0) sucht tokenizer_config.json immer unter Revision "main",
-// auch wenn eine Revision angegeben ist - offline bzw. ohne Remote-Zugriff findet es die unter der
-// gepinnten Revision gespeicherten Dateien dann nicht. Deshalb selbst aus dem Cache bauen.
+// AutoTokenizer (transformers.js 4.3.0) always looks for tokenizer_config.json under revision "main",
+// even if a revision is given - offline or without remote access it then does not find the files stored under the
+// pinned revision. Hence build it from the cache ourselves.
 async function tokenizerFromCache(m) {
   const cache = await caches.open(CACHE_NAME);
   const [json, config] = await Promise.all(
@@ -93,7 +93,7 @@ async function unload() {
   try {
     await (await promise).model.dispose?.();
   } catch {
-    // Laden war ohnehin fehlgeschlagen
+    // loading had failed anyway
   }
 }
 
@@ -101,7 +101,7 @@ async function load(key, { allowDownload = false, onProgress } = {}) {
   if (current?.key === key) return current.promise;
   await unload();
   const m = MODELS[key];
-  // selbst umgewandelte Modelle stehen nie so auf Hugging Face - nur aus dem Cache laden
+  // self-converted models never exist like that on Hugging Face - load from the cache only
   env.allowRemoteModels = allowDownload && !m.build;
   const files = new Map();
   const options = {
@@ -120,7 +120,7 @@ async function load(key, { allowDownload = false, onProgress } = {}) {
     }
   };
   const promise = (async () => {
-    // beim ersten TMR-Download holt AutoTokenizer die Dateien (online klappt die Suche)
+    // on the first TMR download AutoTokenizer fetches the files (the lookup works online)
     const tokenizer = (await tokenizerFromCache(m)) ?? (await AutoTokenizer.from_pretrained(m.id, options));
     const model = await AutoModelForSequenceClassification.from_pretrained(m.id, options);
     const aiEntry = Object.entries(model.config.id2label).find(([, v]) => /^(ai|machine|generated)$/i.test(v));
@@ -135,11 +135,11 @@ async function load(key, { allowDownload = false, onProgress } = {}) {
 
 async function score(key, texts) {
   const m = MODELS[key];
-  if (!m) throw new Error(`Unbekanntes Modell: ${key}`);
-  if (!(await isDownloaded(m))) throw new Error("Modell noch nicht heruntergeladen – in den Einstellungen herunterladen");
+  if (!m) throw new Error(`Unknown model: ${key}`);
+  if (!(await isDownloaded(m))) throw new Error("Model not downloaded yet – download it in the settings");
   const { tokenizer, model, aiIndex } = await load(key);
   const opts = { truncation: true, max_length: m.maxTokens };
-  // erst nur zählen, dann gruppenweise rechnen - sonst wird jeder Text auf den längsten aufgefüllt
+  // first only count, then compute group by group - otherwise every text is padded to the longest
   const { input_ids } = await tokenizer(texts, { ...opts, return_tensor: false });
   const scores = new Array(texts.length);
   for (const group of lengthBuckets(input_ids.map((ids) => ids.length))) {
@@ -156,7 +156,7 @@ function toScores(logits, aiIndex) {
   for (let r = 0; r < rows; r++) {
     const row = Array.from(logits.data.slice(r * classes, (r + 1) * classes));
     if (classes === 1) {
-      scores.push(1 / (1 + Math.exp(-row[0]))); // desklib: ein Logit, Sigmoid
+      scores.push(1 / (1 + Math.exp(-row[0]))); // desklib: one logit, sigmoid
       continue;
     }
     const max = Math.max(...row);
@@ -168,17 +168,17 @@ function toScores(logits, aiIndex) {
 
 async function fetchOk(url) {
   const resp = await fetch(url);
-  if (!resp.ok) throw new Error(`Download fehlgeschlagen (HTTP ${resp.status}): ${url.replace(HF, "")}`);
+  if (!resp.ok) throw new Error(`Download failed (HTTP ${resp.status}): ${url.replace(HF, "")}`);
   return resp;
 }
 
-// Modelle mit `build` (desklib): Tokenizer + Original-Gewichte von Hugging Face, Graph aus der Extension, Gewichte umwandeln
+// Models with `build` (desklib): tokenizer + original weights from Hugging Face, graph from the extension, convert weights
 async function buildModel(key) {
   const m = MODELS[key];
   const { build } = m;
   const recipe = await (await fetchOk(chrome.runtime.getURL(build.recipe))).json();
   const src = `${HF}${build.source}/resolve/${m.revision}/`;
-  await remove(key); // Reste eines abgebrochenen Versuchs
+  await remove(key); // leftovers of an aborted attempt
   const cache = await caches.open(CACHE_NAME);
   for (const file of build.tokenizerFiles) await cache.put(cacheKey(m, file), await fetchOk(src + file));
   for (const [file, path] of Object.entries(build.shipped)) {
@@ -193,13 +193,13 @@ async function buildModel(key) {
       reportProgress(key, loaded, total);
     }
   });
-  // zuletzt, weil isDownloaded() genau diesen Eintrag prüft
+  // last, because isDownloaded() checks exactly this entry
   await cache.put(cacheKey(m, m.marker), new Response(data, { headers: { "content-length": String(data.byteLength) } }));
 }
 
 async function download(key) {
   const m = MODELS[key];
-  if (!m) throw new Error(`Unbekanntes Modell: ${key}`);
+  if (!m) throw new Error(`Unknown model: ${key}`);
   if (m.build) {
     await buildModel(key);
   } else {
@@ -208,15 +208,15 @@ async function download(key) {
   }
 }
 
-// Download läuft im Hintergrund weiter, auch wenn die Einstellungen geschlossen werden;
-// Fortschritt und Ende kommen als MODEL_PROGRESS / MODEL_DONE.
+// The download continues in the background even if the settings are closed;
+// progress and end arrive as MODEL_PROGRESS / MODEL_DONE.
 function startDownload(key) {
   if (downloads.has(key)) return;
   downloads.set(key, { loaded: 0, total: 0 });
   download(key)
     .then(() => ({ ok: true }))
     .catch(async (err) => {
-      await remove(key).catch(() => {}); // keine halben Modelle im Cache lassen
+      await remove(key).catch(() => {}); // do not leave half models in the cache
       return { ok: false, error: String(err?.message || err) };
     })
     .then((result) => {
@@ -256,11 +256,11 @@ const HANDLERS = {
 };
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  // Content-Script-Nachrichten (SCORE_BATCH, STATS, …) gehen an alle Extension-Seiten -
-  // hier nur die explizit ans Offscreen-Dokument adressierten beantworten.
+  // Content script messages (SCORE_BATCH, STATS, …) go to all extension pages -
+  // only answer the ones explicitly addressed to the offscreen document here.
   if (msg?.target !== "offscreen" || !HANDLERS[msg.type]) return false;
   touch();
-  // Status/Download-Start nicht hinter laufende Bewertungen einreihen
+  // do not queue status/download start behind running scorings
   const run = msg.type === "score" || msg.type === "delete" ? (queue = queue.then(() => HANDLERS[msg.type](msg))) : HANDLERS[msg.type](msg);
   queue = queue.catch(() => {});
   run
