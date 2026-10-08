@@ -4,7 +4,7 @@ dataset Jinyan1/COLING_2025_MGT_en (Hugging Face). This dataset combines three r
 benchmarks for human-vs-AI detection (column "source"): MAGE (Apache-2.0), M4GT-Bench
 (EACL 2024, mbzuai-nlp/M4 - no explicit licence file found in the repo, pure research
 use) and HC3 (**CC BY-SA 4.0**, not Apache-2.0 - verified via the dataset card, see
-orchestration/LOG.md WP-11; already used in this project for prepare_dataset.py).
+git history of orchestration/LOG.md, WP-11; already used in this project for prepare_dataset.py).
 For the compilation itself (Jinyan1/COLING_2025_MGT_en) no licence is entered in the dataset card YAML
 - see DECISION in the log. Used only for local evaluation, raw data
 stays under training/data/ (gitignored), is not redistributed.

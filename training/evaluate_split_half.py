@@ -18,7 +18,7 @@ import re
 
 import evaluate_backends as eb
 
-MIN_SCORE = 0.87  # only what would be yellow/red or "unclear" today
+MIN_SCORE = 0.87  # only what would be yellow/red or "uncertain" today
 SHORT = (40, 119)
 
 

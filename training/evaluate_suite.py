@@ -149,7 +149,7 @@ def report(backend, scored, out_dir: Path):
     )
 
     # Red as in the extension (config.js, levelOf): below reliableWords only from shortRedFrom, without
-    # shortRedFrom never red ("unclear"). This is the false alarm rate that users actually see.
+    # shortRedFrom never red ("uncertain"). This is the false alarm rate that users actually see.
     def shown_red(r):
         if r["words"] >= cur["reliableWords"]:
             return r["score"] >= cur["redFrom"]

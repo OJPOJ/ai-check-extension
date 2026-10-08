@@ -4,7 +4,7 @@ from two redistributable sources, short (40..119 words) and long (from 120 words
 bucketed separately - so that "Check model" can, if needed, propose its own short-text threshold
 (reliableWords/shortRedFrom, like config.js RELIABLE_WORDS/models.js) from it.
 
-Licence check (details: orchestration/LOG.md WP-11, DECISION entries; left out when in doubt):
+Licence check (details: git history of orchestration/LOG.md, WP-11, DECISION entries; left out when in doubt):
   - HC3 (Hello-SimpleAI/HC3), CC BY-SA 4.0 - as before, five domains, generator ChatGPT (2023).
   - RAID (liamdugan/raid), MIT licence - domain "wiki" (human texts from Wikipedia, CC BY-SA-
     compatible), generators llama-chat/mistral/mistral-chat/mpt/mpt-chat/gpt2 (open models,

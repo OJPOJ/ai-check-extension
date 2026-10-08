@@ -135,7 +135,7 @@ Share with score ≥ threshold – for human = false alarm, for AI = detected.
 - **Length decides:** even at 0.98, 20% and 15.5% respectively of the Wikipedia paragraphs under 120 words are
   red, above that 1.5% and 0.5%.
 - **Consequence (`extension/models.js`):** TMR yellow from 0.95, red from 0.98; under 120 words a
-  high score becomes "unclear" instead of yellow/red (`reliableWords`). Cost: ~87–92% of the
+  high score becomes "uncertain" instead of yellow/red (`reliableWords`). Cost: ~87–92% of the
   ChatGPT texts still turn red instead of ~100%.
 
 **desklib** (n = 60 per row, correspondingly rough):
@@ -159,14 +159,14 @@ Share with score ≥ threshold – for human = false alarm, for AI = detected.
   not clean on Wikipedia under 120 words either: 80–119 words ~15% above the red threshold.
   (Re-measured with n = 150: ~6% above 0.87, evenly for 40–119 words – see "Confidence for
   short paragraphs".)
-- **Consequence:** "unclear" under 120 words for both models and as the default for unknown ones;
+- **Consequence:** "uncertain" under 120 words for both models and as the default for unknown ones;
   desklib thresholds stay 0.5 / 0.87.
 - Limitations: English only, AI only ChatGPT 2023 (HC3, possibly in the models' training – the
   detection rates are rather too optimistic; this does not affect the false alarm rates on Wikipedia).
 
 ## Confidence for short paragraphs – desklib (2026-09-26)
 
-Question: Does desklib always have to say "unclear" under 120 words, or can a short paragraph with
+Question: Does desklib always have to say "uncertain" under 120 words, or can a short paragraph with
 enough confidence still be marked red? The measurement above (n = 60) was too thin and contradictory for this
 (40–79 words cleaner than 80–119). New: n = 150 per 20-word step, same sources, reproducible with
 `evaluate_false_alarms.py desklib 150 --fine --dump fa_desklib.jsonl`.
@@ -222,10 +222,10 @@ The halves are only 20–60 words long and thus unreliable themselves; in additi
 model calls per paragraph. Path 2 is not worth it.
 
 - **Proposal (not yet implemented):** desklib under 120 words red from 0.98 instead of never; 0.87–0.98
-  stays "unclear". A short paragraph then turns falsely red only as often as a long one (~1%), and
+  stays "uncertain". A short paragraph then turns falsely red only as often as a long one (~1%), and
   almost three quarters of the short AI paragraphs are marked as AI again instead of grey.
 - **Not for TMR:** TMR is almost never above 0.99, at 0.98 under 120 words 15–20% of the
-  Wikipedia paragraphs are still red (table above). There "unclear" remains the right answer.
+  Wikipedia paragraphs are still red (table above). There "uncertain" remains the right answer.
 - Limitations as above: English only, AI only ChatGPT 2023 from HC3 (detection rates rather too
   optimistic); 600 short Wikipedia paragraphs, 1% = 6 texts.
 
@@ -279,7 +279,7 @@ the sample ~18.5 minutes. Raw scores: `data/eval_scores_tmr_suite.jsonl` /
 
 Current thresholds from `extension/models.js` (only read, not changed): TMR yellowFrom 0.95 /
 redFrom 0.98; desklib yellowFrom 0.5 / redFrom 0.87 (short paragraphs < 120 words: `shortRedFrom` 0.98
-and none at all for TMR → there always "unclear" instead of red).
+and none at all for TMR → there always "uncertain" instead of red).
 
 | Backend | n | Overall AUROC | False alarms (human) ≥ redFrom | AI detected ≥ redFrom |
 |---|---|---|---|---|
@@ -329,7 +329,7 @@ no generator on which it noticeably falters.
 | 150+ | 19.1% | 6.4% | 84.7% | 7.6% | 1.2% | 97.8% |
 
 Confirms the existing `reliableWords=120` boundary: under 120 words both models are unreliable
-for "red" (TMR 31–33% FA, desklib 4–6% FA) - which is exactly why the extension shows "unclear" there
+for "red" (TMR 31–33% FA, desklib 4–6% FA) - which is exactly why the extension shows "uncertain" there
 instead of yellow/red (except desklib with `shortRedFrom`). The 150+ numbers are somewhat higher than the earlier
 Wikipedia-only measurement (TMR 1.3% → 6.4%, desklib ~1.3% → 1.2%, rather the same here), because now
 `news`/`howto`/`forum` are included too, not just Wikipedia/HC3.
@@ -354,7 +354,7 @@ paragraphs without grouping from WP-02):
 This shifts the picture:
 
 - **The high news false alarms (TMR 34%, desklib 10%) affect almost only short texts**, which stay
-  "unclear" anyway (48 of 100 human news texts have under 120 words). As displayed: 3% and 2.5% respectively.
+  "uncertain" anyway (48 of 100 human news texts have under 120 words). As displayed: 3% and 2.5% respectively.
 - **The real problem is TMR on `howto` (WikiHow):** all texts ≥ 120 words, 20% of the
   human ones turn red. Without `howto` TMR would be at ~1.6%.
 - **desklib is already at ~1% with the current thresholds** (3 of 240). Raising `redFrom`
@@ -370,7 +370,7 @@ Percentile method (99th percentile of this suite's human scores), separated by `
 | Backend | Bucket | Threshold for ~1% FA | actual FA | AI detected at that | current threshold |
 |---|---|---|---|---|---|
 | TMR | all | 0.9865 | 1.0% | 36.3% | redFrom 0.98 |
-| TMR | < 120 words | 0.9868 | 1.5% | 9.6% | (always "unclear") |
+| TMR | < 120 words | 0.9868 | 1.5% | 9.6% | (always "uncertain") |
 | TMR | ≥ 120 words | 0.9853 | 1.1% | 61.9% | redFrom 0.98 |
 | desklib | all | 0.9463 | 1.3% | 93.8% | redFrom 0.87 |
 | desklib | < 120 words | 0.9566 | 1.8% | 79.6% | shortRedFrom 0.98 (73% detected, see above) |
@@ -381,7 +381,7 @@ Percentile method (99th percentile of this suite's human scores), separated by `
 - **TMR:** The current value (redFrom 0.98) is at ~12% false alarms on this broader suite,
   not ~1% - the earlier calibration was tailored to Wikipedia/HC3, but does not hold on `news`/
   `howto`. For a real ~1% target across all domains it would need **redFrom ≈ 0.985–0.987**,
-  which pushes detection on long texts from ~85% down to ~62% and on short texts (unclear
+  which pushes detection on long texts from ~85% down to ~62% and on short texts ("uncertain"
   anyway) detects almost nothing any more (9.6%). TMR thus remains a model with a narrow usable
   band between false alarms and detection - the existing recommendation "TMR for background scanning,
   but with caution on news/how-tos" is confirmed by this rather than refuted.
@@ -489,7 +489,7 @@ Per length bucket (raw FA@red at 0.87, **without** the `shortRedFrom` logic - sh
 
 ### Cross-validated thresholds
 
-Method (orchestration/LOG.md, DECISION): 200 repetitions, per repetition a random
+Method: 200 repetitions, per repetition a random
 half/half split (stratified by domain × label). On half A: threshold as the 99th percentile of the
 human scores (target ~1% false alarms). On half B (unseen): actual false alarm/detection rate.
 Separately for the group ≥120 words (governs `redFrom`) and <120 words (governs `shortRedFrom`, where
@@ -509,7 +509,7 @@ today's numbers on this suite):
 | Backend | Bucket | Current value | FA on test halves (median, 5th–95th perc.) | AI detected (median, 5th–95th perc.) |
 |---|---|---|---|---|
 | TMR | ≥120 w. (redFrom) | 0.98 | 6.03% (4.72–7.76%) | 84.5% (81.6–87.0%) |
-| TMR | <120 w. | (always "unclear") | – | – |
+| TMR | <120 w. | (always "uncertain") | – | – |
 | desklib | ≥120 w. (redFrom) | 0.87 | 2.16% (0.86–3.02%) | 98.3% (97.5–99.6%) |
 | desklib | <120 w. (shortRedFrom) | 0.98 | 1.45% (0–1.45%) | 70.3% (65.6–76.6%) |
 
@@ -527,7 +527,7 @@ today's numbers on this suite):
   more short AI texts detected (78% instead of 70%).
 - **For TMR under 120 words it is confirmed: do not introduce a `shortRedFrom`.** Even at the threshold optimised for 1%
   false alarms (0.9867) only 13% of the short AI texts are detected (range 5–23%) -
-  not useful enough to replace "unclear".
+  not useful enough to replace "uncertain".
 
 ### TMR on how-tos: what the eval excerpt shows - and whether the extension would see the same on real pages
 
@@ -563,7 +563,7 @@ From this, two opposing effects that the pure raw-text eval does not capture:
    TMR) - structurally close to what the eval excerpt measures. If WikiHow guides instead separate their steps
    with "Method"/"Part" intermediate headings (common for how-tos with several
    approaches), the grouping breaks at every heading - the step groups stay smaller,
-   rather under 120 words and thus "unclear" instead of red.
+   rather under 120 words and thus "uncertain" instead of red.
 
 Fetching a real WikiHow page as a cross-check was not possible in this environment (wikihow.com
 is blocked by the available fetch tool); the assessment rests on the traced

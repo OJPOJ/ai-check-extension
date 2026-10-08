@@ -45,7 +45,7 @@ threshold recommendation at the end of the script, just moved up front. Raw scor
 `benchmark_latency.py` extended with a generic `bench_hf(model_id)` (`--backend hf:<repo>`),
 identical method to the existing TMR/desklib measurements (batch 1/8/25, 500-character text).
 Latency was only measured when, according to `tasklist`, no other Python process was running (WP-07 was already
-finished at that point, `orchestration/LOG.md` 19:08) - additionally checked before and after each measurement
+finished at that point, git history of `orchestration/LOG.md`, 19:08) - additionally checked before and after each measurement
 via `tasklist`.
 
 No new Python packages needed: RoBERTa, BERT and ModernBERT are covered by the already installed
@@ -80,7 +80,7 @@ production thresholds):
 
 At the same false alarm rate, fakespot is clearly between TMR and desklib - for long paragraphs with
 90% detection much closer to desklib (97%) than to TMR (62%), for short paragraphs (< 120 words,
-"unclear" instead of red in the extension anyway, except with shortRedFrom) roughly in the middle.
+"uncertain" instead of red in the extension anyway, except with shortRedFrom) roughly in the middle.
 
 ### As displayed per domain (fakespot, own 99% threshold 0.9988; TMR/desklib for comparison at their
 production threshold, from the "Correction" table in EVAL_RESULTS.md - not exactly the same
@@ -317,7 +317,7 @@ original and third-party ONNX, base model RoBERTa-base MIT).
 
 - The deviation between ONNX and PyTorch is partly considerable for mid-range scores (neither clearly human nor clearly AI)
   (median 0.002, but individual texts up to 0.52) - irrelevant for the traffic light, because there
-  "unclear"/"yellow" applies anyway instead of a hard decision, but relevant for anyone who compares the
+  "uncertain"/"yellow" applies anyway instead of a hard decision, but relevant for anyone who compares the
   raw percentages in the popover uncritically.
 - Cross-validated thresholds for the "short" bucket rely on only ~130 human scores per
   train half (as with TMR/desklib in WP-07) - the range (0–7.25% FA) is correspondingly wide, to be taken

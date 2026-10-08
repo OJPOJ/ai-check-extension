@@ -2,13 +2,13 @@
 WP-07: Cross-validation of the traffic light thresholds (redFrom, shortRedFrom) on the broad eval suite
 (data/eval_suite.jsonl + the raw scores from evaluate_suite.py/desklib_fill_suite.py).
 
-Method (DECISION, see orchestration/LOG.md): repeated random half/half splits,
+Method: repeated random half/half splits,
 stratified by (domain, label), so that each half has the same domain/class mix as the
 whole suite - the same method as already in EVAL_RESULTS.md "Confidence for short paragraphs" (200x
 Wikipedia halves). Per repetition:
   1. Half A: choose the threshold such that ~1% of the HUMAN scores "as displayed" (rule 9 in
      orchestration/README.md - config.js level(): below reliableWords shortRedFrom applies instead of
-     redFrom, without shortRedFrom it stays "unclear") lie above it (99th percentile).
+     redFrom, without shortRedFrom it stays "uncertain") lie above it (99th percentile).
   2. Half B (unseen): measure the actual false alarm/detection rate with this threshold.
 Separately for the "long" group (>= reliableWords, governs redFrom) and the "short" group
 (< reliableWords, governs shortRedFrom, only if the model has one).

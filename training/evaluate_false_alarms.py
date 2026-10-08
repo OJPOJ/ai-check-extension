@@ -1,6 +1,6 @@
 """
 How often is human factual text marked red or yellow - and how much AI text does the traffic light still
-detect then? Basis for the default thresholds and the "too short / unclear" level (TODO.md, item 2).
+detect then? Basis for the default thresholds and the "too short / uncertain" level (TODO.md, item 2).
 
 Human: paragraphs from WikiText-2 (Wikipedia "Good"/"Featured" Articles, published before 2016, hence certainly
 without LLMs). For comparison human HC3 answers (mostly Reddit ELI5). AI: ChatGPT answers from
@@ -13,7 +13,7 @@ Results: EVAL_RESULTS.md, "False alarms on Wikipedia".
 Usage (from this folder):
     python evaluate_false_alarms.py tmr 300
     python evaluate_false_alarms.py desklib 60
-    python evaluate_false_alarms.py desklib 150 --fine   # 20-word steps below 120 (boundary "unclear")
+    python evaluate_false_alarms.py desklib 150 --fine   # 20-word steps below 120 (boundary "uncertain")
 """
 import argparse
 import json
