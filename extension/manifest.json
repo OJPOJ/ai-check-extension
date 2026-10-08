@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "AI Content Flag",
-  "version": "0.5.0",
-  "description": "Scores paragraphs of text with an AI-text classifier – directly in the browser, locally or via cloud – and marks them green/yellow/red with a score.",
+  "version": "0.5.1",
+  "description": "Flags AI-suspicious paragraphs green/yellow/red with a score – runs locally in your browser or via a cloud backend you pick.",
   "permissions": [
     "storage",
     "activeTab",

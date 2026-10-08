@@ -1,0 +1,72 @@
+# Tests and packages the extension on every push to main and every pull request.
+# On main, a version in extension/manifest.json that has no tag yet is released automatically:
+# tag <version> on that commit plus a GitHub release with dist/ai-content-flag-<version>.zip.
+# Releasing = raising "version" in the manifest and merging to main; nothing is uploaded by hand.
+name: Build and release
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm test
+      - run: npm run package
+      - id: version
+        run: echo "version=$(node -p "require('./extension/manifest.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ai-content-flag-${{ steps.version.outputs.version }}
+          path: dist/ai-content-flag-${{ steps.version.outputs.version }}.zip
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: tag
+        run: |
+          if git fetch --depth=1 origin "refs/tags/$VERSION:refs/tags/$VERSION" 2>/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            # same version, different content: the released zip no longer matches main
+            if ! git diff --quiet "$VERSION" HEAD -- extension; then
+              echo "::warning::extension/ changed since release $VERSION, but the manifest version was not raised - no new release."
+            fi
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.tag.outputs.exists == 'false'
+        uses: actions/download-artifact@v4
+        with:
+          name: ai-content-flag-${{ env.VERSION }}
+          path: dist
+      - if: steps.tag.outputs.exists == 'false'
+        run: >
+          gh release create "$VERSION" "dist/ai-content-flag-$VERSION.zip"
+          --target "$GITHUB_SHA" --title "$VERSION" --generate-notes
