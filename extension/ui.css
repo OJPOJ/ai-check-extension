@@ -68,6 +68,8 @@ input[type="text"], input[type="password"], input[type="url"], select, textarea 
   background: var(--bg);
   color: var(--text);
 }
+/* Nur in der Höhe ziehbar: in der Breite würde das Feld aus seiner Spalte ragen. */
+textarea { display: block; resize: vertical; min-height: 4.5em; }
 
 /* Schalter */
 .switch { position: relative; display: inline-block; width: 36px; height: 20px; flex: none; }
