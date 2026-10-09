@@ -80,12 +80,12 @@ chrome.runtime.onInstalled.addListener(({ reason }) => {
   updateBadge();
   createMenus();
   schedulePrune();
-  // First install: welcome page (what the colors mean and what they do not, download size), from there on
-  // to the settings, where the model is downloaded
+  // First install: guided setup page (model choice, scan mode, try-out). Nothing is downloaded or scanned until
+  // the user clicks there. Updates never open it again.
   if (reason === "install") {
     // Record the model right away: pinLegacyModel recognizes installations from before v0.6 by it missing
     chrome.storage.sync.set({ browserModel: AIVSAI.DEFAULTS.browserModel });
-    chrome.tabs.create({ url: chrome.runtime.getURL("welcome.html") });
+    chrome.tabs.create({ url: chrome.runtime.getURL("setup.html") });
   }
   if (reason === "update") {
     pinLegacyModel()
@@ -178,6 +178,7 @@ const HANDLERS = {
   MODEL_STATUS: (msg) => modelCommand(msg),
   MODEL_DOWNLOAD: (msg) => modelCommand(msg),
   MODEL_DELETE: (msg) => modelCommand(msg),
+  MODEL_CANCEL: (msg, sender) => fromExtensionPage(sender) && cancelDownload(msg.model),
   MODEL_DONE: (msg) => {
     if (msg.ok) notifyTabs({ type: "MODEL_READY" });
   },
@@ -231,6 +232,15 @@ function modelCommand(msg) {
     ok: false,
     error: String(err?.message || err)
   }));
+}
+
+// transformers.js cannot abort a running download, so close the offscreen document (ends all requests and the
+// conversion), clear the leftovers in a fresh one and report the end like any other
+async function cancelDownload(model) {
+  if (await chrome.offscreen.hasDocument()) await chrome.offscreen.closeDocument();
+  const resp = await modelCommand({ type: "MODEL_DELETE", model });
+  chrome.runtime.sendMessage({ type: "MODEL_DONE", model, ok: false, cancelled: true, error: "Cancelled" }).catch(() => {});
+  return resp;
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {

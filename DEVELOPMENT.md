@@ -163,8 +163,12 @@ Hugging Face provider with a real token (mocked only, see `providers.test.mjs`).
   - *Wording:* "Flagged – resembles AI text" / "Unclear" / "Not flagged" instead of "probably AI",
     score 0–100 instead of percent, in the popover "A hint, not proof … not a probability" – the
     scores are not calibrated.
-  - *Welcome after installation* (`welcome.html`): what the colors mean and what not, limits,
-    download sizes; before the 1.7 GB download of desklib the settings ask for confirmation.
+  - *Guided setup after installation* (`setup.html`, issue #8): 1. model cards (no preselection, one
+    Hugging Face request only after the download click, progress + cancel, "Decide later" /
+    "Use my own server"), 2. scan mode, 3. two bundled sample texts scored locally with the color legend and
+    the "hint, not proof" note. Cancel closes the offscreen document (transformers.js cannot abort) and clears
+    the leftovers; a failed download is restarted with the same button. Reachable from the settings and, as long
+    as no model is downloaded, from the popup; updates never open it.
 - **Visible area first:** batches of up to 5 paragraphs or 2500 characters, one after another (browser/local 1, remote 2 in parallel).
   The order is only determined when sending – after a scroll the priority jumps along.
 - **Lazy scan (default on):** only paragraphs within 1.5 screen heights around the visible area, the
@@ -320,7 +324,7 @@ extension/
                         (`results`: element → score, text, model, source – basis for feedback/reports)
   content-popover.js    Result popover of the manual check (Shadow DOM)
   popup.*, options.*    UI; the popup gets STATS pushed instead of polling
-  welcome.*             Welcome after installation (meaning of the colors, limits, download)
+  setup.*               Guided setup after installation (model choice, scan mode, try-out)
   privacy.html          Privacy policy
   models/desklib/       Graph without weights + build recipe
   vendor/               via `npm run vendor` (not in Git)

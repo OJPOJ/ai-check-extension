@@ -390,6 +390,7 @@ chrome.runtime.onMessage.addListener((msg) => {
     refreshModel();
     if (msg.model !== selectedModel()) return;
     if (msg.ok) showStatus(dirty ? "Model downloaded – save now to use it." : "Model downloaded.", "ok");
+    else if (msg.cancelled) showStatus("Download cancelled.");
     else showStatus(`Download failed: ${msg.error}`, "err");
   }
 });

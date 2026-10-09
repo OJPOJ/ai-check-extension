@@ -33,6 +33,7 @@
   .backend-text { flex: 1; min-width: 0; }
   .backend-text div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   footer { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px 14px; border-top: 1px solid var(--border); }
+  [hidden] { display: none !important; }
   .off section:not(.always), .off footer .hide-off { opacity: 0.45; pointer-events: none; }
 </style>
 </head>
@@ -75,6 +76,12 @@
 
     <div class="scale" id="scale" aria-hidden="true"></div>
     <div class="scale-labels" id="scaleLabels"></div>
+  </section>
+
+  <section class="always" id="noModel" hidden>
+    <b>No model yet</b>
+    <div class="small muted">Nothing can be scored until you choose and download one.</div>
+    <div class="small" style="margin-top:6px"><button id="openSetup" class="link">Open setup</button></div>
   </section>
 
   <section class="always">
