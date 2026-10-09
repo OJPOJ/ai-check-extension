@@ -162,6 +162,28 @@ describe("modelKey", () => {
   });
 });
 
+describe("reportUrl", () => {
+  const info = { version: "0.5.1", browser: "TestBrowser/1.0" };
+  const url = new URL(A.reportUrl(cfg(), info));
+  const body = url.searchParams.get("body");
+
+  it("points to the new-issue form of the repository with a prefilled title", () => {
+    assert.equal(url.origin + url.pathname, "https://github.com/OJPOJ/ai-check-extension/issues/new");
+    assert.ok(url.searchParams.get("title"));
+  });
+
+  it("contains version, browser and model key, and survives URL encoding", () => {
+    assert.ok(body.includes("Version: 0.5.1"));
+    assert.ok(body.includes("Browser: TestBrowser/1.0"));
+    assert.ok(body.includes(`Model: ${A.modelKey(cfg())}`));
+    assert.ok(body.includes("\n"));
+  });
+
+  it("contains nothing but those details (no page address, no text)", () => {
+    assert.ok(!/https?:\/\//.test(body));
+  });
+});
+
 describe("modelCheck (\"Check model\")", () => {
   const custom = cfg({ provider: "custom", customUrl: "https://s.example/v1/score", customModel: "m1" });
   const passed = (c, over = {}) => ({

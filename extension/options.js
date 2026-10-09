@@ -485,6 +485,10 @@ async function init() {
     chrome.storage.local.get(AIVSAI.SECRET_DEFAULTS)
   ]);
   $("enabled").checked = cfg.enabled;
+  $("reportProblem").href = AIVSAI.reportUrl(cfg, {
+    version: chrome.runtime.getManifest().version,
+    browser: navigator.userAgent
+  });
   modelChecks = cfg.modelChecks;
   setRadio("scanMode", cfg.scanMode);
   for (const f of SITE_FIELDS) $(f).value = cfg[f].join("\n");

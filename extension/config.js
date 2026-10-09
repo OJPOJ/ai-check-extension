@@ -262,6 +262,19 @@ globalThis.AIVSAI = (() => {
     return `${cfg.provider}:${providerDef(cfg)?.model(cfg) ?? ""}${version ? `@${version}` : ""}`;
   }
 
+  function reportUrl(cfg, { version, browser }) {
+    const body = [
+      "**What happened?**",
+      "",
+      "",
+      "**Details**",
+      `- Version: ${version}`,
+      `- Browser: ${browser}`,
+      `- Model: ${modelKey(cfg)}`
+    ].join("\n");
+    return `https://github.com/OJPOJ/ai-check-extension/issues/new?${new URLSearchParams({ title: "", body })}`;
+  }
+
   // Languages the model knows (ISO-639-1), or null = unknown, then everything is scored.
   // Custom models: value from "Check model" (GET /v1/info).
   function languages(cfg) {
@@ -328,6 +341,7 @@ globalThis.AIVSAI = (() => {
     checkSignature,
     modelCheck,
     modelKey,
+    reportUrl,
     presetFor,
     maxChars,
     maxInFlight,
