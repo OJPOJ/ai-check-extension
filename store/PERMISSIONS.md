@@ -49,10 +49,20 @@ the user will approve – `localhost`/`127.0.0.1` are excluded (the local server
 Whether anything is scanned at all is decided at runtime by `scanPolicy` (`extension/config.js`): scan mode,
 blocklist (bundled + custom entries), password/payment-field detection.
 
+## PDF viewer (`viewer.html`)
+
+Opens PDFs in an own page built from the bundled pdf.js components, only on explicit user action (popup
+button, file picker, drag and drop). For a PDF behind a web address the page asks for host access to
+exactly that origin via the existing `optional_host_permissions` (`chrome.permissions.request`, on a
+click); `file://` needs the browser's "Allow access to file URLs" switch. No new permission, no
+`webRequest`/`declarativeNetRequest`, no automatic redirect of PDFs. pdf.js and its data (character maps,
+fonts, decoders) are part of the package; no remote code.
+
 ## `wasm-unsafe-eval` (Content Security Policy)
 
 Required so that ONNX Runtime Web (part of transformers.js) may compile and run WebAssembly modules
-– for the AI model running in the browser (provider "In the browser"). Affects only
+– for the AI model running in the browser (provider "In the browser") – and for pdf.js' image decoders in the
+PDF viewer. Affects only
 extension pages/offscreen document, not visited websites.
 
 ## Data usage (Chrome form "Data usage")

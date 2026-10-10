@@ -5,6 +5,10 @@
 - **transformers.js** (`@huggingface/transformers` 4.3.0) – Apache License 2.0,
   © Hugging Face. License text: `vendor/LICENSE.transformers.js.txt`.
 - **ONNX Runtime Web** (`onnxruntime-web`) – MIT License, © Microsoft Corporation.
+- **pdf.js** (`pdfjs-dist` 6.4.299) – Apache License 2.0, © Mozilla and individual contributors. Used by the PDF
+  viewer (`viewer.html`): rendering, text layer, character maps, standard fonts and the JBIG2/JPEG 2000/ICC
+  decoders in `vendor/pdfjs/`. License texts: `vendor/pdfjs/LICENSE.pdfjs.txt` and `vendor/pdfjs/wasm/LICENSE_*`.
+  The PDF scripting sandbox is not shipped.
 
 ## Shipped data (`generated/blocklist.js`, via `npm run build:blocklist`)
 

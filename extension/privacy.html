@@ -67,6 +67,9 @@
       – the extension then points this out and, for external backends, names the destination.</li>
     <li>In the browser's PDF viewer nothing is scanned automatically. Only text you select there and check via
       right-click is scored; the result appears in the usual popover (or, if the page cannot show one, in a small window of the extension).</li>
+    <li>PDF viewer: PDFs are only opened in the extension's own viewer when you ask for it (popup, file
+      picker, drag and drop). A PDF behind a web address is loaded a second time by the extension – only after
+      you allowed access to that site. PDF scripts are never executed. The viewer itself sends nothing anywhere.</li>
     <li>The main switch (<kbd>Alt+Shift+A</kbd>) stops all processing.</li>
   </ul>
 

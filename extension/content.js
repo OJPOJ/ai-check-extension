@@ -711,6 +711,7 @@
       blocked: policy() === "blocked",
       blockReason: blockReason(),
       manualScan,
+      pdf: document.contentType === "application/pdf", // top frame of the browser's PDF viewer
       error: lastError,
       host
     };

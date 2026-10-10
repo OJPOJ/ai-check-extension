@@ -35,8 +35,13 @@ if (modified.length) {
 if (untracked.length) warnings.push(`not in Git, will NOT go into the package:\n    ${untracked.join("\n    ")}`);
 
 const vendorDir = path.join(extDir, "vendor");
+// vendor/ has subfolders (pdfjs/): list recursively, always with "/" as separator
+const listFiles = (dir) =>
+  fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory() ? listFiles(path.join(dir, e.name)) : [path.join(dir, e.name)]
+  );
 const vendor = fs.existsSync(vendorDir)
-  ? fs.readdirSync(vendorDir).map((f) => `extension/vendor/${f}`)
+  ? listFiles(vendorDir).map((f) => path.relative(root, f).split(path.sep).join("/"))
   : [];
 if (!vendor.length) errors.push("extension/vendor/ is missing or empty – npm run vendor");
 

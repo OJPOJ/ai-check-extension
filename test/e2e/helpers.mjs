@@ -148,3 +148,30 @@ export const storedScores = (page) =>
  * (~165 words, AIVSAI.reliableWords).
  */
 export const longText = (tag) => `${tag} ` + "words about gardening soil water light and patience in the spring ".repeat(15);
+
+/**
+ * Minimal one-page PDF with one line of text per entry of `lines` (Helvetica, no compression) - enough for
+ * pdf.js to render a text layer. Returns a Buffer.
+ */
+export function makePdf(lines = ["Hello PDF viewer"]) {
+  const esc = (s) => s.replace(/[\()]/g, "\$&");
+  const stream = `BT /F1 14 Tf 20 ${40 + lines.length * 20} Td 18 TL ${lines.map((l) => `(${esc(l)}) Tj T*`).join(" ")} ET`;
+  const objs = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 ${60 + lines.length * 20}] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>`,
+    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"
+  ];
+  let pdf = "%PDF-1.4\n";
+  const offsets = objs.map((o, i) => {
+    const at = pdf.length;
+    pdf += `${i + 1} 0 obj\n${o}\nendobj\n`;
+    return at;
+  });
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n`;
+  pdf += offsets.map((o) => `${String(o).padStart(10, "0")} 00000 n \n`).join("");
+  pdf += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  return Buffer.from(pdf, "latin1");
+}

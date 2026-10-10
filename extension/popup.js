@@ -25,6 +25,13 @@ function renderScale() {
     `<span style="left:${y}%">${Math.round(y)}</span><span style="left:${r}%">${Math.round(r)}</span>`;
 }
 
+// PDF tab: the button opens the extension's viewer for this address (nothing happens automatically)
+let pdfByContentType = false; // reported by the content script, for PDFs without ".pdf" in the address
+function setPdfTab(isPdf) {
+  $("openPdfTab").hidden = !(isPdf || pdfByContentType);
+  $("pdfHint").hidden = !(isPdf || pdfByContentType);
+}
+
 function renderSite() {
   const supported = /^https?:$/.test(tab?.url ? new URL(tab.url).protocol : "");
   $("host").textContent = supported ? host : "This page";
@@ -37,6 +44,7 @@ function renderSite() {
 
   // The browser's PDF viewer has no content script: only selected text can be checked (context menu)
   const isPdf = /^(https?|file):$/.test(tab?.url ? new URL(tab.url).protocol : "") && /\.pdf$/i.test(new URL(tab.url).pathname);
+  setPdfTab(isPdf);
   if (isPdf) {
     $("scanNow").disabled = true;
     $("siteSwitch").hidden = true;
@@ -60,6 +68,11 @@ function renderSite() {
 }
 
 function renderStats(stats) {
+  // PDF without ".pdf" in the address: the content script knows the content type
+  if (stats?.pdf) {
+    pdfByContentType = true;
+    setPdfTab(true);
+  }
   const set = (id, v) => ($(id).textContent = v ?? "–");
   if (!stats) {
     ["cRed", "cYellow", "cGreen", "cUncertain"].forEach((id) => set(id));
@@ -172,6 +185,17 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
     renderStats(msg.stats);
     refreshFlagged();
   }
+});
+
+$("openPdfTab").addEventListener("click", async () => {
+  const viewer = chrome.runtime.getURL(`viewer.html?file=${encodeURIComponent(tab.url)}`);
+  await chrome.tabs.update(tab.id, { url: viewer });
+  window.close();
+});
+
+$("openPdfFile").addEventListener("click", async () => {
+  await chrome.tabs.create({ url: chrome.runtime.getURL("viewer.html") });
+  window.close();
 });
 
 $("enabled").addEventListener("change", async (e) => {

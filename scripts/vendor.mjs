@@ -25,3 +25,39 @@ for (const [src, name] of files) {
   fs.copyFileSync(src, path.join(out, name));
   console.log(`${name.padEnd(36)} ${(fs.statSync(src).size / 1e6).toFixed(1)} MB`);
 }
+
+// pdf.js for the PDF viewer (viewer.html): rendering + text layer. Only the pieces the viewer needs - not the
+// sandbox for PDF scripts (JavaScript inside PDFs is never executed), not the source maps.
+const pdfDir = path.join(nm, "pdfjs-dist");
+const pdfOut = path.join(out, "pdfjs");
+const pdfFiles = [
+  ["build/pdf.min.mjs", "pdf.min.mjs"],
+  ["build/pdf.worker.min.mjs", "pdf.worker.min.mjs"],
+  ["web/pdf_viewer.mjs", "pdf_viewer.mjs"],
+  ["web/pdf_viewer.css", "pdf_viewer.css"],
+  ["LICENSE", "LICENSE.pdfjs.txt"]
+];
+// Directories copied as a whole (data the worker loads at runtime: character maps, standard fonts, WASM decoders)
+const pdfDirs = ["cmaps", "standard_fonts", "iccs", "web/images"];
+const pdfWasm = ["jbig2.wasm", "openjpeg.wasm", "qcms_bg.wasm"]; // + licenses below
+
+fs.mkdirSync(pdfOut, { recursive: true });
+let pdfBytes = 0;
+const copyPdf = (rel, dest) => {
+  const src = path.join(pdfDir, rel);
+  if (!fs.existsSync(src)) throw new Error(`missing: ${src}`);
+  fs.mkdirSync(path.dirname(path.join(pdfOut, dest)), { recursive: true });
+  fs.copyFileSync(src, path.join(pdfOut, dest));
+  pdfBytes += fs.statSync(src).size;
+};
+for (const [rel, dest] of pdfFiles) copyPdf(rel, dest);
+for (const dir of pdfDirs) {
+  for (const f of fs.readdirSync(path.join(pdfDir, dir))) {
+    copyPdf(`${dir}/${f}`, `${dir === "web/images" ? "images" : dir}/${f}`);
+  }
+}
+for (const f of fs.readdirSync(path.join(pdfDir, "wasm"))) {
+  if (pdfWasm.includes(f) || f.startsWith("LICENSE")) copyPdf(`wasm/${f}`, `wasm/${f}`);
+}
+console.log(`${"pdfjs/ (viewer)".padEnd(36)} ${(pdfBytes / 1e6).toFixed(1)} MB`);
+
