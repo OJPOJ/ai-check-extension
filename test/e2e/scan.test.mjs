@@ -119,6 +119,8 @@ describe("Scan and operation", () => {
     await page.click("#short", { button: "right" });
     await ext.sendToTab("harness.test", { type: "CHECK_ELEMENT" });
     await page.waitForFunction(() => document.querySelector("#short").dataset.aivsaiLevel);
+    // the level is set before the popover switches from "Checking for AI…" to the result (openWithFeedback is async)
+    await page.waitForFunction(() => /Hint, not proof/.test(document.querySelector("aivsai-popover")?.shadowRoot.textContent || ""));
     // green with a note or - at a high score - "uncertain" instead of yellow/red
     assert.match(await page.evaluate(() => document.querySelector("aivsai-popover").shadowRoot.textContent), /Short text|Only 8 words/);
   });
