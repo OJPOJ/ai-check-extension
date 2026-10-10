@@ -58,8 +58,35 @@ function setMenusVisible(visible) {
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   const item = MENU_ITEMS[info.menuItemId];
-  if (item && tab?.id !== undefined) sendToTab(tab.id, { type: item.message }, info.frameId);
+  if (!item || tab?.id === undefined) return;
+  const msg = { type: item.message, selectionText: info.selectionText };
+  chrome.tabs.sendMessage(tab.id, msg, { frameId: info.frameId }, (resp) => {
+    if (!chrome.runtime.lastError && !resp?.fallback) return; // the page handled it with its popover
+    // No content script in that frame, or it has no selection of its own - e.g. the browser's PDF viewer. The
+    // context menu still delivers the selected text. Show it in the popover of the tab's top frame (it lies over
+    // the viewer like on any page); without a content script there (file:// without access, Web Store) an own
+    // window is the last resort.
+    chrome.tabs.sendMessage(tab.id, { type: "CHECK_TEXT", text: info.selectionText }, { frameId: 0 }, () => {
+      if (chrome.runtime.lastError) openSelectionCheck(info.selectionText, tab.url).catch(() => {});
+    });
+  });
 });
+
+// Text goes to the window via session storage (memory only, removed once read), not via the URL
+async function openSelectionCheck(text, url) {
+  const id = crypto.randomUUID();
+  const clean = (text || "").replace(/\s+/g, " ").trim();
+  const job = clean
+    ? { text: clean, url }
+    : { error: "No text selected. Select text first, then right-click → \"Check selected text for AI\"." };
+  await chrome.storage.session.set({ [`selection:${id}`]: job });
+  await chrome.windows.create({
+    url: chrome.runtime.getURL(`selection-check.html?job=${id}`),
+    type: "popup",
+    width: 480,
+    height: 560
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Lifecycle, settings, keyboard shortcuts

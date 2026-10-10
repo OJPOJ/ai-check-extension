@@ -35,7 +35,13 @@ function renderSite() {
   $("blockToggle").textContent = reason ? "Remove from blocklist" : "Never scan here (blocklist)";
   const siteAuto = $("siteAuto");
 
-  if (!supported) {
+  // The browser's PDF viewer has no content script: only selected text can be checked (context menu)
+  const isPdf = /^(https?|file):$/.test(tab?.url ? new URL(tab.url).protocol : "") && /\.pdf$/i.test(new URL(tab.url).pathname);
+  if (isPdf) {
+    $("scanNow").disabled = true;
+    $("siteSwitch").hidden = true;
+    $("siteHint").textContent = "PDF: select text, right-click → \"Check selected text for AI\"";
+  } else if (!supported) {
     $("siteHint").textContent = "Cannot scan here";
   } else if (reason) {
     $("siteHint").textContent =
