@@ -175,3 +175,52 @@ export function makePdf(lines = ["Hello PDF viewer"]) {
   pdf += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
   return Buffer.from(pdf, "latin1");
 }
+
+/**
+ * PDF with exact layout: pages = [[{ text, x, y, size }]] (y from the bottom, Helvetica, 595 x 842).
+ * For tests of the paragraph extraction on real pdf.js output.
+ */
+export function makeLayoutPdf(pages) {
+  const esc = (s) => s.replace(/[\()]/g, "\$&");
+  const objs = [];
+  const add = (body) => objs.push(body) && objs.length; // returns the object number
+  add("<< /Type /Catalog /Pages 2 0 R >>");
+  add(null); // Pages, filled below
+  const fontNo = add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+  const kids = [];
+  for (const items of pages) {
+    const stream = items.map(({ text, x, y, size = 11 }) => `BT /F1 ${size} Tf ${x} ${y} Td (${esc(text)}) Tj ET`).join("\n");
+    const contentNo = add(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
+    kids.push(
+      add(
+        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents ${contentNo} 0 R /Resources << /Font << /F1 ${fontNo} 0 R >> >> >>`
+      )
+    );
+  }
+  objs[1] = `<< /Type /Pages /Kids [${kids.map((k) => `${k} 0 R`).join(" ")}] /Count ${kids.length} >>`;
+  let pdf = "%PDF-1.4\n";
+  const offsets = objs.map((o, i) => {
+    const at = pdf.length;
+    pdf += `${i + 1} 0 obj\n${o}\nendobj\n`;
+    return at;
+  });
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n`;
+  pdf += offsets.map((o) => `${String(o).padStart(10, "0")} 00000 n \n`).join("");
+  pdf += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  return Buffer.from(pdf, "latin1");
+}
+
+/** Wraps `text` into lines of at most `width` characters, one {text, x, y, size} per line starting at `top`. */
+export function layoutLines(text, { x = 72, top = 760, width = 80, size = 11, leading = 14 } = {}) {
+  const lines = [];
+  let line = "";
+  for (const word of text.split(/\s+/)) {
+    if (line && (line + " " + word).length > width) {
+      lines.push(line);
+      line = word;
+    } else line = line ? `${line} ${word}` : word;
+  }
+  if (line) lines.push(line);
+  return lines.map((t, i) => ({ text: t, x, y: top - i * leading, size }));
+}

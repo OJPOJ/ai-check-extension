@@ -16,7 +16,24 @@
   #toolbar button { padding: 4px 10px; }
   #pageNumber { width: 3.6em; text-align: center; padding: 3px 4px; border: 1px solid var(--border);
     border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; }
-  #stage { position: relative; flex: 1; min-height: 0; }
+  #stage { display: flex; flex: 1; min-height: 0; }
+  #main { position: relative; flex: 1; min-width: 0; }
+  #results { flex: none; width: 320px; overflow: auto; background: var(--bg); border-left: 1px solid var(--border);
+    padding: 12px; }
+  #results h2 { margin-bottom: 8px; }
+  #results .counts { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+  .chip { padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); font-size: 12px; }
+  .chip.red { color: var(--red); border-color: var(--red); }
+  .chip.yellow { color: var(--yellow); border-color: var(--yellow); }
+  .chip.green { color: var(--green); border-color: var(--green); }
+  #hits { list-style: none; margin: 8px 0 0; padding: 0; }
+  #hits li + li { margin-top: 6px; }
+  #hits button { display: block; width: 100%; text-align: left; padding: 6px 8px; }
+  #hits .meta { font-weight: 600; font-size: 12px; }
+  #hits .meta.red { color: var(--red); }
+  #hits .meta.yellow { color: var(--yellow); }
+  #hits .meta.green { color: var(--green); }
+  #hits .excerpt { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
   #viewerContainer { position: absolute; inset: 0; overflow: auto; }
   #notice { max-width: 560px; margin: 48px auto; padding: 20px; background: var(--bg); border: 1px solid var(--border);
     border-radius: 12px; position: relative; }
@@ -40,17 +57,36 @@
   <button id="zoomOut" type="button" aria-label="Zoom out" disabled>−</button>
   <button id="zoomIn" type="button" aria-label="Zoom in" disabled>+</button>
   <button id="fit" type="button" disabled>Fit width</button>
+  <button id="scan" type="button" class="primary" disabled>Scan PDF</button>
 </header>
 <div id="stage">
-  <div id="viewerContainer" tabindex="0"><div id="viewer" class="pdfViewer"></div></div>
-  <div id="notice" hidden>
-    <h1 id="noticeTitle"></h1>
-    <p id="noticeText"></p>
-    <div class="row" id="noticeActions"></div>
+  <div id="main">
+    <div id="viewerContainer" tabindex="0"><div id="viewer" class="pdfViewer"></div></div>
+    <div id="notice" hidden>
+      <h1 id="noticeTitle"></h1>
+      <p id="noticeText"></p>
+      <div class="row" id="noticeActions"></div>
+    </div>
+    <div id="dropHint" hidden>Drop a PDF file to open it</div>
   </div>
-  <div id="dropHint" hidden>Drop a PDF file to open it</div>
+  <aside id="results" hidden aria-live="polite">
+    <h2>AI check</h2>
+    <div id="scanStatus" class="small"></div>
+    <div id="scanCounts" class="counts"></div>
+    <label class="small" id="onlyFlaggedLabel" hidden>
+      <input type="checkbox" id="onlyFlagged" /> Only flagged and unclear
+    </label>
+    <ul id="hits"></ul>
+    <p class="small muted" id="scanNotes"></p>
+    <button id="stop" type="button" hidden>Stop</button>
+  </aside>
 </div>
 
+<script src="generated/blocklist.js"></script>
+<script src="models.js"></script>
+<script src="config.js"></script>
+<script src="lang-detect.js"></script>
+<script src="manual-check.js"></script>
 <script type="module" src="viewer.js"></script>
 </body>
 </html>

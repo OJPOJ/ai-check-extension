@@ -7,6 +7,12 @@ globalThis.AIVSAI_MANUAL = (() => {
   const MIN_WORDS = 40;
   // Manual check: short texts too (result then comes with a note)
   const MANUAL_MIN_WORDS = 5;
+  // Lower bound for paragraphs that may become a candidate ONLY as part of a group (see groupRuns)
+  const GROUP_MIN_WORDS = 15;
+  const GROUP_SEPARATOR = "\n\n";
+  // How much text goes to the backend in one request (a batch of long paragraphs would otherwise block the queue)
+  const BATCH_MAX_ITEMS = 5;
+  const BATCH_MAX_CHARS = 2500;
 
   function wordCount(text) {
     return text.split(/\s+/).filter(Boolean).length;
@@ -23,6 +29,39 @@ globalThis.AIVSAI_MANUAL = (() => {
     if (sentence && sentence[0].length >= minLength) return sentence[0];
     const space = cut.lastIndexOf(" ");
     return space >= minLength ? cut.slice(0, space) : cut;
+  }
+
+  // Grouping of short paragraphs (TODO.md item 2): adjacent paragraphs below reliableWords are scored as one text and
+  // share the result - more context lowers the error rate sharply (training/EVAL_RESULTS.md, "Text length"). A
+  // paragraph that is already reliable (long) stays single, a group only grows up to maxChars (model context).
+  // `items`: in reading order, each {text, words, lang}. `canJoin(last, next)`: the caller's structural condition
+  // (same container and no heading between on a page, no heading/section change in a PDF).
+  // Returns an array of groups (arrays of items); a single paragraph is a group of one.
+  function groupRuns(items, cfg, canJoin = () => true) {
+    if (!cfg.groupShortParagraphs) return items.map((f) => [f]);
+    const reliable = AIVSAI.reliableWords(cfg);
+    const limit = AIVSAI.maxChars(cfg);
+    const groups = [];
+    let open = null; // { items, chars, lang } of the most recently started group that can still be extended
+    for (const f of items) {
+      const foreign = foreignOf(f.lang, cfg);
+      const short = !foreign && f.words < reliable;
+      if (
+        open &&
+        short &&
+        f.lang === open.lang &&
+        canJoin(open.items[open.items.length - 1], f) &&
+        open.chars + GROUP_SEPARATOR.length + f.text.length <= limit
+      ) {
+        open.items.push(f);
+        open.chars += GROUP_SEPARATOR.length + f.text.length;
+        continue;
+      }
+      const group = [f];
+      groups.push(group);
+      open = short ? { items: group, chars: f.text.length, lang: f.lang } : null;
+    }
+    return groups;
   }
 
   function tooShort(words) {
@@ -99,6 +138,11 @@ globalThis.AIVSAI_MANUAL = (() => {
   return {
     MIN_WORDS,
     MANUAL_MIN_WORDS,
+    GROUP_MIN_WORDS,
+    GROUP_SEPARATOR,
+    BATCH_MAX_ITEMS,
+    BATCH_MAX_CHARS,
+    groupRuns,
     wordCount,
     clipText,
     tooShort,
