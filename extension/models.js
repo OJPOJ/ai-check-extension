@@ -56,6 +56,7 @@ globalThis.AIVSAI_MODELS = {
 
   desklib: {
     name: "desklib",
+    recommended: true, // main path on the setup page (setup.js): one button, the other models are folded away
     title: "Accurate – desklib",
     summary:
       "Recommended. DeBERTa-v3-large. ~1.3 s per paragraph, ~800 MB RAM. " +
@@ -83,7 +84,12 @@ globalThis.AIVSAI_MODELS = {
       marker: "onnx/model_quantized.onnx_data",
       download: "1.7 GB",
       // Facts for the cards on the setup page (setup.js); numbers as in `summary`/training/EVAL_RESULTS.md
-      setup: { disk: "~475 MB (converted)", speed: "~1.3 s per paragraph", falseAlarms: "~1% (lowest of the three), also on shorter texts" },
+      setup: {
+        disk: "~475 MB (converted)",
+        speed: "~1.3 s per paragraph",
+        falseAlarms: "~1% (lowest of the three), also on shorter texts",
+        pitch: "Fewest false alarms of the three, also on shorter paragraphs. Slower, so it works best when it scans what you are reading."
+      },
       askBeforeDownload: true, // confirmation prompt in the settings (data volume)
       build: {
         source: "desklib/ai-text-detector-v1.01",

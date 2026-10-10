@@ -311,89 +311,72 @@ function applyPreset() {
   renderScale();
 }
 
-// --- Browser model: status, download, delete ---
+// --- Browser model: status, download, delete (state machine in model-download.js) ---
 
-let modelState = null; // last response from MODEL_STATUS: { models: { tmr: {...}, desklib: {...} }, threads }
+const dl = AIVSAI_DOWNLOAD;
 const selectedModel = () => radioValue("browserModel") || AIVSAI.DEFAULTS.browserModel;
 
-function formatMB(bytes) {
-  if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(2)} GB`;
-  if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(0)} MB`;
-  return `${Math.max(1, Math.round(bytes / 1e3))} KB`;
-}
-
-function renderProgress(p) {
-  $("modelProgress").hidden = false;
-  if (!p?.total) {
-    $("modelProgress").removeAttribute("value"); // indeterminate until the first size is known
-    $("modelStatus").textContent = "Downloading…";
-    return;
+function modelStatusText(key, st) {
+  const { build } = AIVSAI.MODELS[key].browser;
+  switch (st.phase) {
+    case "unknown":
+      return dl.error ? `Error: ${dl.error}` : "Checking…";
+    case "downloading":
+      if (!st.total) return "Downloading…";
+      return `${build ? "Downloading and converting…" : "Downloading…"} ${dl.formatBytes(st.loaded)} of ${dl.formatBytes(st.total)}`;
+    case "ready":
+      return `Downloaded – ready (${dl.threads === 1 ? "1 thread" : `${dl.threads} threads`}).`;
+    case "failed":
+      return `Download failed: ${st.error}`;
+    case "cancelled":
+      return "Download cancelled.";
+    default:
+      return "Not downloaded yet.";
   }
-  $("modelProgress").value = p.loaded / p.total;
-  const verb = AIVSAI.MODELS[selectedModel()]?.browser.build ? "Downloading and converting…" : "Downloading…";
-  $("modelStatus").textContent = `${verb} ${formatMB(p.loaded)} of ${formatMB(p.total)}`;
 }
 
 function renderModel() {
   const key = selectedModel();
-  const st = modelState?.ok ? modelState.models?.[key] : null;
+  const st = dl.state(key);
   $("modelDownload").textContent = `Download (${AIVSAI.MODELS[key].browser.download})`;
-  $("modelDownload").hidden = !!(st && (st.downloaded || st.downloading));
-  $("modelDelete").hidden = !st?.downloaded;
-  $("modelProgress").hidden = true;
-  if (!modelState) {
-    $("modelStatus").textContent = "Checking…";
-  } else if (!modelState.ok) {
-    $("modelStatus").textContent = `Error: ${modelState.error ?? "no response"}`;
-  } else if (st.downloading) {
-    renderProgress(st.downloading);
-  } else if (st.downloaded) {
-    const threads = modelState.threads === 1 ? "1 thread" : `${modelState.threads} threads`;
-    $("modelStatus").textContent = `Downloaded – ready (${threads}).`;
-  } else {
-    $("modelStatus").textContent = "Not downloaded yet.";
+  $("modelDownload").hidden = st.phase === "downloading" || st.phase === "ready";
+  $("modelDelete").hidden = st.phase !== "ready";
+  $("modelProgress").hidden = st.phase !== "downloading";
+  if (st.phase === "downloading") {
+    if (st.total) $("modelProgress").value = st.loaded / st.total;
+    else $("modelProgress").removeAttribute("value"); // indeterminate until the first size is known
   }
+  $("modelStatus").textContent = modelStatusText(key, st);
 }
 
-async function refreshModel() {
-  modelState = await chrome.runtime.sendMessage({ type: "MODEL_STATUS" });
+// Report the end of a download in the status bar as well, once
+const lastPhase = new Map();
+function onModelChange() {
   renderModel();
+  const key = selectedModel();
+  const { phase } = dl.state(key);
+  const before = lastPhase.get(key);
+  lastPhase.set(key, phase);
+  if (before !== "downloading") return;
+  if (phase === "ready") showStatus(dirty ? "Model downloaded – save now to use it." : "Model downloaded.", "ok");
+  if (phase === "failed") showStatus(`Download failed: ${dl.state(key).error}`, "err");
 }
 
 function bindModelButtons() {
-  $("modelDownload").addEventListener("click", async () => {
-    const { download, askBeforeDownload } = AIVSAI.MODELS[selectedModel()].browser;
+  dl.onChange(onModelChange);
+
+  $("modelDownload").addEventListener("click", () => {
+    const key = selectedModel();
+    const { download, askBeforeDownload } = AIVSAI.MODELS[key].browser;
     const question =
       `The model downloads ${download} once. On mobile internet or with a limited data allowance ` +
       "better use Wi-Fi. Download now?";
     if (askBeforeDownload && !confirm(question)) return;
-    $("modelDownload").hidden = true;
-    renderProgress(null);
-    const st = await chrome.runtime.sendMessage({ type: "MODEL_DOWNLOAD", model: selectedModel() });
-    if (!st?.ok) {
-      modelState = st;
-      renderModel();
-    }
+    dl.start(key);
   });
 
-  $("modelDelete").addEventListener("click", async () => {
-    modelState = await chrome.runtime.sendMessage({ type: "MODEL_DELETE", model: selectedModel() });
-    renderModel();
-  });
+  $("modelDelete").addEventListener("click", () => dl.remove(selectedModel()));
 }
-
-chrome.runtime.onMessage.addListener((msg) => {
-  if (msg?.type === "MODEL_PROGRESS" && msg.model === selectedModel()) {
-    $("modelDownload").hidden = true;
-    renderProgress(msg);
-  } else if (msg?.type === "MODEL_DONE") {
-    refreshModel();
-    if (msg.model !== selectedModel()) return;
-    if (msg.ok) showStatus(dirty ? "Model downloaded – save now to use it." : "Model downloaded.", "ok");
-    else if (msg.cancelled) showStatus("Download cancelled.");
-    else showStatus(`Download failed: ${msg.error}`, "err");
-  }
-});
 
 // --- Stored scores ---
 
@@ -405,7 +388,7 @@ async function refreshStore() {
     return;
   }
   const n = r.count.toLocaleString("en-US");
-  const size = r.count ? ` · approx. ${formatMB(r.bytes)}` : "";
+  const size = r.count ? ` · approx. ${dl.formatBytes(r.bytes)}` : "";
   $("storeStatus").textContent = `${n} ${r.count === 1 ? "score" : "scores"} stored${size}`;
 }
 
@@ -429,7 +412,7 @@ async function refreshFeedback() {
     : "No consent given";
   $("feedbackStatus").textContent = r.count
     ? `${r.count} ${r.count === 1 ? "entry" : "entries"} (${r.human} human, ${r.ai} AI; ` +
-      `${r.guess} just impression; model was wrong ${r.disagree}×) · approx. ${formatMB(r.bytes)} · ${consent}`
+      `${r.guess} just impression; model was wrong ${r.disagree}×) · approx. ${dl.formatBytes(r.bytes)} · ${consent}`
     : `No entries · ${consent}`;
 }
 
@@ -502,7 +485,7 @@ async function init() {
   renderProvider();
   renderScanMode();
   renderScale();
-  refreshModel();
+  dl.refresh();
   refreshStore();
   renderBuiltinInfo();
   refreshFeedback();

@@ -40,9 +40,10 @@ describe("Setup page", () => {
     await setup.click("#cancel");
     await setup.waitForFunction(() => document.querySelector("#downloadStatus").textContent.includes("cancelled"));
     assert.equal(await setup.locator("#download").isVisible(), true, "download can be restarted");
+    // the page shows "cancelled" at once, the offscreen document is torn down right after
+    await until(async () => (await state()).models.tmr.downloading === null, { message: "download still running" });
     st = await state();
     assert.equal(st.models.tmr.downloaded, false);
-    assert.equal(st.models.tmr.downloading, null);
   });
 
   it("lets every step be skipped and offers the samples only with a model", async () => {

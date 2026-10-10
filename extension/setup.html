@@ -181,11 +181,11 @@
     <ol class="how">
       <li><b>Pin the extension</b> (puzzle icon in the toolbar) so the icon is always one click away.</li>
       <li><b id="howScan">Open an article</b>, click the icon and press <b>Scan page now</b>
-        (or <kbd>Alt+Shift+S</kbd>). Paragraphs get a green, yellow or red mark with a score.</li>
+        (or <kbd data-command="scan-page">Alt+Shift+S</kbd>). Paragraphs get a green, yellow or red mark with a score.</li>
       <li><b>Click a mark</b> to see the score and why it is only a hint. Short texts are not scored automatically.</li>
-      <li><b>Single passage:</b> select text and press <kbd>Alt+Shift+C</kbd>, or right-click a paragraph →
+      <li><b>Single passage:</b> select text and press <kbd data-command="check-selection">Alt+Shift+C</kbd>, or right-click a paragraph →
         "Check this paragraph for AI".</li>
-      <li><b>Switch off</b> with <kbd>Alt+Shift+A</kbd> or the toggle in the popup. Banking and mail sites are never scanned.</li>
+      <li><b>Switch off</b> with <kbd data-command="toggle-enabled">Alt+Shift+A</kbd> or the toggle in the popup. Banking and mail sites are never scanned.</li>
     </ol>
     <div class="row">
       <button id="back4">Back</button>
@@ -201,6 +201,8 @@
 <script src="generated/blocklist.js"></script>
 <script src="models.js"></script>
 <script src="config.js"></script>
+<script src="model-download.js"></script>
+<script src="setup-content.js"></script>
 <script src="setup.js"></script>
 </body>
 </html>

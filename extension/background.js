@@ -237,6 +237,9 @@ function modelCommand(msg) {
 // transformers.js cannot abort a running download, so close the offscreen document (ends all requests and the
 // conversion), clear the leftovers in a fresh one and report the end like any other
 async function cancelDownload(model) {
+  // nothing to cancel (second click, already finished): leave the document - it may be scoring for tabs
+  const status = await modelCommand({ type: "MODEL_STATUS" });
+  if (!status.models?.[model]?.downloading) return status;
   if (await chrome.offscreen.hasDocument()) await chrome.offscreen.closeDocument();
   const resp = await modelCommand({ type: "MODEL_DELETE", model });
   chrome.runtime.sendMessage({ type: "MODEL_DONE", model, ok: false, cancelled: true, error: "Cancelled" }).catch(() => {});
