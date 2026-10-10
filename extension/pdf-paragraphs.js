@@ -35,15 +35,20 @@ function buildLines(page) {
     }
     cur = null;
   };
-  for (const it of page.items) {
+  for (let idx = 0; idx < page.items.length; idx++) {
+    const it = page.items[idx];
     if (typeof it.str !== "string") continue;
     const size = it.h > 0 ? it.h : 10;
     const sameLine =
       cur && Math.abs(it.y - cur.y) <= Math.max(1.5, cur.size0 * 0.4) && it.x >= cur.x1 - cur.size0 * 0.3;
     if (!sameLine) {
       flush();
-      cur = { page: page.number, text: "", x0: it.x, x1: it.x, y: it.y, size0: size, sizeSum: 0, sizeWeight: 0 };
+      cur = {
+        page: page.number, text: "", x0: it.x, x1: it.x, y: it.y, size0: size, sizeSum: 0, sizeWeight: 0,
+        itemIdx: [] // positions in page.items - lets the viewer find the text-layer spans of a paragraph
+      };
     }
+    cur.itemIdx.push(idx);
     const gap = it.x - cur.x1;
     // a visible gap between snippets without a space on either side is a word break
     if (cur.text && gap > size * 0.15 && !/\s$/.test(cur.text) && !/^\s/.test(it.str)) cur.text += " ";
@@ -99,7 +104,23 @@ function furnitureKeys(pages, linesByPage) {
 
 // --- Paragraphs -------------------------------------------------------------------------------
 
-function paragraphsOfPage(page, lines, body) {
+// Usual distance between two baselines of running text (median) - a paragraph gap is measured against it,
+// not against the font size, because documents set their line spacing differently
+function typicalLeading(lineSets) {
+  const gaps = [];
+  for (const lines of lineSets) {
+    for (let i = 1; i < lines.length; i++) {
+      const dy = lines[i - 1].y - lines[i].y;
+      const size = Math.max(lines[i].size, lines[i - 1].size);
+      if (dy > size * 0.8 && dy < size * 2.2 && Math.abs(lines[i].size - lines[i - 1].size) < size * 0.1) gaps.push(dy);
+    }
+  }
+  if (!gaps.length) return 0;
+  gaps.sort((a, b) => a - b);
+  return gaps[Math.floor(gaps.length / 2)];
+}
+
+function paragraphsOfPage(page, lines, body, leadingNorm) {
   const paras = [];
   let cur = null;
   let colRight = 0; // right edge of the column so far
@@ -115,7 +136,9 @@ function paragraphsOfPage(page, lines, body) {
       split =
         Math.abs(line.size - prev.size) > body * 0.12 || // size change: heading or caption
         leading < -prev.size * 0.5 || // jumps up: next column
-        leading > Math.max(line.size, prev.size) * 1.75 || // larger gap: next paragraph
+        // clearly more space than between two lines of running text: next paragraph (even a single blank line's
+        // worth of extra space, as many documents use between paragraphs)
+        leading > Math.max(leadingNorm * 1.3, Math.max(line.size, prev.size) * 1.35) ||
         line.x0 > cur.leftEdge + Math.max(line.size, prev.size) * 0.8 || // first-line indent
         (prev.x1 < colRight - body * 3 && SENTENCE_END.test(prev.text)) || // short last line of a paragraph
         BULLET.test(line.text) ||
@@ -162,11 +185,12 @@ function joinLines(lines) {
 function partsOf(lines) {
   const byPage = new Map();
   for (const l of lines) {
-    const p = byPage.get(l.page) || { page: l.page, x0: l.x0, y0: l.y, x1: l.x1, y1: l.y + l.size };
+    const p = byPage.get(l.page) || { page: l.page, x0: l.x0, y0: l.y, x1: l.x1, y1: l.y + l.size, items: [] };
     p.x0 = Math.min(p.x0, l.x0);
     p.y0 = Math.min(p.y0, l.y);
     p.x1 = Math.max(p.x1, l.x1);
     p.y1 = Math.max(p.y1, l.y + l.size);
+    p.items = [...(p.items || []), ...l.itemIdx];
     byPage.set(l.page, p);
   }
   return [...byPage.values()];
@@ -205,10 +229,11 @@ export function extractParagraphs(pages) {
     )
   );
   const body = bodySizeOf(kept.flat());
+  const leadingNorm = typicalLeading(kept);
 
   const all = [];
   pages.forEach((page, i) => {
-    for (const para of paragraphsOfPage(page, kept[i], body)) {
+    for (const para of paragraphsOfPage(page, kept[i], body, leadingNorm)) {
       const text = joinLines(para.lines);
       all.push({
         text,

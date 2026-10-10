@@ -232,6 +232,12 @@
           <div class="hint">Adjacent short paragraphs with no heading in between are scored as one text and
             share the result. On their own they are often too short for a reliable verdict.</div></div></label>
 
+      <label class="check"><input type="checkbox" id="allowPdfExternal" />
+        <div>Allow online backends for PDFs
+          <div class="hint">Off by default: PDFs are only checked with "In the browser" or "Local". When on, the
+            PDF viewer asks before every document and names where the text goes. Documents often contain
+            more sensitive text than web pages.</div></div></label>
+
       <h3 id="blocklist">Blocklist</h3>
       <p class="lead">Blocked sites are checked neither automatically nor via "Scan page now" – this takes
         precedence over all other settings. You can still deliberately check individual passages there via selection or

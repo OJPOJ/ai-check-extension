@@ -37,6 +37,27 @@ describe("extractParagraphs", () => {
     assert.equal(texts(res)[0], `${prose(1)} ${prose(2)} ${prose(3)}`);
   });
 
+  it("splits at a modest extra space between paragraphs, measured against the document's line spacing", () => {
+    // line spacing 13, paragraph spacing 19.5 (one half line of extra space) - no indent, no short last line
+    const para = (top, n) =>
+      [0, 1, 2].map((i) => ({ str: prose(n + i), x: 72, y: top - i * 13, w: 400, h: SIZE, eol: true }));
+    const items = [...para(700, 1), ...para(700 - 2 * 13 - 19.5, 4), ...para(700 - 4 * 13 - 39, 7)];
+    const res = extractParagraphs([{ number: 1, width: W, height: H, items }]);
+    assert.equal(texts(res).length, 3);
+  });
+
+  it("keeps normal line spacing inside one paragraph, whatever the font size", () => {
+    const items = [0, 1, 2, 3].map((i) => ({ str: prose(i), x: 72, y: 700 - i * 17, w: 400, h: 14, eol: true }));
+    const res = extractParagraphs([{ number: 1, width: W, height: H, items }]);
+    assert.equal(texts(res).length, 1);
+  });
+
+  it("reports the text-layer item positions of a paragraph", () => {
+    const res = extractParagraphs([page(1, [prose(1), prose(2), null, prose(3)])]);
+    assert.deepEqual(res.paragraphs[0].parts[0].items, [0, 1]);
+    assert.deepEqual(res.paragraphs[1].parts[0].items, [2]);
+  });
+
   it("joins a word hyphenated at the line end, but keeps hyphens before capitals", () => {
     const res = extractParagraphs([
       page(1, ["A very long exam-", "ple of a hyphenated word and the AI-", "Detector that follows it."])

@@ -135,6 +135,10 @@ globalThis.AIVSAI = (() => {
     // Keep scores for this many days (only hash + score, no text, no URL); 0 = not at all
     scoreRetentionDays: 30,
 
+    // PDFs may go to an online backend (Hugging Face, own server) - off by default; even then the viewer asks
+    // before every document and names the destination (viewer.js, issue #35)
+    allowPdfExternal: false,
+
     // Feedback buttons in the result popover (only stored after consent, see bg/feedback-store.js)
     feedbackButtons: true,
 

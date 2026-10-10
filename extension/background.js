@@ -190,6 +190,14 @@ const HANDLERS = {
     if (!msg.manual && (await isBlocked(sender))) {
       return { ok: false, scores: {}, error: "Site is on the blocklist" };
     }
+    // Second safeguard for PDFs (the first is the viewer): no online backend unless it was allowed in the settings
+    if (msg.pdf) {
+      const cfg = await getConfig();
+      const target = AIVSAI.remoteTarget(cfg);
+      if (target && !cfg.allowPdfExternal) {
+        return { ok: false, scores: {}, error: `PDFs are not sent to ${target} (not allowed in the settings)` };
+      }
+    }
     return scoreBatch(msg.items);
   },
   STATS: (msg, sender) => {
