@@ -11,6 +11,8 @@
 import * as pdfjsLib from "./vendor/pdfjs/pdf.min.mjs";
 import { EventBus, PDFLinkService, PDFViewer } from "./vendor/pdfjs/pdf_viewer.mjs";
 import { extractParagraphs } from "./pdf-paragraphs.js";
+import { annotatePdf } from "./pdf-annotate.js";
+import * as PDFLib from "./vendor/pdf-lib.esm.min.js";
 
 const $ = (id) => document.getElementById(id);
 const PDFJS = "vendor/pdfjs/";
@@ -34,6 +36,7 @@ let currentDoc = null;
 let sourceHost = ""; // host the PDF was loaded from ("" for a chosen file) - the blocklist applies to it
 let scanToken = 0; // a running scan ends when this changes (new document, stop, new scan)
 let currentName = ""; // file name shown in the title
+let lastScan = null; // { results, cfg, pages } of the finished scan - source of the annotated copy
 let pendingConfirm = null; // resolve function of an open "send online?" question
 // Ends a running scan, also an unanswered question (answer: no)
 function newScanToken() {
@@ -301,6 +304,8 @@ const setScanStatus = (text) => ($("scanStatus").textContent = text);
 
 function resetResults() {
   clearMarks();
+  lastScan = null;
+  $("exportBox").hidden = true;
   $("results").hidden = false;
   $("hits").replaceChildren();
   $("scanCounts").replaceChildren();
@@ -411,6 +416,11 @@ async function scanDocument() {
   }
   setMarks(results, cfg, pages);
   renderResults(results, { cfg, scorable, skipped, extracted });
+  lastScan = { results, cfg, pages };
+  $("exportBox").hidden = !results.length;
+  $("exportNote").textContent =
+    "A new file is saved; the original stays unchanged. The copy contains the scores as notes – a hint, not proof, " +
+    "and visible to everyone who gets the copy.";
   updateNextFlagged();
   endScan(token);
 }
@@ -508,6 +518,46 @@ $("stop").addEventListener("click", () => {
   $("stop").hidden = true;
   $("scan").disabled = !currentDoc;
 });
+
+// --- Annotated copy ----------------------------------------------------------------------------
+// Local only, on click: bytes of the original (from pdf.js, no second download) + highlights, saved as a new file
+async function exportCopy() {
+  if (!lastScan || !currentDoc) return;
+  const { results, cfg, pages } = lastScan;
+  const button = $("exportCopy");
+  button.disabled = true;
+  try {
+    const marks = results
+      .filter((r) => r.level !== "green" || cfg.showGreen)
+      .map((r) => ({
+        level: r.level,
+        parts: r.items.flatMap((it) => it.para.parts),
+        note:
+          r.level === "uncertain"
+            ? "AI Content Flag: uncertain (hint, not proof)"
+            : `AI Content Flag: ${M.scoreText(r.p)} (hint, not proof – shows how much the text resembles AI text)`
+      }));
+    const original = await currentDoc.getData();
+    const { bytes, annotations } = await annotatePdf(PDFLib, original, marks, pages);
+    const base = currentName.replace(/\.pdf$/i, "") || "document";
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+    a.download = `${base}-annotated.pdf`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    setScanStatus(`Saved a copy with ${annotations} annotations. The original was not changed.`);
+  } catch (err) {
+    const encrypted = /encrypt/i.test(String(err?.name) + String(err?.message));
+    setScanStatus(
+      encrypted
+        ? "This PDF is encrypted, an annotated copy cannot be made."
+        : `The copy could not be created: ${err?.message || err}`
+    );
+  } finally {
+    button.disabled = false;
+  }
+}
+$("exportCopy").addEventListener("click", exportCopy);
 
 // --- Marking in the document -------------------------------------------------------------------
 // The text layer is ordinary DOM: every pdf.js text item has a span, in the order of getTextContent().

@@ -56,7 +56,9 @@ button, file picker, drag and drop). For a PDF behind a web address the page ask
 exactly that origin via the existing `optional_host_permissions` (`chrome.permissions.request`, on a
 click); `file://` needs the browser's "Allow access to file URLs" switch. No new permission, no
 `webRequest`/`declarativeNetRequest`, no automatic redirect of PDFs. pdf.js and its data (character maps,
-fonts, decoders) are part of the package; no remote code.
+fonts, decoders) are part of the package; no remote code. "Save annotated copy" writes highlight annotations
+into a copy of the PDF in the page itself (bundled pdf-lib, MIT) and hands it to the browser as a download on
+click - no new permission, no network.
 
 ## `wasm-unsafe-eval` (Content Security Policy)
 

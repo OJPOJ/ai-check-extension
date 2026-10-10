@@ -61,3 +61,15 @@ for (const f of fs.readdirSync(path.join(pdfDir, "wasm"))) {
 }
 console.log(`${"pdfjs/ (viewer)".padEnd(36)} ${(pdfBytes / 1e6).toFixed(1)} MB`);
 
+
+// pdf-lib (MIT) for "Save annotated copy" in the PDF viewer: writes highlight annotations into a copy of the PDF.
+const pdfLibDir = path.join(nm, "pdf-lib");
+for (const [rel, name] of [
+  ["dist/pdf-lib.esm.min.js", "pdf-lib.esm.min.js"],
+  ["LICENSE.md", "LICENSE.pdf-lib.txt"]
+]) {
+  const src = path.join(pdfLibDir, rel);
+  if (!fs.existsSync(src)) throw new Error(`missing: ${src}`);
+  fs.copyFileSync(src, path.join(out, name));
+  console.log(`${name.padEnd(36)} ${(fs.statSync(src).size / 1e6).toFixed(1)} MB`);
+}

@@ -32,6 +32,7 @@
   #toolbar select { width: 9.5em; font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border);
     background: var(--surface); color: var(--text); }
   #nextFlagged { margin-bottom: 4px; }
+  #exportBox { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
   .confirm { margin: 0 0 10px; padding: 10px; border-radius: 8px; background: var(--warn-bg); color: var(--warn-text); }
   .confirm p { margin: 6px 0 0; }
   .confirm .row { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
@@ -115,6 +116,10 @@
       <input type="checkbox" id="onlyFlagged" /> Only flagged and unclear
     </label>
     <ul id="hits"></ul>
+    <div id="exportBox" hidden>
+      <button id="exportCopy" type="button">Save annotated copy</button>
+      <p class="small muted" id="exportNote"></p>
+    </div>
     <p class="small muted" id="scanNotes"></p>
     <button id="stop" type="button" hidden>Stop</button>
   </aside>

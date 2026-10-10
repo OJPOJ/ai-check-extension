@@ -139,6 +139,29 @@ describe("PDF scan", () => {
     await page.close();
   });
 
+  it("saves an annotated copy with highlights and notes, only on click", async () => {
+    const page = await openPdf(samplePdf());
+    assert.equal(await page.isVisible("#exportCopy"), false, "no export before a scan");
+    await page.click("#scan");
+    await page.waitForSelector("#hits li");
+    await page.waitForSelector("#exportCopy");
+    const [download] = await Promise.all([page.waitForEvent("download"), page.click("#exportCopy")]);
+    assert.equal(download.suggestedFilename(), "doc-annotated.pdf");
+    const stream = await download.createReadStream();
+    const chunks = [];
+    for await (const c of stream) chunks.push(c);
+    const bytes = Buffer.concat(chunks);
+    assert.equal(bytes.subarray(0, 5).toString(), "%PDF-");
+    const { PDFDocument, PDFName } = await import("pdf-lib");
+    const doc = await PDFDocument.load(bytes);
+    const kinds = doc.getPages().flatMap((p) =>
+      (p.node.Annots()?.asArray() ?? []).map((r) => doc.context.lookup(r).get(PDFName.of("Subtype")).toString())
+    );
+    assert.ok(kinds.filter((k) => k === "/Highlight").length >= 2, `highlights: ${kinds}`);
+    assert.match(await page.textContent("#scanStatus"), /original was not changed/);
+    await page.close();
+  });
+
   it("scrolls to the place of a result and offers 'next flagged'", async () => {
     // page 1 full of text, the interesting paragraph low on page 2
     const filler = layoutLines(longPara("filler"), { top: 760 });
