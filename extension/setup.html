@@ -23,6 +23,17 @@
   .steps li.current { border-color: var(--accent); color: inherit; font-weight: 600; }
   .steps li.done { color: inherit; }
 
+  .hero { margin-top: 12px; padding: 16px; border: 1px solid var(--accent); border-radius: 12px; box-shadow: 0 0 0 1px var(--accent); }
+  .hero .title { font-size: 16px; font-weight: 600; }
+  .hero .why { margin: 6px 0 0; }
+  .hero .row { margin-top: 14px; }
+  .hero button.primary { padding: 10px 16px; font-size: 14px; }
+  .others { margin-top: 14px; }
+  .others summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+  .others .options { margin-top: 10px; }
+  .how { margin: 8px 0 0; padding-left: 22px; }
+  .how li { margin-top: 8px; }
+  kbd { padding: 0 5px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px; background: var(--surface); }
   .options { display: grid; gap: 10px; margin-top: 12px; }
   .option { display: block; text-align: left; width: 100%; padding: 12px 14px; border: 1px solid var(--border);
     border-radius: 10px; background: var(--bg); font: inherit; color: inherit; cursor: pointer; }
@@ -68,14 +79,22 @@
     <li data-step="1">1 · Choose a model</li>
     <li data-step="2">2 · When to scan</li>
     <li data-step="3">3 · Try it</li>
+    <li data-step="4">4 · Quick start</li>
   </ol>
+  <div class="small muted" id="bgStatus" hidden style="margin:-4px 0 12px"></div>
 
   <!-- Step 1 -->
   <section class="card" data-step="1">
     <h2>Choose a model</h2>
-    <p>The model decides how fast and how accurate the scoring is. It runs entirely in your browser; the texts
-      of the pages you read never leave the computer. Pick one – no model is selected for you.</p>
-    <div class="options" id="models"></div>
+    <p>The model runs entirely in your browser; the texts of the pages you read never leave the computer.
+      One download, then it works offline.</p>
+
+    <div class="hero" id="hero"></div>
+
+    <details class="others">
+      <summary>Other models (smaller and faster, but more false alarms)</summary>
+      <div class="options" id="models"></div>
+    </details>
 
     <div class="panel" id="downloadPanel" hidden>
       <div id="downloadInfo"></div>
@@ -93,6 +112,7 @@
       <span class="spacer"></span>
       <button id="next1" class="primary">Next</button>
     </div>
+    <p class="small muted" id="continueNote" hidden>You can continue – the download keeps running in the background.</p>
     <p class="small muted" id="noModelNote" hidden>Without a model nothing can be scored. The popup will link back here.</p>
   </section>
 
@@ -114,11 +134,15 @@
     <h2>Try it</h2>
     <p>Two short texts that ship with the extension are scored locally, so you can see what the colors look like.
       They were written for this page; the second imitates typical chatbot style.</p>
-    <div class="samples" id="samples"></div>
-    <div class="row">
-      <button id="score" class="primary">Score the samples</button>
-      <span class="small muted" id="scoreStatus"></span>
+    <div id="sampleBlock">
+      <div class="samples" id="samples"></div>
+      <div class="row">
+        <button id="score" class="primary">Score the samples</button>
+        <span class="small muted" id="scoreStatus"></span>
+      </div>
     </div>
+    <p class="muted" id="noSamples" hidden>Choose and download a model in step 1 to try the samples – the legend below
+      explains the colors already.</p>
 
     <div class="levels">
       <div class="level"><span class="pill red">AI score 97</span>
@@ -147,7 +171,27 @@
       <button id="back3">Back</button>
       <span class="spacer"></span>
       <a class="small" href="privacy.html" target="_blank">Privacy policy</a>
-      <button id="finish" class="primary">Done</button>
+      <button id="next3" class="primary">Next</button>
+    </div>
+  </section>
+
+  <!-- Step 4 -->
+  <section class="card" data-step="4" hidden>
+    <h2>You're set – how to use it</h2>
+    <ol class="how">
+      <li><b>Pin the extension</b> (puzzle icon in the toolbar) so the icon is always one click away.</li>
+      <li><b id="howScan">Open an article</b>, click the icon and press <b>Scan page now</b>
+        (or <kbd>Alt+Shift+S</kbd>). Paragraphs get a green, yellow or red mark with a score.</li>
+      <li><b>Click a mark</b> to see the score and why it is only a hint. Short texts are not scored automatically.</li>
+      <li><b>Single passage:</b> select text and press <kbd>Alt+Shift+C</kbd>, or right-click a paragraph →
+        "Check this paragraph for AI".</li>
+      <li><b>Switch off</b> with <kbd>Alt+Shift+A</kbd> or the toggle in the popup. Banking and mail sites are never scanned.</li>
+    </ol>
+    <div class="row">
+      <button id="back4">Back</button>
+      <span class="spacer"></span>
+      <a class="small" href="options.html">All settings</a>
+      <button id="finish" class="primary">Close</button>
     </div>
   </section>
 

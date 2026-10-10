@@ -10,7 +10,7 @@ describe("Setup page", () => {
     ext = await launchExtension();
     const id = new URL(ext.options.url()).host;
     setup = await ext.open(`chrome-extension://${id}/setup.html`);
-    await setup.waitForSelector("#models .option");
+    await setup.waitForSelector("#hero button.primary");
   });
 
   after(async () => {
@@ -18,9 +18,10 @@ describe("Setup page", () => {
   });
 
   it("preselects no model, marks one as recommended and starts no download", async () => {
-    assert.equal(await setup.locator("#models .option").count(), 3);
+    assert.equal(await setup.locator("#models .option").count(), 2, "the other two models");
     assert.equal(await setup.locator("#models .option[aria-pressed='true']").count(), 0);
-    assert.equal(await setup.locator("#models .badge", { hasText: "recommended" }).count(), 1);
+    assert.equal(await setup.locator("#hero .badge", { hasText: "recommended" }).count(), 1);
+    assert.match(await setup.textContent("#hero button.primary"), /desklib.*1\.7 GB/);
     assert.equal(await setup.locator("#downloadPanel").isHidden(), true);
     const st = await ext.send({ type: "MODEL_STATUS" });
     for (const m of Object.values(st.models)) assert.deepEqual([m.downloaded, m.downloading], [false, null]);
@@ -29,6 +30,7 @@ describe("Setup page", () => {
   it("starts the download only on click and can cancel it", async () => {
     // requests of the offscreen document are not visible to Playwright - check the model state instead
     const state = () => ext.send({ type: "MODEL_STATUS" });
+    await setup.click(".others summary");
     await setup.locator("#models .option", { hasText: "TMR" }).click();
     let st = await state();
     assert.equal(st.models.tmr.downloading, null, "choosing a card must not start a download");
@@ -48,8 +50,11 @@ describe("Setup page", () => {
     await setup.click("#modes .option >> nth=0");
     assert.equal((await ext.options.evaluate(() => chrome.storage.sync.get("scanMode"))).scanMode, "manual");
     await setup.click("#next2");
-    assert.equal(await setup.locator("#score").isDisabled(), true);
-    assert.match(await setup.textContent("#scoreStatus"), /No model yet/);
+    assert.equal(await setup.locator("#sampleBlock").isHidden(), true);
+    assert.match(await setup.textContent("#noSamples"), /Choose and download a model/);
+    await setup.click("#next3");
+    assert.equal(await setup.locator("section[data-step='4']").isVisible(), true, "quick start after the try-out");
+    assert.match(await setup.textContent("#howScan"), /Scan page now/);
   });
 
   it("is linked from the settings", async () => {

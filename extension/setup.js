@@ -60,14 +60,9 @@ let selected = null; // model key picked on this page (nothing preselected)
 let step = 1;
 let cancelling = false;
 
-const browserModels = Object.entries(AIVSAI.MODELS)
-  .filter(([, m]) => m.browser)
-  // recommended first
-  .sort(([a], [b]) => Number(b === RECOMMENDED()) - Number(a === RECOMMENDED()));
-
-function RECOMMENDED() {
-  return "desklib";
-}
+const RECOMMENDED = "desklib";
+const browserModels = Object.entries(AIVSAI.MODELS).filter(([, m]) => m.browser);
+const downloadingKey = () => browserModels.map(([k]) => k).find((k) => modelStatus(k)?.downloading);
 
 function el(tag, props = {}, ...children) {
   const node = Object.assign(document.createElement(tag), props);
@@ -95,34 +90,59 @@ function showStep(n) {
     li.classList.toggle("done", i < n);
   });
   if (n === 3) renderSamples();
+  if (n === 4) renderHow();
+  renderBg();
+}
+
+// Download running while the user is on another step
+function renderBg() {
+  const key = downloadingKey();
+  const p = key && modelStatus(key).downloading;
+  $("bgStatus").hidden = !key || step === 1;
+  if (!key) return;
+  const pct = p?.total ? ` ${Math.round((p.loaded / p.total) * 100)}%` : "…";
+  $("bgStatus").textContent = `Downloading ${AIVSAI.MODELS[key].name}${pct} – keeps running in the background.`;
+}
+
+function renderHow() {
+  $("howScan").textContent =
+    config.scanMode === "all"
+      ? "Open an article"
+      : config.scanMode === "sites"
+        ? "Open a site you want checked, click the icon and switch on \"Scan this site automatically\""
+        : "Open an article, click the icon and press \"Scan page now\"";
 }
 
 // --- step 1: model -------------------------------------------------------
 
+function facts(m) {
+  const dl = el("dl", { className: "facts" });
+  for (const [label, value] of [
+    ["Download", m.browser.download],
+    ["On disk", m.browser.setup.disk],
+    ["Speed", m.browser.setup.speed],
+    ["False alarms", m.browser.setup.falseAlarms]
+  ]) {
+    dl.append(el("dt", {}, label), el("dd", {}, value));
+  }
+  return dl;
+}
+
 function renderModels() {
+  renderHero();
   const list = $("models");
   list.replaceChildren();
   for (const [key, m] of browserModels) {
-    const st = modelStatus(key);
+    if (key === RECOMMENDED) continue;
     const card = el(
       "button",
       { type: "button", className: "option", ariaPressed: String(selected === key) },
       el("b", {}, m.title)
     );
-    if (key === RECOMMENDED()) card.append(el("span", { className: "badge" }, "recommended"));
-    if (st?.downloaded) card.append(el("span", { className: "badge neutral" }, "downloaded"));
-    const facts = el("dl", { className: "facts" });
-    for (const [label, value] of [
-      ["Download", m.browser.download],
-      ["On disk", m.browser.setup.disk],
-      ["Speed", m.browser.setup.speed],
-      ["False alarms", m.browser.setup.falseAlarms]
-    ]) {
-      facts.append(el("dt", {}, label), el("dd", {}, value));
-    }
-    card.append(facts);
+    if (modelStatus(key)?.downloaded) card.append(el("span", { className: "badge neutral" }, "downloaded"));
+    card.append(facts(m));
     card.addEventListener("click", () => {
-      if (cancelling || modelStatus(key)?.downloading) return;
+      if (cancelling || downloadingKey()) return;
       selected = key;
       setStatus("");
       renderModels();
@@ -132,10 +152,38 @@ function renderModels() {
   renderDownload();
 }
 
+// Main path: the recommended model with one button (size and source are right next to it)
+function renderHero() {
+  const m = AIVSAI.MODELS[RECOMMENDED];
+  const st = modelStatus(RECOMMENDED);
+  const hero = $("hero");
+  hero.replaceChildren(
+    el("div", {}, el("span", { className: "title" }, m.title), el("span", { className: "badge" }, "recommended")),
+    el("p", { className: "why" }, "Fewest false alarms of the three, also on shorter paragraphs. Slower (~1 s per paragraph) – " +
+      "works best when it scans what you are reading.")
+  );
+  hero.append(facts(m));
+  if (st?.downloaded) {
+    hero.append(el("div", { className: "row" }, el("span", { className: "badge neutral" }, "downloaded – ready")));
+    return;
+  }
+  const busy = !!downloadingKey();
+  const button = el("button", { className: "primary", type: "button", disabled: busy },
+    `Download ${m.name} (${m.browser.download})`);
+  button.addEventListener("click", () => startDownload(RECOMMENDED));
+  hero.append(
+    el("div", { className: "row" }, button),
+    el("p", { className: "small muted" },
+      "One request to Hugging Face, no account, no page content sent. Converted to ~475 MB on your disk. " +
+        "You can keep going while it downloads.")
+  );
+}
+
 function renderDownload() {
   const panel = $("downloadPanel");
   panel.hidden = !selected;
-  $("noModelNote").hidden = !!inUse() || !!selected;
+  $("noModelNote").hidden = !!inUse() || !!selected || !!downloadingKey();
+  $("continueNote").hidden = !downloadingKey();
   if (!selected) return;
   const m = AIVSAI.MODELS[selected];
   const st = modelStatus(selected);
@@ -183,7 +231,9 @@ function renderProgress(p) {
 
 async function refreshModels() {
   modelState = await chrome.runtime.sendMessage({ type: "MODEL_STATUS" });
+  selected ||= downloadingKey() ?? null;
   renderModels();
+  renderBg();
 }
 
 async function saveModelChoice(key) {
@@ -198,17 +248,11 @@ async function saveModelChoice(key) {
   await chrome.storage.sync.set(patch);
 }
 
-$("download").addEventListener("click", async () => {
-  const key = selected;
-  const { download, askBeforeDownload } = AIVSAI.MODELS[key].browser;
-  if (
-    askBeforeDownload &&
-    !confirm(`The model downloads ${download} once. On mobile internet or with a limited data allowance better use Wi-Fi. Download now?`)
-  ) {
-    return;
-  }
+async function startDownload(key) {
+  selected = key;
   setStatus("");
   await saveModelChoice(key);
+  renderModels();
   $("download").hidden = true;
   $("cancel").hidden = false;
   renderProgress(null);
@@ -218,9 +262,11 @@ $("download").addEventListener("click", async () => {
     await refreshModels();
   } else {
     modelState = st;
-    renderDownload();
+    renderModels();
   }
-});
+}
+
+$("download").addEventListener("click", () => startDownload(selected));
 
 $("cancel").addEventListener("click", async () => {
   cancelling = true;
@@ -237,8 +283,12 @@ chrome.runtime.onMessage.addListener((msg) => {
     $("download").hidden = true;
     $("cancel").hidden = false;
     renderProgress(msg);
+    modelState = { ...modelState, models: { ...modelState?.models, [msg.model]: { ...modelState?.models?.[msg.model], downloading: msg } } };
+    renderBg();
   } else if (msg?.type === "MODEL_DONE") {
     refreshModels().then(() => {
+      renderBg();
+      if (step === 3) renderSamples();
       if (msg.model !== selected || msg.cancelled) return;
       if (msg.ok) setStatus("Downloaded – ready.", "ok");
       else setStatus(`Download failed: ${msg.error} – you can try again.`, "err");
@@ -292,11 +342,13 @@ function renderSamples() {
     }
     box.append(el("div", { className: "sample" }, el("b", {}, s.label), el("blockquote", {}, s.text), res));
   }
-  const ready = inUse();
+  const ready = !!inUse();
+  const waiting = !ready && !!downloadingKey();
+  $("sampleBlock").hidden = !ready && !waiting;
+  $("noSamples").hidden = ready || waiting;
   $("score").disabled = !ready;
-  if (!ready && !$("scoreStatus").textContent) {
-    $("scoreStatus").textContent = "No model yet – choose and download one in step 1 to try this.";
-  }
+  if (waiting) $("scoreStatus").textContent = "The model is still downloading – you can score the samples when it is done.";
+  else if (ready && $("scoreStatus").textContent.includes("still downloading")) $("scoreStatus").textContent = "";
 }
 
 $("score").addEventListener("click", async () => {
@@ -320,6 +372,8 @@ $("score").addEventListener("click", async () => {
 });
 
 $("back3").addEventListener("click", () => showStep(2));
+$("next3").addEventListener("click", () => showStep(4));
+$("back4").addEventListener("click", () => showStep(3));
 $("finish").addEventListener("click", async () => {
   const tab = await chrome.tabs.getCurrent();
   if (tab?.id !== undefined) chrome.tabs.remove(tab.id);
