@@ -179,6 +179,19 @@
       if (!contextTarget?.isConnected) return { fallback: true };
       checkElement();
       return { fallback: false };
+    },
+    // Text from outside this document (selection in the PDF viewer, delivered by the context menu): same popover as
+    // for page text, shown over the viewer. No feedback collection - the text may come from a document.
+    CHECK_TEXT: ({ text }) => {
+      const clean = (text || "").replace(/\s+/g, " ").trim();
+      if (!clean) {
+        Popover.show({}, Popover.claim(), {
+          error: "No text selected. Select text first, then right-click → \"Check selected text for AI\"."
+        });
+      } else {
+        checkManual(clean, { noFeedback: true });
+      }
+      return { fallback: false };
     }
   };
 
@@ -934,13 +947,13 @@
   }
 
   // Blocklist or password/payment field (mail, banking): do not collect texts there, not even locally
-  const feedbackOffered = () => config.feedbackButtons && !blockReason();
+  const feedbackOffered = (fb) => config.feedbackButtons && !blockReason() && !fb?.target?.noFeedback;
 
   // fb: { target, token, view (result view), scored: { text, p, model, source },
   //       saved: previous answer for this text { id, label, basis, at } or null }
   async function openWithFeedback(fb) {
     fb.saved = null;
-    if (feedbackOffered()) {
+    if (feedbackOffered(fb)) {
       fb.saved = (await sendMessage({ type: "FEEDBACK_GET", text: fb.scored.text }))?.entry ?? null;
     }
     Popover.show(fb.target, fb.token, withFeedback(fb));
@@ -951,7 +964,7 @@
   }
 
   function withFeedback(fb) {
-    if (!feedbackOffered()) return fb.view;
+    if (!feedbackOffered(fb)) return fb.view;
     if (fb.saved) {
       const { label, basis, at } = fb.saved;
       return {

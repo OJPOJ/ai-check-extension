@@ -61,10 +61,14 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (!item || tab?.id === undefined) return;
   const msg = { type: item.message, selectionText: info.selectionText };
   chrome.tabs.sendMessage(tab.id, msg, { frameId: info.frameId }, (resp) => {
+    if (!chrome.runtime.lastError && !resp?.fallback) return; // the page handled it with its popover
     // No content script in that frame, or it has no selection of its own - e.g. the browser's PDF viewer. The
-    // context menu still delivers the selected text, so the single check goes to an own window instead of a
-    // popover on the page.
-    if (chrome.runtime.lastError || resp?.fallback) openSelectionCheck(info.selectionText, tab.url).catch(() => {});
+    // context menu still delivers the selected text. Show it in the popover of the tab's top frame (it lies over
+    // the viewer like on any page); without a content script there (file:// without access, Web Store) an own
+    // window is the last resort.
+    chrome.tabs.sendMessage(tab.id, { type: "CHECK_TEXT", text: info.selectionText }, { frameId: 0 }, () => {
+      if (chrome.runtime.lastError) openSelectionCheck(info.selectionText, tab.url).catch(() => {});
+    });
   });
 });
 

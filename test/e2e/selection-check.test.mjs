@@ -95,6 +95,22 @@ describe("Selection check window", () => {
     await page.close();
   });
 
+  it("shows text from outside the page in the normal, closable popover", async () => {
+    const page = await ext.open("http://doc.test/");
+    await page.waitForSelector("p");
+    const popover = () => page.evaluate(() => document.querySelector("aivsai-popover")?.shadowRoot.textContent || "");
+    const before = backend.requests;
+    const reply = await ext.sendToTab("doc.test", { type: "CHECK_TEXT", text: longText("viewer1") });
+    assert.deepEqual(reply, { fallback: false });
+    await page.waitForFunction(() => /Hint, not proof/.test(document.querySelector("aivsai-popover")?.shadowRoot.textContent || ""));
+    assert.ok(backend.requests > before);
+    assert.doesNotMatch(await popover(), /where the text comes from/, "no feedback question for text from a document");
+    await page.keyboard.press("Escape");
+    await page.waitForFunction(() => !document.querySelector("aivsai-popover")?.hasAttribute("open") &&
+      !document.querySelector("aivsai-popover")?.shadowRoot.querySelector(".card:not([hidden])"));
+    await page.close();
+  });
+
   it("raises no console errors", async () => {
     assert.deepEqual(ext.errors, []);
   });

@@ -100,6 +100,9 @@ function li(text) {
   return el;
 }
 
+$("close").addEventListener("click", () => window.close());
+document.addEventListener("keydown", (e) => e.key === "Escape" && window.close());
+
 async function main() {
   const jobId = new URLSearchParams(location.search).get("job");
   const key = `selection:${jobId}`;
