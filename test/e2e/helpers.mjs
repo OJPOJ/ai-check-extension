@@ -108,6 +108,8 @@ export async function launchExtension({ pages = {}, viewport = { width: 900, hei
     },
     configure: (cfg) => options.evaluate((c) => chrome.storage.sync.set(c), cfg),
     send: (msg) => options.evaluate((m) => chrome.runtime.sendMessage(m), msg),
+    /** Unfolds "Advanced settings" on the settings page (backends, thresholds, blocklist, ...) */
+    openAdvanced: () => options.evaluate(() => (document.getElementById("advanced").open = true)),
     tabId,
     /** Message to the content script of the tab with this host */
     sendToTab: async (host, msg) =>

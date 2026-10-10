@@ -29,13 +29,13 @@ try {
   await sleep(300); // let markers/badges finish rendering
   await page.screenshot({ path: path.join(outDir, "1-scan.png") });
 
+  // The settings page as a new user sees it: basic view with the browser model, advanced folded away.
+  // Back to the browser provider, otherwise the page notes that a different backend is in use.
+  await ext.configure({ provider: "browser" });
   await ext.options.bringToFront();
-  // Show the panel of the configured provider, not the unused "In the browser" (whose
-  // download status fails here anyway, because no offscreen document with a real model is running).
-  await ext.options.click('input[name="provider"][value="local"]');
-  await ext.options.click("#save");
-  await ext.options.waitForFunction(() => document.getElementById("status")?.textContent === "Saved.");
-  await ext.options.evaluate(() => document.getElementById("detection")?.scrollIntoView());
+  await ext.options.goto(ext.options.url().split("#")[0]); // the setup link carries #detection, which unfolds Advanced
+  await ext.options.waitForFunction(() => document.querySelector("#modelStatus")?.textContent !== "Checking…");
+  await sleep(400); // let the switch animation finish
   await ext.options.screenshot({ path: path.join(outDir, "2-settings.png") });
 } finally {
   await ext.close();

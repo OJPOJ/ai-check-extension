@@ -8,6 +8,14 @@ const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost"]);
 // Fields of all providers (also the unselected ones - their values are kept on saving)
 const PROVIDER_FIELDS = Object.values(AIVSAI.PROVIDERS).flatMap((p) => p.fields);
 
+// Everything outside the browser model needs an explicit confirmation ("Use this backend"): it asks for host
+// permissions (only possible in a click handler) and, for most providers, needs a passed "Check model" first.
+// All other settings are saved as soon as they change.
+const REMOTE_FIELDS = Object.entries(AIVSAI.PROVIDERS)
+  .filter(([id]) => id !== "browser")
+  .flatMap(([, p]) => p.fields);
+const NOT_AUTOSAVED = new Set(["enabled", "modelChecks", ...REMOTE_FIELDS.map((f) => f.key)]);
+
 const radioValue = (name) => document.querySelector(`input[name="${name}"]:checked`)?.value;
 const setRadio = (name, value) => {
   const el = document.querySelector(`input[name="${name}"][value="${value}"]`);
@@ -39,13 +47,18 @@ function choiceCard(name, value, title, text) {
 // Selection from models.js, e.g. browserModel -> all models with a "browser" section
 function modelField(f) {
   const models = AIVSAI.catalog(f.catalog);
-  const cards = models.map(([key, m]) => choiceCard(f.key, key, m.title, m[f.catalog].summary ?? m.summary));
+  // compact cards (the settings page should fit one screen): size and speed, the rest is in the info below
+  const brief = (m) => {
+    const s = m[f.catalog].setup;
+    return s ? `${s.speed} · ${s.disk} on disk` : (m[f.catalog].summary ?? m.summary);
+  };
+  const cards = models.map(([key, m]) => choiceCard(f.key, key, m.title, brief(m)));
   const hasInfo = models.some(([, m]) => m[f.catalog].info);
   return el(
     "div",
     { className: "field" },
     el("div", { className: "label", textContent: f.label }),
-    el("div", { className: "choices" }, ...cards),
+    el("div", { className: "choices compact", role: "radiogroup", ariaLabel: f.label }, ...cards),
     hasInfo ? el("div", { className: "info", id: `${f.key}Info` }) : null
   );
 }
@@ -89,7 +102,8 @@ function buildProviderForms() {
     const extra = $(`extra-${id}`);
     if (extra) form.append(extra.content.cloneNode(true));
     if (def.check) form.append(checkField(id, def));
-    $("providerForms").append(form);
+    // The browser model is a basic setting, the other backends live under "Advanced"
+    (id === "browser" ? $("browserForm") : $("providerForms")).append(form);
   }
 }
 
@@ -178,11 +192,67 @@ function requestOrigins(cfg) {
   });
 }
 
-let dirty = false;
+// Last state known to be in storage (sync + secrets): autosave only writes what differs from it
+let saved = {};
 
-function setDirty(value) {
-  dirty = value;
-  if (value) showStatus("Unsaved changes", "dirty");
+let statusTimer;
+function showSaved() {
+  showStatus("Saved.", "ok");
+  clearTimeout(statusTimer);
+  statusTimer = setTimeout(() => {
+    if ($("status").textContent === "Saved.") showStatus("");
+  }, 3000);
+}
+
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+// Is a backend other than the browser model selected whose form differs from what is stored?
+function backendPending(cfg, secrets) {
+  if (cfg.provider === "browser") return false;
+  if (cfg.provider !== saved.provider) return true;
+  const form = { ...secrets, ...cfg };
+  return (
+    AIVSAI.PROVIDERS[cfg.provider].fields.some((f) => !same(form[f.key], saved[f.key])) ||
+    !same(modelChecks[cfg.provider], saved.modelChecks?.[cfg.provider])
+  );
+}
+
+// Writes every changed basic/advanced setting right away. Backend settings wait for "Use this backend".
+let autosaveChain = Promise.resolve();
+function autosave() {
+  autosaveChain = autosaveChain.then(autosaveNow).catch((err) => showStatus(`Saving failed: ${err.message}`, "err"));
+}
+
+async function autosaveNow() {
+  const { cfg, secrets } = readForm();
+  const skip = new Set(NOT_AUTOSAVED);
+  if (cfg.provider !== "browser") skip.add("provider");
+  // the thresholds belong to the model of a backend that is not in use yet
+  if (backendPending(cfg, secrets)) ["yellowFrom", "redFrom"].forEach((k) => skip.add(k));
+  let invalid = null;
+  if (cfg.yellowFrom >= cfg.redFrom) {
+    invalid = '"Yellow from" must be smaller than "Red from" – not saved.';
+    ["yellowFrom", "redFrom"].forEach((k) => skip.add(k));
+  }
+  const changes = {};
+  for (const [key, value] of Object.entries(cfg)) {
+    if (!skip.has(key) && !same(value, saved[key])) changes[key] = value;
+  }
+  if (Object.keys(changes).length) {
+    await chrome.storage.sync.set(changes);
+    Object.assign(saved, changes);
+    if ("scoreRetentionDays" in changes) setTimeout(refreshStore, 300); // "Do not store" deletes in the background
+    if (!invalid) showSaved();
+  }
+  if (invalid) showStatus(invalid, "err");
+  else if ($("status").className === "err" && /must be smaller/.test($("status").textContent)) showStatus(""); // fixed
+  renderProvider();
+}
+
+let autosaveTimer;
+function scheduleAutosave() {
+  clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(autosave, 300);
 }
 
 // Must start synchronously in the click handler, otherwise Chrome refuses the permission dialog.
@@ -196,8 +266,9 @@ function saveFromClick() {
   return requestOrigins(cfg).then(async (granted) => {
     if (!granted) return false;
     await Promise.all([chrome.storage.sync.set(cfg), chrome.storage.local.set(secrets)]);
+    Object.assign(saved, secrets, cfg);
     for (const f of SITE_FIELDS) $(f).value = cfg[f].join("\n");
-    dirty = false;
+    renderProvider();
     return true;
   });
 }
@@ -252,11 +323,10 @@ function runCheck(provider) {
     const { checks, ...stored } = r;
     modelChecks = { ...modelChecks, [provider]: stored };
     checkDetails[provider] = { sig: r.sig, checks };
-    setDirty(true);
     renderProvider();
     if (r.ok) {
       applyPreset(); // adopt the suggested traffic light
-      showStatus("Model checked – passed. Save to use it.", "ok");
+      showStatus('Model checked – passed. Click "Use this backend" to use it.', "ok");
     } else {
       showStatus("Model failed the check.", "err");
     }
@@ -267,7 +337,17 @@ function runCheck(provider) {
 
 function renderProvider() {
   const cfg = formConfig();
-  document.querySelectorAll(".provider-fields").forEach((form) => (form.hidden = form.dataset.provider !== cfg.provider));
+  // the browser model form is part of the basic settings and always visible
+  document.querySelectorAll(".provider-fields").forEach((form) => {
+    form.hidden = form.dataset.provider !== cfg.provider && form.dataset.provider !== "browser";
+  });
+  const storedProvider = AIVSAI.PROVIDERS[saved.provider];
+  $("otherBackendNote").hidden = !storedProvider || saved.provider === "browser";
+  if (storedProvider) {
+    $("otherBackendNote").textContent =
+      `Currently "${AIVSAI.providerLabel(saved)}" from the advanced settings is used. ` +
+      'This model is used if you switch back to "In the browser".';
+  }
   for (const f of PROVIDER_FIELDS) {
     if (f.type !== "model" || !$(`${f.key}Info`)) continue;
     $(`${f.key}Info`).textContent = AIVSAI.MODELS[radioValue(f.key)]?.[f.catalog].info || "";
@@ -278,6 +358,18 @@ function renderProvider() {
   $("privacyChars").textContent = AIVSAI.maxChars(cfg);
   renderPresetInfo();
   renderCheck();
+  renderBackendActions(cfg);
+}
+
+// "Use this backend" only when something is waiting to be confirmed, "Test connection" only for servers
+function renderBackendActions(cfg) {
+  const remote = cfg.provider !== "browser";
+  const secrets = Object.fromEntries(PROVIDER_FIELDS.filter((f) => f.secret).map((f) => [f.key, cfg[f.key]]));
+  const pending = remote && backendPending(cfg, secrets);
+  $("backendActions").hidden = !remote;
+  $("test").hidden = !remote || AIVSAI.PROVIDERS[cfg.provider].endpoint(cfg) === null;
+  $("save").hidden = !pending;
+  $("pendingHint").textContent = pending ? "Not in use yet – confirm to apply these settings." : "";
 }
 
 function renderScanMode() {
@@ -358,7 +450,7 @@ function onModelChange() {
   const before = lastPhase.get(key);
   lastPhase.set(key, phase);
   if (before !== "downloading") return;
-  if (phase === "ready") showStatus(dirty ? "Model downloaded – save now to use it." : "Model downloaded.", "ok");
+  if (phase === "ready") showStatus("Model downloaded.", "ok");
   if (phase === "failed") showStatus(`Download failed: ${dl.state(key).error}`, "err");
 }
 
@@ -468,6 +560,7 @@ async function init() {
     chrome.storage.sync.get(AIVSAI.DEFAULTS),
     chrome.storage.local.get(AIVSAI.SECRET_DEFAULTS)
   ]);
+  saved = { ...cfg, ...secrets };
   $("enabled").checked = cfg.enabled;
   $("reportProblem").href = AIVSAI.reportUrl(cfg, {
     version: chrome.runtime.getManifest().version,
@@ -494,18 +587,33 @@ async function init() {
   renderBuiltinInfo();
   refreshFeedback();
   watchSections();
+  revealHash();
   bindEvents();
 }
+
+// Links like options.html#detection point into the folded "Advanced" section: open it first
+function revealHash() {
+  const target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+  const details = target?.closest("details");
+  if (!details) return;
+  details.open = true;
+  target.scrollIntoView();
+}
+window.addEventListener("hashchange", revealHash);
 
 // Popup and keyboard shortcut change "enabled" and the domain lists while this page may be open -
 // without reconciliation the next click on Save would write the old form state back.
 chrome.storage.onChanged.addListener((changes, area) => {
   // Consent comes from the popover on a web page
   if (area === "local" && "feedbackConsentAt" in changes) refreshFeedback();
+  for (const [key, { newValue }] of Object.entries(changes)) saved[key] = newValue;
   if (area !== "sync") return;
   if ("enabled" in changes) $("enabled").checked = changes.enabled.newValue;
   for (const f of SITE_FIELDS) {
-    if (f in changes) $(f).value = (changes[f].newValue ?? AIVSAI.DEFAULTS[f]).join("\n");
+    if (!(f in changes)) continue;
+    const list = changes[f].newValue ?? AIVSAI.DEFAULTS[f];
+    // our own autosave comes back here: do not rewrite what is being typed
+    if (!same(parseSites($(f).value), list)) $(f).value = list.join("\n");
   }
 });
 
@@ -513,10 +621,15 @@ function bindEvents() {
   // Main switch takes effect immediately, as in the popup
   $("enabled").addEventListener("change", () => chrome.storage.sync.set({ enabled: $("enabled").checked }));
 
-  // Every other input waits for "Save"
-  document.querySelector("main").addEventListener("input", () => setDirty(true));
-  document.querySelector("main").addEventListener("change", (e) => {
-    setDirty(true);
+  // Everything else is saved as it changes (backend settings: "Use this backend")
+  const main = document.querySelector("main");
+  main.addEventListener("input", scheduleAutosave);
+  // domain lists: tidy up (trim, lowercase, no duplicates) once the field is left
+  main.addEventListener("focusout", (e) => {
+    if (SITE_FIELDS.includes(e.target.id)) e.target.value = parseSites(e.target.value).join("\n");
+  });
+  main.addEventListener("change", (e) => {
+    scheduleAutosave();
     const { name } = e.target;
     if (name === "provider") renderProvider();
     if (name === "scanMode") renderScanMode();
@@ -533,14 +646,15 @@ function bindEvents() {
   $("redFrom").addEventListener("input", renderScale);
   $("applyPreset").addEventListener("click", () => {
     applyPreset();
-    setDirty(true);
+    scheduleAutosave();
   });
 
   $("save").addEventListener("click", save);
+  // nothing to save by hand any more, but do not open the browser's "save page" dialog
   document.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
       e.preventDefault();
-      save();
+      autosave();
     }
   });
 
@@ -564,7 +678,7 @@ function bindEvents() {
 function save() {
   saveFromClick().then((ok) => {
     if (!ok) return;
-    showStatus("Saved.", "ok");
+    showSaved();
     setTimeout(refreshStore, 300); // "Do not store" deletes in the background
   });
 }

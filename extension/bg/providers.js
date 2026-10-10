@@ -219,7 +219,7 @@ export const BACKENDS = {
       }),
     inspect: (cfg) => fetchServerInfo(withModel(`${trimSlash(cfg.localUrl)}/v1/info`, cfg.localModel)),
     health: localHealth,
-    unreachable: (cfg) => `Local server unreachable (${cfg.localUrl}) – is shim_server.py running?`
+    unreachable: (cfg) => `Local server unreachable (${cfg.localUrl}) – is the local server running?`
   },
   custom: {
     score: (texts, cfg, { lang } = {}) => {
@@ -249,7 +249,7 @@ export function describeError(err, cfg) {
     const unreachable = BACKENDS[cfg.provider]?.unreachable;
     return unreachable
       ? unreachable(cfg)
-      : "Backend unreachable (network or missing permission – save in the settings)";
+      : "Backend unreachable (network or missing permission – confirm the backend in the settings)";
   }
   return String(err?.message || err);
 }

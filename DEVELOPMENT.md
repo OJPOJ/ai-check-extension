@@ -78,6 +78,7 @@ Unit tests (`test/unit/`, no browser, seconds):
 |---|---|
 | `config.test.mjs` | traffic-light thresholds, blocklist (custom entries, bundled list, exceptions), `scanPolicy`, `modelKey` (incl. version from the model check), presets, `remoteTarget` |
 | `providers.test.mjs` | backends with mocked `fetch`: server contract (incl. `lang`, value range), `/v1/info`, Bearer key, HTTP error messages, Hugging Face response shapes, Hub metadata (`pipeline_tag`, `id2label`) and label mapping, offscreen call |
+| `settings.test.mjs` | Settings page: basic view fits one 1080p screen, advanced section folded, changes saved immediately, wrong threshold pair rejected, other backends only after "Use this backend", links into the advanced section |
 | `model-check.test.mjs` | "Check model": reference set, AUROC, traffic-light suggestion, verdict (shape, direction, separation), flow against mocked server and Hugging Face (AI label via reference set) |
 | `desklib-build.test.mjs` | desklib conversion on a mini `safetensors` file: copying, 8-bit quantization (rounding to even), chunk boundaries in the download, abort on a wrong file |
 | `blocklist.test.mjs` | Generated blocklist: format, compact, size, spot checks (banking blocked, content sites not) |
@@ -192,8 +193,17 @@ Hugging Face provider with a real token (mocked only, see `providers.test.mjs`).
 - **Backends** (`extension/bg/providers.js`): In the browser (TMR, fakespot or desklib), Local
   (`shim_server.py`), Custom server (contract in `server/README.md`: `POST {texts, model?, lang?} ->
   {scores}` with P(AI) in 0..1, optional `GET /v1/info`, optional Bearer key), Hugging Face Inference
-  API. Host permissions for remote backends are only requested on saving or checking;
+  API. Host permissions for remote backends are only requested on "Use this backend" or checking;
   tokens only in `storage.local`.
+- **Settings page** (`extension/options.html`/`options.js`, issue #9): *Basic* is always visible (browser model,
+  scan mode and site list, delete stored scores), everything else sits in the folded `<details id="advanced">`
+  (backends, thresholds, display, blocklist, retention, feedback). There is no Save button: every change is
+  written after a short delay (`autosave`, only keys that differ from the stored state). Exception: other backends
+  than "In the browser" (and their fields, secrets, "Check model" result) are written only by "Use this backend",
+  which asks for the host permission in the click handler; until then the thresholds of that backend are not
+  stored either. "Test connection" appears only for providers with an endpoint. Links such as
+  `options.html#detection` unfold the advanced section. Developer notes (measurements, Laya, server contract) belong
+  here and in `training/`/`server/`, not on the page.
 - **Check custom models** (`extension/bg/model-check.js`): A custom model is a binary
   classifier, "Check model" in the settings tests it before use – required for
   "Custom server" and Hugging Face, optional for "Local". The reference set (114 texts, half

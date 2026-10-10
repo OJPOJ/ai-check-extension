@@ -28,6 +28,7 @@ describe("Check model", () => {
   });
 
   async function chooseCustom(url) {
+    await ext.openAdvanced();
     await ext.options.check('input[name="provider"][value="custom"]');
     await ext.options.fill("#customUrl", `${url}/v1/score`);
   }
