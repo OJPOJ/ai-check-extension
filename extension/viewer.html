@@ -12,9 +12,12 @@
   [hidden] { display: none !important; }
   #toolbar { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: var(--bg);
     border-bottom: 1px solid var(--border); flex: none; }
-  #toolbar .title { font-weight: 600; margin-right: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-  #toolbar button { padding: 4px 10px; }
-  #pageNumber { width: 3.6em; text-align: center; padding: 3px 4px; border: 1px solid var(--border);
+  #toolbar > * { flex: none; }
+  #toolbar .title { flex: 1 1 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  #toolbar button { padding: 6px 14px; white-space: nowrap; }
+  #toolbar button.icon { min-width: 34px; padding: 4px 0; font-size: 20px; line-height: 1.2; }
+  #toolbar .sep { width: 1px; align-self: stretch; margin: 4px 4px; background: var(--border); }
+  #pageNumber { width: 4em; text-align: center; padding: 6px 4px; border: 1px solid var(--border);
     border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; }
   #stage { display: flex; flex: 1; min-height: 0; }
   #main { position: relative; flex: 1; min-width: 0; }
@@ -26,7 +29,7 @@
   .chip.red { color: var(--red); border-color: var(--red); }
   .chip.yellow { color: var(--yellow); border-color: var(--yellow); }
   .chip.green { color: var(--green); border-color: var(--green); }
-  #toolbar select { font: inherit; padding: 3px 4px; border-radius: 6px; border: 1px solid var(--border);
+  #toolbar select { width: 9.5em; font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border);
     background: var(--surface); color: var(--text); }
   #nextFlagged { margin-bottom: 4px; }
   /* Marking in the text layer (CSS Custom Highlight API, same look as on web pages: color + line style) */
@@ -59,12 +62,14 @@
   <span class="title" id="title">PDF viewer</span>
   <button id="open" type="button">Open file…</button>
   <input id="fileInput" type="file" accept="application/pdf,.pdf" hidden />
-  <button id="prev" type="button" aria-label="Previous page" disabled>‹</button>
+  <span class="sep" aria-hidden="true"></span>
+  <button id="prev" type="button" class="icon" aria-label="Previous page" disabled>‹</button>
   <input id="pageNumber" type="number" min="1" value="1" aria-label="Page" disabled />
   <span id="pageCount" class="muted">/ –</span>
-  <button id="next" type="button" aria-label="Next page" disabled>›</button>
-  <button id="zoomOut" type="button" aria-label="Zoom out" disabled>−</button>
-  <button id="zoomIn" type="button" aria-label="Zoom in" disabled>+</button>
+  <button id="next" type="button" class="icon" aria-label="Next page" disabled>›</button>
+  <span class="sep" aria-hidden="true"></span>
+  <button id="zoomOut" type="button" class="icon" aria-label="Zoom out" disabled>−</button>
+  <button id="zoomIn" type="button" class="icon" aria-label="Zoom in" disabled>+</button>
   <select id="zoom" aria-label="Zoom" disabled>
     <option value="balanced">Balanced</option>
     <option value="page-width">Fit width</option>
@@ -77,6 +82,7 @@
     <option value="2">200%</option>
     <option value="custom" hidden></option>
   </select>
+  <span class="sep" aria-hidden="true"></span>
   <button id="scan" type="button" class="primary" disabled>Scan PDF</button>
 </header>
 <div id="stage">
