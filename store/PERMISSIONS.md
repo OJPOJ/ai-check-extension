@@ -5,10 +5,10 @@ justification per permission, data usage, remote code. Reference: `extension/man
 
 ## Single Purpose (Chrome requires a single, coherent description)
 
-"Scans paragraphs on web pages the user opts in, with a locally-run or user-chosen AI-text
+"Scans paragraphs on web pages and PDFs the user opts in, with a locally-run or user-chosen AI-text
 classifier, and flags them with a green/yellow/red score." All permissions serve exactly this
 one purpose (read and mark text, remember the result, run the model, let the user decide
-what/when to scan).
+what/when to scan). The PDF viewer is the same purpose on another document type, not a second feature.
 
 ## Permissions (`permissions`)
 
@@ -86,7 +86,7 @@ extension pages/offscreen document, not visited websites.
 
 **No**, the extension does not load any executable code remotely. The complete JavaScript/WASM code
 (incl. transformers.js and ONNX Runtime Web) is contained in the package (`extension/vendor/`, built via
-`npm run vendor` and shipped along). What is loaded from Hugging Face at runtime is
+`npm run vendor` and shipped along), as is pdf.js for the PDF viewer (see `extension/THIRD_PARTY_NOTICES.md`). What is loaded from Hugging Face at runtime is
 exclusively **model weights** (data, no program logic) – once, after an explicit click
 on "Download" in the settings, with the download size shown beforehand. When using a
 custom server/Hugging Face backend, text excerpts are sent for scoring; that too is

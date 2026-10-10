@@ -14,6 +14,17 @@ missing and can only be supplied by the user/operator:
       offering) – depends on the provider's place of residence/legal form, cannot be answered
       generally here.
 
+## PDF support (#30)
+
+- [x] `extension/privacy.html`: PDF text handled like page text, second fetch of URL PDFs, no feedback
+      collection for PDFs, file access.
+- [x] `PERMISSIONS.md` / `LISTING.md`: new entry points (popup button, file picker, drag and drop, context menu
+      in Chrome's viewer), Single Purpose unchanged, data usage unchanged, remote code still "No" (pdf.js bundled).
+- [ ] **Quality on PDFs measured** (human-written papers, reports, theses; see #36) and recorded in
+      `training/EVAL_RESULTS.md`. Until then the listing's "Honest limits" is the only warning.
+- [ ] Firefox: check content scripts in its pdf.js viewer once Firefox support exists.
+- [ ] Re-check before submission: the form's "Data usage" answers still match `PERMISSIONS.md`.
+
 ## Developer accounts
 
 - [ ] Chrome Web Store Developer Dashboard: one-time $5 fee, Google account required.
