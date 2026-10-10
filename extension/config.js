@@ -258,8 +258,31 @@ globalThis.AIVSAI = (() => {
   // and later calibration, feedback and reports (so scores stay assigned to their model).
   // Server and Hugging Face: version from "Check model" (GET /v1/info or commit on the Hub).
   function modelKey(cfg) {
+    return keyFor(cfg, providerDef(cfg)?.model(cfg));
+  }
+
+  const keyFor = (cfg, name) => {
     const version = modelCheck(cfg)?.info?.version;
-    return `${cfg.provider}:${providerDef(cfg)?.model(cfg) ?? ""}${version ? `@${version}` : ""}`;
+    return `${cfg.provider}:${name ?? ""}${version ? `@${version}` : ""}`;
+  };
+
+  const REPO_URL = "https://github.com/OJPOJ/ai-check-extension";
+  const REPORT_MAX_BROWSER = 200;
+
+  // Prefilled GitHub issue ("Report a problem"). The text is public, so it only carries version, browser
+  // and model - never the endpoint URL of a custom server (it can be private or contain secrets).
+  function reportUrl(cfg, { version, browser } = {}) {
+    const name = cfg.provider === "custom" ? cfg.customModel || "(unnamed)" : providerDef(cfg)?.model(cfg);
+    const body = [
+      "**What happened?**",
+      "",
+      "",
+      "**Details**",
+      `- Version: ${version || "unknown"}`,
+      `- Browser: ${String(browser || "unknown").slice(0, REPORT_MAX_BROWSER)}`,
+      `- Model: ${keyFor(cfg, name)}`
+    ].join("\n");
+    return `${REPO_URL}/issues/new?${new URLSearchParams({ title: "Problem report", body })}`;
   }
 
   // Languages the model knows (ISO-639-1), or null = unknown, then everything is scored.
@@ -328,6 +351,7 @@ globalThis.AIVSAI = (() => {
     checkSignature,
     modelCheck,
     modelKey,
+    reportUrl,
     presetFor,
     maxChars,
     maxInFlight,
