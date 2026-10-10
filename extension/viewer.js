@@ -51,7 +51,7 @@ function notice(title, text, actions = []) {
 }
 
 function setControls(enabled) {
-  for (const id of ["prev", "next", "zoomOut", "zoomIn", "fit", "pageNumber", "scan"]) $(id).disabled = !enabled;
+  for (const id of ["prev", "next", "zoomOut", "zoomIn", "zoom", "pageNumber", "scan"]) $(id).disabled = !enabled;
 }
 
 const pickFile = () => $("fileInput").click();
@@ -60,6 +60,7 @@ const chooseFile = { label: "Choose a file…", onClick: pickFile };
 // source: { url } or { data: Uint8Array }; name only for the title
 async function openPdf(source, name) {
   scanToken++;
+  clearMarks();
   currentDoc = null;
   $("results").hidden = true;
   await loadingTask?.destroy();
@@ -101,8 +102,37 @@ async function openPdf(source, name) {
   }
 }
 
-eventBus.on("pagesinit", () => {
-  viewer.currentScaleValue = "page-width";
+// Default zoom: as wide as the window allows, but not wider than 110% - "fit width" alone makes pages on wide
+// windows so large that only a small part of a page is readable at once
+const BALANCED_MAX = 1.1;
+let applying = false; // zoom set by the select itself: the select already shows it
+function applyZoom(value) {
+  applying = true;
+  try {
+    if (value === "balanced") {
+      viewer.currentScaleValue = "page-width";
+      if (viewer.currentScale > BALANCED_MAX) viewer.currentScale = BALANCED_MAX;
+    } else {
+      viewer.currentScaleValue = value;
+    }
+  } finally {
+    applying = false;
+  }
+}
+eventBus.on("pagesinit", () => applyZoom($("zoom").value));
+// Zoom changed by +/- or Ctrl+wheel: show the real value in the select, as a preset if it matches
+eventBus.on("scalechanging", ({ scale }) => {
+  if (applying) return;
+  const select = $("zoom");
+  const preset = [...select.options].find((o) => /^[\d.]+$/.test(o.value) && Math.abs(Number(o.value) - scale) < 0.005);
+  if (preset) {
+    select.value = preset.value;
+    return;
+  }
+  const custom = select.querySelector('option[value="custom"]');
+  custom.textContent = `${Math.round(scale * 100)}%`;
+  custom.hidden = false;
+  select.value = "custom";
 });
 eventBus.on("pagechanging", ({ pageNumber }) => {
   $("pageNumber").value = String(pageNumber);
@@ -167,7 +197,7 @@ $("prev").addEventListener("click", () => viewer.previousPage());
 $("next").addEventListener("click", () => viewer.nextPage());
 $("zoomIn").addEventListener("click", () => (viewer.currentScale = Math.min(viewer.currentScale * 1.25, 5)));
 $("zoomOut").addEventListener("click", () => (viewer.currentScale = Math.max(viewer.currentScale / 1.25, 0.25)));
-$("fit").addEventListener("click", () => (viewer.currentScaleValue = "page-width"));
+$("zoom").addEventListener("change", (e) => e.target.value !== "custom" && applyZoom(e.target.value));
 $("pageNumber").addEventListener("change", (e) => {
   const n = Number(e.target.value);
   if (n >= 1 && n <= viewer.pagesCount) viewer.currentPageNumber = n;
@@ -262,6 +292,7 @@ function batchesOf(entries) {
 const setScanStatus = (text) => ($("scanStatus").textContent = text);
 
 function resetResults() {
+  clearMarks();
   $("results").hidden = false;
   $("hits").replaceChildren();
   $("scanCounts").replaceChildren();
@@ -338,7 +369,14 @@ async function scanDocument() {
     }
     const fullText = items.map((it) => it.text).join(M.GROUP_SEPARATOR);
     const text = M.clipText(fullText, cfg);
-    scorable.push({ id: `g${scorable.length}`, items, words, text, lang: items[0].lang });
+    scorable.push({
+      id: `g${scorable.length}`,
+      items,
+      words,
+      text,
+      truncated: text.length < fullText.length,
+      lang: items[0].lang
+    });
   }
 
   const results = [];
@@ -354,7 +392,9 @@ async function scanDocument() {
     if (resp?.error && !results.length) return endScan(token, resp.error);
     done += batch.length;
   }
+  setMarks(results, cfg, pages);
   renderResults(results, { cfg, scorable, skipped, extracted });
+  updateNextFlagged();
   endScan(token);
 }
 
@@ -407,7 +447,7 @@ function renderResults(results, { cfg, scorable, skipped, extracted }) {
           ex.textContent = r.text.length > EXCERPT_CHARS ? `${r.text.slice(0, EXCERPT_CHARS)}…` : r.text;
           const button = document.createElement("button");
           button.append(meta, ex);
-          button.addEventListener("click", () => (viewer.currentPageNumber = page));
+          button.addEventListener("click", () => jumpTo(r));
           const li = document.createElement("li");
           li.append(button);
           return li;
@@ -425,6 +465,141 @@ $("stop").addEventListener("click", () => {
   setScanStatus("Stopped.");
   $("stop").hidden = true;
   $("scan").disabled = !currentDoc;
+});
+
+// --- Marking in the document -------------------------------------------------------------------
+// The text layer is ordinary DOM: every pdf.js text item has a span, in the order of getTextContent().
+// pdf-paragraphs.js reports which items make up a paragraph (parts[].items), so a result is marked by putting
+// a Range over those spans into the CSS Custom Highlight API (no change to the DOM, same colors as on pages).
+// Text layers are built lazily and again after zooming - marking is (re)applied on every `textlayerrendered`.
+const FOCUS_MS = 2200;
+const marks = { results: [], cfg: null, itemCounts: {}, spanIndex: {} };
+const highlightSets = Object.fromEntries(["green", "yellow", "red", "uncertain", "focus"].map((l) => [l, new Highlight()]));
+if (window.CSS?.highlights) for (const [l, set] of Object.entries(highlightSets)) CSS.highlights.set(`aivsai-${l}`, set);
+const pageRanges = new Map(); // page number -> [{ range, set }]
+const spanOwner = new WeakMap(); // text-layer span -> result (for the click popover)
+let focus = null; // { result, timer }
+let flaggedIndex = -1;
+
+const textLayerOf = (n) => viewer.getPageView(n - 1)?.div?.querySelector(".textLayer");
+
+function clearPageMarks(n) {
+  for (const { range, set } of pageRanges.get(n) || []) set.delete(range);
+  pageRanges.delete(n);
+}
+
+function markPage(n) {
+  clearPageMarks(n);
+  const layer = textLayerOf(n);
+  if (!layer || !marks.results.length) return;
+  const spans = [...layer.querySelectorAll("span:not(.markedContent)")];
+  // The layer must be the one the paragraphs were extracted from - otherwise better no marking than a wrong one
+  if (marks.itemCounts[n] !== spans.length) return;
+  const entries = [];
+  const add = (set, range) => {
+    set.add(range);
+    entries.push({ range, set });
+  };
+  for (const r of marks.results) {
+    const visible = r.level !== "green" || marks.cfg.showGreen;
+    for (const it of r.items) {
+      for (const part of it.para.parts) {
+        if (part.page !== n) continue;
+        for (const idx of part.items) {
+          const span = spans[marks.spanIndex[n]?.[idx]];
+          if (!span) continue;
+          spanOwner.set(span, r);
+          const range = document.createRange();
+          range.selectNodeContents(span);
+          if (visible) add(highlightSets[r.level], range);
+          if (focus?.result === r) add(highlightSets.focus, range.cloneRange());
+        }
+      }
+    }
+  }
+  pageRanges.set(n, entries);
+}
+
+function markRenderedPages() {
+  for (let n = 1; n <= (currentDoc?.numPages || 0); n++) markPage(n);
+}
+
+function clearMarks() {
+  for (const n of [...pageRanges.keys()]) clearPageMarks(n);
+  for (const set of Object.values(highlightSets)) set.clear();
+  clearTimeout(focus?.timer);
+  focus = null;
+  flaggedIndex = -1;
+  Object.assign(marks, { results: [], cfg: null, itemCounts: {}, spanIndex: {} });
+  $("nextFlagged").hidden = true;
+}
+
+function setMarks(results, cfg, pages) {
+  clearMarks();
+  // pdf.js reports empty items (line ends) for which the text layer has no span: item position -> span position
+  const spanIndex = {};
+  const itemCounts = {};
+  for (const p of pages) {
+    let spans = 0;
+    spanIndex[p.number] = p.items.map((it) => (it.str === "" ? -1 : spans++));
+    itemCounts[p.number] = spans;
+  }
+  Object.assign(marks, { results, cfg, itemCounts, spanIndex });
+  markRenderedPages();
+}
+
+eventBus.on("textlayerrendered", ({ pageNumber }) => markPage(pageNumber));
+
+// Scroll to the place of a result (not only to its page) and flash it
+function jumpTo(r) {
+  const part = r.items[0].para.parts[0];
+  clearTimeout(focus?.timer);
+  highlightSets.focus.clear();
+  focus = {
+    result: r,
+    timer: setTimeout(() => {
+      highlightSets.focus.clear();
+      focus = null;
+    }, FOCUS_MS)
+  };
+  // XYZ destination: left edge, a little above the paragraph so that its context is visible
+  viewer.scrollPageIntoView({ pageNumber: part.page, destArray: [null, { name: "XYZ" }, 0, part.y1 + 40, null] });
+  for (const p of new Set(r.items.flatMap((it) => it.para.parts.map((x) => x.page)))) markPage(p);
+}
+
+// Click on marked text: the same result view as on web pages, anchored at the clicked line
+function showResult(r, anchor) {
+  const rec = {
+    text: r.text,
+    words: r.words,
+    p: r.p,
+    truncated: r.truncated,
+    grouped: r.items.length > 1 ? r.items.length : undefined
+  };
+  AIVSAIPopover.show({ el: anchor }, AIVSAIPopover.claim(), M.resultView(rec, marks.cfg));
+}
+
+$("viewerContainer").addEventListener("click", (e) => {
+  const span = e.target.closest?.("span");
+  const r = span && spanOwner.get(span);
+  if (!r || !getSelection().isCollapsed) return; // not on marked text, or the user is selecting text
+  showResult(r, span);
+});
+
+function updateNextFlagged() {
+  const flagged = marks.results.filter((r) => r.level === "red" || r.level === "yellow");
+  $("nextFlagged").hidden = !flagged.length;
+  $("nextFlagged").textContent =
+    flaggedIndex >= 0 ? `Next flagged (${flaggedIndex + 1} / ${flagged.length})` : `Next flagged (${flagged.length})`;
+  return flagged;
+}
+
+$("nextFlagged").addEventListener("click", () => {
+  const flagged = updateNextFlagged();
+  if (!flagged.length) return;
+  flaggedIndex = (flaggedIndex + 1) % flagged.length;
+  jumpTo(flagged[flaggedIndex]);
+  updateNextFlagged();
 });
 
 // --- Start -------------------------------------------------------------------------------------

@@ -26,6 +26,15 @@
   .chip.red { color: var(--red); border-color: var(--red); }
   .chip.yellow { color: var(--yellow); border-color: var(--yellow); }
   .chip.green { color: var(--green); border-color: var(--green); }
+  #toolbar select { font: inherit; padding: 3px 4px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--text); }
+  #nextFlagged { margin-bottom: 4px; }
+  /* Marking in the text layer (CSS Custom Highlight API, same look as on web pages: color + line style) */
+  ::highlight(aivsai-green) { background-color: rgba(22, 163, 74, 0.18); text-decoration: underline solid rgba(22, 163, 74, 0.8); }
+  ::highlight(aivsai-yellow) { background-color: rgba(234, 179, 8, 0.28); text-decoration: underline dashed rgba(161, 98, 7, 0.9); }
+  ::highlight(aivsai-red) { background-color: rgba(220, 38, 38, 0.22); text-decoration: underline wavy rgba(220, 38, 38, 0.95); }
+  ::highlight(aivsai-uncertain) { background-color: rgba(107, 114, 128, 0.2); text-decoration: underline dashed rgba(107, 114, 128, 0.9); }
+  ::highlight(aivsai-focus) { background-color: rgba(59, 130, 246, 0.4); }
   #hits { list-style: none; margin: 8px 0 0; padding: 0; }
   #hits li + li { margin-top: 6px; }
   #hits button { display: block; width: 100%; text-align: left; padding: 6px 8px; }
@@ -56,7 +65,18 @@
   <button id="next" type="button" aria-label="Next page" disabled>›</button>
   <button id="zoomOut" type="button" aria-label="Zoom out" disabled>−</button>
   <button id="zoomIn" type="button" aria-label="Zoom in" disabled>+</button>
-  <button id="fit" type="button" disabled>Fit width</button>
+  <select id="zoom" aria-label="Zoom" disabled>
+    <option value="balanced">Balanced</option>
+    <option value="page-width">Fit width</option>
+    <option value="page-fit">Fit page</option>
+    <option value="0.5">50%</option>
+    <option value="0.75">75%</option>
+    <option value="1">100%</option>
+    <option value="1.25">125%</option>
+    <option value="1.5">150%</option>
+    <option value="2">200%</option>
+    <option value="custom" hidden></option>
+  </select>
   <button id="scan" type="button" class="primary" disabled>Scan PDF</button>
 </header>
 <div id="stage">
@@ -73,6 +93,7 @@
     <h2>AI check</h2>
     <div id="scanStatus" class="small"></div>
     <div id="scanCounts" class="counts"></div>
+    <button id="nextFlagged" type="button" hidden>Next flagged</button>
     <label class="small" id="onlyFlaggedLabel" hidden>
       <input type="checkbox" id="onlyFlagged" /> Only flagged and unclear
     </label>
@@ -87,6 +108,7 @@
 <script src="config.js"></script>
 <script src="lang-detect.js"></script>
 <script src="manual-check.js"></script>
+<script src="content-popover.js"></script>
 <script type="module" src="viewer.js"></script>
 </body>
 </html>
