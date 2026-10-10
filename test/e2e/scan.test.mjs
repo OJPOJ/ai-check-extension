@@ -58,6 +58,19 @@ describe("Scan and operation", () => {
     assert.ok((await page.$$(".aivsai-badge")).length > 0, "percent badges are missing");
   });
 
+  it("lists ids of flagged/unclear paragraphs in document order (no text) and scrolls to one on request", async () => {
+    const list = await ext.sendToTab("harness.test", { type: "GET_FLAGGED" });
+    const levels = await scored(page);
+    assert.equal(list.length, levels.filter((l) => l === "red" || l === "yellow").length);
+    assert.ok(list.length > 0);
+    assert.ok(list.every((it) => ["red", "yellow"].includes(it.level) && Number.isInteger(it.id)));
+    assert.ok(list.every((it) => Object.keys(it).sort().join() === "id,level"), "no text may leave the page");
+    assert.equal(await ext.sendToTab("harness.test", { type: "JUMP_TO", id: list[0].id }), true);
+    await page.waitForSelector(".aivsai-jump");
+    await page.waitForFunction(() => !document.querySelector(".aivsai-jump"), null, { timeout: 5000 });
+    assert.equal(await ext.sendToTab("harness.test", { type: "JUMP_TO", id: -1 }), false);
+  });
+
   it("sends STATS to extension pages and sets the icon badge", async () => {
     assert.ok((await ext.options.evaluate(() => window.__stats.length)) > 0);
     const tabId = await ext.tabId("harness.test");

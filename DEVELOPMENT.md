@@ -129,7 +129,9 @@ Hugging Face provider with a real token (mocked only, see `providers.test.mjs`).
   14,000 entries in every tab (233 KB per content script).
 - **Traffic light:** two thresholds (Yellow from / Red from, presets per model), green = checked and *not* detected as
   AI (can be switched off), badge "AI score 97", distinguishable even without color perception
-  (thin / dashed / heavy). Popup with counters per page and backend status; icon badge with
+  (thin / dashed / heavy). Popup with counters per page and backend status (the "flagged"/"unclear" tiles cycle through
+  those paragraphs: `GET_FLAGGED` returns only ids + levels in document order, `JUMP_TO` scrolls and
+  highlights – no paragraph text leaves the page); icon badge with
   number of red (otherwise yellow) paragraphs, "!" on error.
 - **Fewer false alarms** (the biggest harm is red on a human text; measurement:
   `training/EVAL_RESULTS.md`, "False alarms on Wikipedia"):

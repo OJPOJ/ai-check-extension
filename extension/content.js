@@ -165,6 +165,8 @@
       if (isActive() && lastError) rescanAll();
     },
     GET_STATS: () => stats(),
+    GET_FLAGGED: () => flaggedList(),
+    JUMP_TO: ({ id }) => jumpTo(id),
     CHECK_SELECTION: () => checkSelection(),
     CHECK_ELEMENT: () => checkElement()
   };
@@ -658,7 +660,7 @@
     results.delete(el);
     skipped.delete(el);
     nearObserver.unobserve(el);
-    el.classList.remove(...LEVEL_CLASSES, "aivsai-pending", "aivsai-deferred", "aivsai-pos");
+    el.classList.remove(...LEVEL_CLASSES, "aivsai-pending", "aivsai-deferred", "aivsai-pos", "aivsai-jump");
     if (el.dataset.aivsaiTitle) el.removeAttribute("title");
     for (const key of ["aivsaiScore", "aivsaiLevel", "aivsaiLabel", "aivsaiTitle", "aivsaiSkipped", "aivsaiWords", "aivsaiGrouped"]) {
       delete el.dataset[key];
@@ -717,6 +719,36 @@
       error: lastError,
       host
     };
+  }
+
+  // Flagged/unclear paragraphs for the popup tiles (click = next one), in document order. Only ids
+  // and levels leave the page - no paragraph text.
+  const listIds = new WeakMap();
+  let nextListId = 1;
+
+  function flaggedList() {
+    const items = [];
+    for (const [el, rec] of results) {
+      const level = levelOf(rec);
+      if (!el.isConnected || (level !== "red" && level !== "yellow")) continue;
+      if (!listIds.has(el)) listIds.set(el, nextListId++);
+      items.push({ id: listIds.get(el), el, level });
+    }
+    items.sort((a, b) => (a.el.compareDocumentPosition(b.el) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+    return items.map(({ el, ...item }) => item);
+  }
+
+  function jumpTo(id) {
+    for (const el of results.keys()) {
+      if (listIds.get(el) !== id || !el.isConnected) continue;
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+      el.classList.remove("aivsai-jump");
+      void el.offsetWidth; // restart the animation on repeated clicks
+      el.classList.add("aivsai-jump");
+      setTimeout(() => el.classList.remove("aivsai-jump"), 1800);
+      return true;
+    }
+    return false;
   }
 
   // Goes to background (icon badge) and an open popup

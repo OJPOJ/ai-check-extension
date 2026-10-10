@@ -111,3 +111,13 @@
     animation: none;
   }
 }
+
+/* Brief highlight after a click in the popup list */
+.aivsai-jump {
+  animation: aivsai-jump 1.8s ease-out !important;
+}
+
+@keyframes aivsai-jump {
+  0%, 40% { background-color: rgba(59, 130, 246, 0.35); }
+  100% { background-color: transparent; }
+}
