@@ -72,7 +72,7 @@ The extension is offered only here via GitHub, not via the Chrome Web Store. It 
    file `manifest.json`).
 6. Optional: **pin** the extension via the puzzle icon in the toolbar.
 
-Afterwards a welcome page and the settings open.
+Afterwards the guided setup page opens (choose a model, when to scan, try it on two sample texts).
 
 > [!NOTE]
 > Because the extension does not come from a store, the browser shows the words "Developer mode"

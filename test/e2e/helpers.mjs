@@ -62,14 +62,14 @@ export async function launchExtension({ pages = {}, viewport = { width: 900, hei
     }
     [sw] = ctx.serviceWorkers();
     sw ||= await ctx.waitForEvent("serviceworker");
-    // onInstalled opens the welcome page - sometimes as a new tab, sometimes in the empty start tab. From there on to
+    // onInstalled opens the setup page - sometimes as a new tab, sometimes in the empty start tab. From there on to
     // the settings like a user (checks the link along the way); the page then serves as the
     // extension context for messages.
-    const welcome = await until(() => ctx.pages().find((p) => p.url().endsWith("/welcome.html")), {
-      message: "Welcome page was not opened"
+    const setup = await until(() => ctx.pages().find((p) => p.url().endsWith("/setup.html")), {
+      message: "Setup page was not opened"
     });
-    await welcome.waitForLoadState();
-    await welcome.click("a[href^='options.html']");
+    await setup.waitForLoadState();
+    await setup.click("a[href^='options.html']");
     options = await until(() => ctx.pages().find((p) => p.url().includes("/options.html")), {
       message: "Settings page was not opened"
     });
