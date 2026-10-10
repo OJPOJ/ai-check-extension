@@ -34,6 +34,11 @@ sent without your action. A bundled blocklist (online banking, webmail, governme
 and detection of password/payment fields additionally prevent scanning of sensitive pages, regardless
 of this setting.
 
+**PDFs:** PDFs are never scanned automatically. On request, the extension opens a PDF in its own viewer
+(bundled pdf.js), scores it paragraph by paragraph and marks it in color. By default this happens locally;
+online backends are blocked for PDFs unless you switch them on and confirm per document. In Chrome's own
+PDF viewer, which cannot be marked, you can check selected text via right-click.
+
 **Honest limits:**
 - The bundled models are trained on **English only**. Paragraphs in other languages are detected and
   **not scored**, rather than guessed at.
@@ -41,6 +46,8 @@ of this setting.
   translated, or heavily edited text (e.g. encyclopedia entries, press releases).
 - The score is a **hint, not proof**, and not a calibrated probability. Please don't accuse anyone of
   using AI based solely on this flag.
+- PDFs: scanned documents without a text layer are not read (no OCR). Academic text with citations,
+  formulas and tables may be split or scored less reliably than ordinary prose.
 - Very short paragraphs are marked "uncertain" instead of colored, because the model is unreliable
   there.
 
