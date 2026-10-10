@@ -1,6 +1,7 @@
 // Scanning a PDF in the viewer (issue #33): paragraphs from real pdf.js output go through the same pipeline as web
 // pages (language, grouping, batches), against a fake local backend.
 import assert from "node:assert/strict";
+import http from "node:http";
 import { after, before, describe, it } from "node:test";
 import { launchExtension, layoutLines, makeLayoutPdf, startBackend } from "./helpers.mjs";
 
@@ -22,6 +23,33 @@ function samplePdf() {
     { text: "2", x: 300, y: 30, size: 10 }
   ];
   return makeLayoutPdf([[...heading, ...body, ...second, ...footer], page2]);
+}
+
+// An "online" backend that is still on this computer: 127.0.0.2 is not one of the loopback names the extension
+// treats as local, so the provider counts as external. CORS headers instead of a host permission.
+async function startOnlineBackend() {
+  const backend = { requests: 0, texts: [] };
+  const server = http.createServer((req, res) => {
+    res.setHeader("access-control-allow-origin", "*");
+    res.setHeader("access-control-allow-headers", "*");
+    res.setHeader("access-control-allow-methods", "POST, GET, OPTIONS");
+    if (req.method === "OPTIONS") return res.writeHead(204).end();
+    let body = "";
+    req.on("data", (c) => (body += c));
+    req.on("end", () => {
+      res.setHeader("content-type", "application/json");
+      if (req.method !== "POST") return res.end("{}");
+      const { texts = [] } = JSON.parse(body || "{}");
+      backend.requests++;
+      backend.texts.push(...texts);
+      res.end(JSON.stringify({ scores: texts.map((t) => [0.2, 0.7, 0.95][t.length % 3]) }));
+    });
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.2", r));
+  backend.target = `127.0.0.2:${server.address().port}`;
+  backend.url = `http://${backend.target}/v1/score`;
+  backend.close = () => new Promise((r) => server.close(r));
+  return backend;
 }
 
 describe("PDF scan", () => {
@@ -156,6 +184,59 @@ describe("PDF scan", () => {
     assert.equal(await page.locator("#hits li").count(), 0);
     await page.close();
     await ext.configure({ provider: "local", localUrl: backend.url });
+  });
+
+  describe("online backend", () => {
+    let online;
+    before(async () => {
+      online = await startOnlineBackend();
+    });
+    after(async () => {
+      await online?.close();
+      await ext.configure({ provider: "local", localUrl: backend.url, allowPdfExternal: false });
+    });
+
+    it("asks per document, names the destination and sends nothing when declined", async () => {
+      await ext.configure({ provider: "custom", customUrl: online.url, allowPdfExternal: true });
+      const page = await openPdf(samplePdf());
+      await page.click("#scan");
+      await page.waitForSelector("#confirm:not([hidden])");
+      const text = await page.textContent("#confirmText");
+      assert.match(text, /doc\.pdf/);
+      assert.ok(text.includes(online.target), "names the destination");
+      assert.match(text, /\d+ text blocks? \(/);
+      assert.equal(online.requests, 0, "nothing is sent before the answer");
+      await page.click("#confirmCancel");
+      await page.waitForFunction(() => /Cancelled/.test(document.querySelector("#scanStatus").textContent));
+      assert.equal(online.requests, 0);
+      assert.equal(await page.locator("#hits li").count(), 0);
+      await page.close();
+    });
+
+    it("sends and notes it in the result after the confirmation", async () => {
+      await ext.configure({ provider: "custom", customUrl: online.url, allowPdfExternal: true });
+      const page = await openPdf(samplePdf());
+      await page.click("#scan");
+      await page.waitForSelector("#confirm:not([hidden])");
+      await page.click("#confirmSend");
+      await page.waitForSelector("#hits li");
+      assert.ok(online.requests > 0 && online.texts.length > 0);
+      assert.ok(online.texts.every((t) => !/References|Smith, J\./.test(t)));
+      assert.ok((await page.textContent("#scanNotes")).includes(`was sent to ${online.target}`));
+      // asked again for the next scan of the same document
+      await page.click("#scan");
+      await page.waitForSelector("#confirm:not([hidden])");
+      await page.click("#confirmCancel");
+      await page.close();
+    });
+
+    it("is refused by the background too when the setting is off (second safeguard)", async () => {
+      await ext.configure({ provider: "custom", customUrl: online.url, allowPdfExternal: false });
+      const before = online.requests;
+      const resp = await ext.send({ type: "SCORE_BATCH", items: [{ id: "x", text: longPara("zeta"), lang: "en" }], manual: false, pdf: true });
+      assert.match(resp.error, /not allowed in the settings/);
+      assert.equal(online.requests, before);
+    });
   });
 
   it("tells which pages have no text layer", async () => {

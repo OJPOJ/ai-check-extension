@@ -50,6 +50,16 @@ describe("Settings page", () => {
     assert.doesNotMatch(text, /EVAL_RESULTS|shim_server|Laya|import_feedback/);
   });
 
+  it("keeps online backends for PDFs off until the user switches them on", async () => {
+    assert.equal((await stored("allowPdfExternal")).allowPdfExternal, false);
+    await ext.openAdvanced();
+    assert.equal(await ext.options.isChecked("#allowPdfExternal"), false);
+    await ext.options.check("#allowPdfExternal");
+    await until(async () => (await stored("allowPdfExternal")).allowPdfExternal === true, { message: "not saved" });
+    await ext.options.uncheck("#allowPdfExternal");
+    await until(async () => (await stored("allowPdfExternal")).allowPdfExternal === false, { message: "not saved" });
+  });
+
   it("saves changes immediately, without a Save button", async () => {
     assert.equal(await ext.options.locator("#save").isVisible(), false);
     await ext.options.check('input[name="scanMode"][value="manual"]');
