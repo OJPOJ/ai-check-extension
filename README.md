@@ -115,6 +115,9 @@ AI". This works everywhere, even on pages that have not been approved.
 
 **View details:** Click the score badge of a marked paragraph.
 
+**Find marked paragraphs on a long page:** Open the popup and click the "flagged" or "unclear"
+tile – each click jumps to the next paragraph of that level (shown as "2 / 5") and highlights it briefly.
+
 **Keyboard shortcuts**
 
 | Shortcut | Action |

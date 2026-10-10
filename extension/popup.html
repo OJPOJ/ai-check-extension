@@ -21,8 +21,12 @@
   .count.yellow b { color: var(--yellow); }
   .count.green b { color: var(--green); }
   .count.uncertain b { color: var(--muted); }
+  button.count { border: 0; font: inherit; color: inherit; cursor: pointer; }
+  button.count:hover:not(:disabled), button.count:focus-visible { background: var(--border); }
+  button.count:disabled { cursor: default; }
   .count span { font-size: 11px; color: var(--muted); }
   .pending { margin-top: 8px; min-height: 16px; }
+
 
   .scale { display: flex; height: 6px; border-radius: 999px; overflow: hidden; margin: 8px 0 4px; }
   .scale div { height: 100%; }
@@ -67,8 +71,8 @@
   <section>
     <h2>This page</h2>
     <div class="counts">
-      <div class="count red" title="Resembles AI text"><b id="cRed">–</b><span>flagged</span></div>
-      <div class="count yellow"><b id="cYellow">–</b><span>unclear</span></div>
+      <button class="count red" id="tileRed" data-level="red" title="Resembles AI text – click: jump to next"><b id="cRed">–</b><span>flagged</span></button>
+      <button class="count yellow" id="tileYellow" data-level="yellow" title="Click: jump to next"><b id="cYellow">–</b><span>unclear</span></button>
       <div class="count green"><b id="cGreen">–</b><span>not flagged</span></div>
       <div class="count uncertain" title="High score, but text too short to tell"><b id="cUncertain">–</b><span>uncertain</span></div>
     </div>

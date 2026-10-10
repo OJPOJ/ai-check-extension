@@ -89,13 +89,38 @@ function renderStats(stats) {
     $("pending").textContent = "No automatic check – single passages via right-click.";
   } else if (!stats.active) {
     $("pending").textContent = "Not active on this page.";
+  } else if (stats.red || stats.yellow) {
+    $("pending").textContent = "Click “flagged” or “unclear” to jump to the paragraphs.";
   } else {
     $("pending").textContent = "";
   }
 }
 
+// ids of flagged/unclear paragraphs per level, in document order; the tiles cycle through them
+let flagged = { red: [], yellow: [] };
+const position = { red: -1, yellow: -1 };
+const TILE_LABEL = { red: "flagged", yellow: "unclear" };
+
+function renderTiles() {
+  for (const level of ["red", "yellow"]) {
+    const n = flagged[level].length;
+    if (position[level] >= n) position[level] = -1;
+    const tile = document.querySelector(`.count[data-level="${level}"]`);
+    tile.disabled = !n;
+    tile.lastElementChild.textContent = position[level] >= 0 ? `${position[level] + 1} / ${n}` : TILE_LABEL[level];
+  }
+}
+
+async function refreshFlagged() {
+  const items = (await sendToTab({ type: "GET_FLAGGED" })) || [];
+  flagged = { red: [], yellow: [] };
+  for (const it of items) flagged[it.level].push(it.id);
+  renderTiles();
+}
+
 async function refreshStats() {
   renderStats(await sendToTab({ type: "GET_STATS" }));
+  refreshFlagged();
 }
 
 async function refreshHealth() {
@@ -137,7 +162,10 @@ async function init() {
 
 // The content script reports every change itself (STATS goes to background and popup) - no polling
 chrome.runtime.onMessage.addListener((msg, sender) => {
-  if (msg?.type === "STATS" && tab?.id !== undefined && sender.tab?.id === tab.id) renderStats(msg.stats);
+  if (msg?.type === "STATS" && tab?.id !== undefined && sender.tab?.id === tab.id) {
+    renderStats(msg.stats);
+    refreshFlagged();
+  }
 });
 
 $("enabled").addEventListener("change", async (e) => {
@@ -175,7 +203,19 @@ $("scanNow").addEventListener("click", async () => {
     return;
   }
   renderStats(stats);
+  refreshFlagged();
 });
+
+document.querySelectorAll(".count[data-level]").forEach((tile) =>
+  tile.addEventListener("click", () => {
+    const level = tile.dataset.level;
+    const ids = flagged[level];
+    if (!ids.length) return;
+    position[level] = (position[level] + 1) % ids.length;
+    renderTiles();
+    sendToTab({ type: "JUMP_TO", id: ids[position[level]] });
+  })
+);
 
 $("openSetup").addEventListener("click", () => chrome.tabs.create({ url: chrome.runtime.getURL("setup.html") }));
 $("openOptions").addEventListener("click", () => chrome.runtime.openOptionsPage());
