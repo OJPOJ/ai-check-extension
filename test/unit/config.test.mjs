@@ -182,6 +182,22 @@ describe("reportUrl", () => {
   it("contains nothing but those details (no page address, no text)", () => {
     assert.ok(!/https?:\/\//.test(body));
   });
+
+  it("never leaks the endpoint URL of a custom server", () => {
+    const secret = "https://intern.example/v1/score?token=abc";
+    for (const customModel of ["", "m1"]) {
+      const b = new URL(A.reportUrl(cfg({ provider: "custom", customUrl: secret, customModel }), info)).searchParams.get("body");
+      assert.ok(!b.includes("intern.example") && !b.includes("token=abc"));
+      assert.ok(b.includes(`Model: custom:${customModel || "(unnamed)"}`));
+    }
+  });
+
+  it("limits the browser string and tolerates missing info", () => {
+    const long = new URL(A.reportUrl(cfg(), { version: "1", browser: "x".repeat(5000) })).searchParams.get("body");
+    assert.ok(long.length < 600);
+    const none = new URL(A.reportUrl(cfg())).searchParams.get("body");
+    assert.ok(none.includes("Version: unknown") && none.includes("Browser: unknown"));
+  });
 });
 
 describe("modelCheck (\"Check model\")", () => {
