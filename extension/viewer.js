@@ -33,6 +33,13 @@ let loadingTask = null;
 let currentDoc = null;
 let sourceHost = ""; // host the PDF was loaded from ("" for a chosen file) - the blocklist applies to it
 let scanToken = 0; // a running scan ends when this changes (new document, stop, new scan)
+let currentName = ""; // file name shown in the title
+let pendingConfirm = null; // resolve function of an open "send online?" question
+// Ends a running scan, also an unanswered question (answer: no)
+function newScanToken() {
+  pendingConfirm?.(false);
+  return ++scanToken;
+}
 
 function notice(title, text, actions = []) {
   $("noticeTitle").textContent = title;
@@ -59,7 +66,7 @@ const chooseFile = { label: "Choose a file…", onClick: pickFile };
 
 // source: { url } or { data: Uint8Array }; name only for the title
 async function openPdf(source, name) {
-  scanToken++;
+  newScanToken();
   clearMarks();
   currentDoc = null;
   $("results").hidden = true;
@@ -67,7 +74,8 @@ async function openPdf(source, name) {
   $("notice").hidden = true;
   $("viewerContainer").hidden = false;
   setControls(false);
-  $("title").textContent = name || "PDF";
+  currentName = name || "PDF";
+  $("title").textContent = currentName;
   document.title = `${name || "PDF"} – AI Content Flag`;
 
   loadingTask = pdfjsLib.getDocument({
@@ -240,7 +248,7 @@ async function loadConfig() {
 
 function requestScores(items) {
   return new Promise((resolve) => {
-    chrome.runtime.sendMessage({ type: "SCORE_BATCH", items, manual: false }, (resp) =>
+    chrome.runtime.sendMessage({ type: "SCORE_BATCH", items, manual: false, pdf: true }, (resp) =>
       resolve(chrome.runtime.lastError ? null : resp)
     );
   });
@@ -312,18 +320,20 @@ function endScan(token, message) {
 
 async function scanDocument() {
   if (!currentDoc) return;
-  const token = ++scanToken;
+  const token = newScanToken();
   const cfg = await loadConfig();
   $("scan").disabled = true;
 
-  // Whole documents only stay on this computer for now (issue #35: confirmation per document for external backends)
+  // Whole documents stay on this computer unless an online backend was allowed for PDFs in the settings - and
+  // even then every document needs its own confirmation (below, once the amount of text is known)
   if (!cfg.enabled) return endScan(token, "The extension is switched off.");
   const target = AIVSAI.remoteTarget(cfg);
-  if (target) {
+  if (target && !cfg.allowPdfExternal) {
     return endScan(
       token,
-      `PDFs are not sent to ${target}. Choose "In the browser" or "Local" in the settings to check PDFs – ` +
-        "external backends for PDFs need a separate confirmation that is not available yet."
+      `PDFs are not sent to ${target}. Choose "In the browser" or "Local" in the settings to check PDFs, or ` +
+        'switch on "Allow online backends for PDFs" (Advanced settings, Scanning details) – you are then asked ' +
+        "again for every document."
     );
   }
   if (sourceHost && AIVSAI.scanPolicy(sourceHost, cfg) === "blocked") {
@@ -379,6 +389,13 @@ async function scanDocument() {
     });
   }
 
+  if (target && scorable.length) {
+    const chars = scorable.reduce((n, g) => n + g.text.length, 0);
+    const ok = await confirmSend({ target, name: currentName, blocks: scorable.length, chars });
+    if (token !== scanToken) return;
+    if (!ok) return endScan(token, `Cancelled – nothing was sent to ${target}.`);
+  }
+
   const results = [];
   let done = 0;
   for (const batch of batchesOf(scorable)) {
@@ -396,6 +413,29 @@ async function scanDocument() {
   renderResults(results, { cfg, scorable, skipped, extracted });
   updateNextFlagged();
   endScan(token);
+}
+
+// Question before text of a document leaves the computer: names the destination and how much goes there
+function confirmSend({ target, name, blocks, chars }) {
+  $("confirmText").textContent =
+    `"${name}": ${blocks} text ${blocks === 1 ? "block" : "blocks"} (${chars.toLocaleString("en-US")} characters) ` +
+    `would be sent to ${target}. Documents can contain sensitive text – the operator of that service ` +
+    "processes it there.";
+  $("confirm").hidden = false;
+  $("stop").hidden = true;
+  setScanStatus("Waiting for your confirmation…");
+  return new Promise((resolve) => {
+    const done = (answer) => {
+      pendingConfirm = null;
+      $("confirm").hidden = true;
+      $("confirmSend").onclick = $("confirmCancel").onclick = null;
+      $("stop").hidden = false;
+      resolve(answer);
+    };
+    pendingConfirm = done;
+    $("confirmSend").onclick = () => done(true);
+    $("confirmCancel").onclick = () => done(false);
+  });
 }
 
 function renderResults(results, { cfg, scorable, skipped, extracted }) {
@@ -430,6 +470,8 @@ function renderResults(results, { cfg, scorable, skipped, extracted }) {
   notes.push("Headings, captions, tables and reference lists are not checked.");
   notes.push("Hint, not proof: the AI score shows how much a text resembles what the model learned as AI text.");
   notes.push(AIVSAI.providerLabel(cfg));
+  const sentTo = AIVSAI.remoteTarget(cfg);
+  if (sentTo) notes.push(`The text of this PDF was sent to ${sentTo}.`);
   $("scanNotes").textContent = notes.join(" ");
 
   const list = () => {
@@ -461,7 +503,7 @@ function renderResults(results, { cfg, scorable, skipped, extracted }) {
 
 $("scan").addEventListener("click", scanDocument);
 $("stop").addEventListener("click", () => {
-  scanToken++;
+  newScanToken();
   setScanStatus("Stopped.");
   $("stop").hidden = true;
   $("scan").disabled = !currentDoc;

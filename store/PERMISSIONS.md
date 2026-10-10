@@ -77,6 +77,9 @@ extension pages/offscreen document, not visited websites.
 - **Stored locally:** settings; a hash (no text) per scored paragraph with score,
   model, timestamp (adjustable retention, default 30 days); optionally, only after consent,
   a feedback collection with text (for training/testing purposes, export as JSONL, deletable at any time).
+- **PDFs:** same processing as page text. Online backends are refused for PDFs unless the user switched on
+  "Allow online backends for PDFs" in the settings; then the viewer asks for confirmation per document,
+  naming the destination and the amount of text. No feedback collection for PDFs.
   Details: `extension/privacy.html`.
 
 ## Remote code explanation
