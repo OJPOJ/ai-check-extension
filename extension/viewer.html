@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI Content Flag – PDF viewer</title>
+<link rel="stylesheet" href="ui.css" />
+<link rel="stylesheet" href="vendor/pdfjs/pdf_viewer.css" />
+<style>
+  html, body { height: 100%; }
+  body { display: flex; flex-direction: column; background: var(--surface); overflow: hidden; }
+  [hidden] { display: none !important; }
+  #toolbar { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: var(--bg);
+    border-bottom: 1px solid var(--border); flex: none; }
+  #toolbar .title { font-weight: 600; margin-right: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  #toolbar button { padding: 4px 10px; }
+  #pageNumber { width: 3.6em; text-align: center; padding: 3px 4px; border: 1px solid var(--border);
+    border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; }
+  #stage { position: relative; flex: 1; min-height: 0; }
+  #viewerContainer { position: absolute; inset: 0; overflow: auto; }
+  #notice { max-width: 560px; margin: 48px auto; padding: 20px; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 12px; position: relative; }
+  #notice h1 { font-size: 16px; margin-bottom: 8px; }
+  #notice p { margin: 8px 0 0; }
+  #notice .row { margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap; }
+  #dropHint { position: absolute; inset: 12px; display: flex; align-items: center; justify-content: center;
+    border: 2px dashed var(--accent); border-radius: 12px; background: var(--bg);
+    opacity: 0.92; font-size: 16px; pointer-events: none; z-index: 10; }
+</style>
+</head>
+<body>
+<header id="toolbar">
+  <span class="title" id="title">PDF viewer</span>
+  <button id="open" type="button">Open file…</button>
+  <input id="fileInput" type="file" accept="application/pdf,.pdf" hidden />
+  <button id="prev" type="button" aria-label="Previous page" disabled>‹</button>
+  <input id="pageNumber" type="number" min="1" value="1" aria-label="Page" disabled />
+  <span id="pageCount" class="muted">/ –</span>
+  <button id="next" type="button" aria-label="Next page" disabled>›</button>
+  <button id="zoomOut" type="button" aria-label="Zoom out" disabled>−</button>
+  <button id="zoomIn" type="button" aria-label="Zoom in" disabled>+</button>
+  <button id="fit" type="button" disabled>Fit width</button>
+</header>
+<div id="stage">
+  <div id="viewerContainer" tabindex="0"><div id="viewer" class="pdfViewer"></div></div>
+  <div id="notice" hidden>
+    <h1 id="noticeTitle"></h1>
+    <p id="noticeText"></p>
+    <div class="row" id="noticeActions"></div>
+  </div>
+  <div id="dropHint" hidden>Drop a PDF file to open it</div>
+</div>
+
+<script type="module" src="viewer.js"></script>
+</body>
+</html>
