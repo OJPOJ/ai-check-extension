@@ -29,21 +29,26 @@ describe("Setup page", () => {
 
   it("starts the download only on click and can cancel it", async () => {
     // requests of the offscreen document are not visible to Playwright - check the model state instead
+    // The offscreen document is busy or being torn down while downloading/cancelling and may answer with an error
+    // for a moment (CI) - polling treats that as "not yet" instead of failing
     const state = () => ext.send({ type: "MODEL_STATUS" });
+    const tmr = async () => (await state()).models?.tmr;
     await setup.click(".others summary");
     await setup.locator("#models .option", { hasText: "TMR" }).click();
     let st = await state();
     assert.equal(st.models.tmr.downloading, null, "choosing a card must not start a download");
     await setup.click("#download");
-    await until(async () => (await state()).models.tmr.downloading, { message: "download did not start after the click" });
+    await until(async () => (await tmr())?.downloading, { message: "download did not start after the click" });
     await setup.waitForSelector("#cancel:not([hidden])");
     await setup.click("#cancel");
     await setup.waitForFunction(() => document.querySelector("#downloadStatus").textContent.includes("cancelled"));
     assert.equal(await setup.locator("#download").isVisible(), true, "download can be restarted");
     // the page shows "cancelled" at once, the offscreen document is torn down right after
-    await until(async () => (await state()).models.tmr.downloading === null, { message: "download still running" });
-    st = await state();
-    assert.equal(st.models.tmr.downloaded, false);
+    const done = await until(async () => {
+      const m = await tmr();
+      return m && m.downloading === null && m;
+    }, { message: "download still running" });
+    assert.equal(done.downloaded, false);
   });
 
   it("lets every step be skipped and offers the samples only with a model", async () => {
