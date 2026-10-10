@@ -9,6 +9,8 @@
   viewer (`viewer.html`): rendering, text layer, character maps, standard fonts and the JBIG2/JPEG 2000/ICC
   decoders in `vendor/pdfjs/`. License texts: `vendor/pdfjs/LICENSE.pdfjs.txt` and `vendor/pdfjs/wasm/LICENSE_*`.
   The PDF scripting sandbox is not shipped.
+- **pdf-lib** (`pdf-lib` 1.17.1) – MIT License, © Andrew Dillon. Used by the PDF viewer for "Save annotated copy":
+  writes highlight annotations into a copy of a PDF, locally. License text: `vendor/LICENSE.pdf-lib.txt`.
 
 ## Shipped data (`generated/blocklist.js`, via `npm run build:blocklist`)
 

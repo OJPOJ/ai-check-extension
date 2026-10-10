@@ -35,7 +35,7 @@ and detection of password/payment fields additionally prevent scanning of sensit
 of this setting.
 
 **PDFs:** PDFs are never scanned automatically. On request, the extension opens a PDF in its own viewer
-(bundled pdf.js), scores it paragraph by paragraph and marks it in color. By default this happens locally;
+(bundled pdf.js), scores it paragraph by paragraph and marks it in color; a copy with the markings as highlight annotations can be saved locally. By default this happens locally;
 online backends are blocked for PDFs unless you switch them on and confirm per document. In Chrome's own
 PDF viewer, which cannot be marked, you can check selected text via right-click.
 

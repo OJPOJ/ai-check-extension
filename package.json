@@ -16,6 +16,7 @@
   },
   "devDependencies": {
     "@huggingface/transformers": "4.3.0",
+    "pdf-lib": "^1.17.1",
     "pdfjs-dist": "6.4.299",
     "playwright": "1.63.0"
   }
