@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AI Content Flag",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "Flags AI-suspicious paragraphs green/yellow/red with a score – runs locally in your browser or via a cloud backend you pick.",
   "permissions": [
     "storage",
