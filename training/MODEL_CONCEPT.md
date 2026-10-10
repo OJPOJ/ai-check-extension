@@ -1,0 +1,220 @@
+# Concept: our own detector model (small, fast, self-trained)
+
+Status: 2026-10-11, concept only. Nothing here is built or measured yet; numbers marked "estimate"
+or "target" are not results. The steps follow in a separate plan once this concept is agreed.
+
+## Goal
+
+A detector we train ourselves on our own data, that replaces desklib as the default: as accurate
+as possible at much lower latency per paragraph, hosted in our own Hugging Face repo with an ONNX export
+for the browser backend (`extension/models.js`) and the server shim.
+
+Reference points (`EVAL_RESULTS.md`, `MODEL_SEARCH.md`; 1200-text suite, cross-validated, ≥ 120 words
+at ~1.3% false alarms):
+
+| Model | Download | Browser latency | AUROC | AI detected, long | AI detected, short |
+|---|---|---|---|---|---|
+| TMR (RoBERTa-base) | 126 MB | ~0.15 s/paragraph | 0.929 | 65.3% | 13.3% |
+| fakespot (RoBERTa-base) | 125 MB | like TMR | 0.964 | 89.5% | 34.4% |
+| desklib (DeBERTa-v3-large) | 1.7 GB → 475 MB | ~1 s/paragraph | 0.991 | 97.1% | 78.1% |
+
+Priorities (agreed 2026-10-11):
+
+1. **Detection quality and speed** come first: the strongest model that still runs fast.
+   Headline metric is F1, reported at a threshold that keeps false alarms at ~1%, because red on a
+   human text is the biggest harm (`DEVELOPMENT.md`, "Fewer false alarms"). AUROC and the "as
+   displayed" tables stay for comparison with the existing measurements.
+2. **Download size is secondary:** anything up to 2 GB is acceptable. Size is not traded against
+   quality or speed.
+3. **English first.** The backbone should come from a family that also exists multilingually, so
+   that a later multilingual version is a retraining and not a redesign (TODO item 6).
+
+**The main success criterion is detection quality compared with the other models** (TMR, fakespot,
+desklib) on identical texts. There is no fixed latency target: as fast as possible without giving
+up quality.
+
+## Decisions taken
+
+- **No distillation.** The model learns only from labels we can vouch for, not from desklib's scores.
+  It therefore does not inherit desklib's errors, and is not capped by it.
+- **New training, not a new language model.** We fine-tune a small pretrained encoder. The encoder
+  contributes general language understanding only; everything about detection comes from our data.
+  Pretraining an encoder from random weights needs billions of tokens and GPU-weeks, and a detector
+  trained without pretraining learns surface features that fail on unseen generators.
+- **Size and latency are designed in, not added afterwards.** Exit heads, token reduction and
+  quantisation are part of training (see "Trained the way it runs").
+
+## Training data
+
+One aggregated dataset, trained in one go (no staged training). It has three kinds of sources:
+
+1. **Existing public datasets** as the base (licences below). Their generators are partly old, which
+   helps against overfitting to single models but does not represent today's AI text.
+2. **Our own collection of human texts**, to widen domains and to add hard negatives.
+3. **Our own AI texts**, once we have a method we trust.
+
+**Storage is separate per source:** one directory per source with the unchanged rows and a manifest
+entry (origin, revision, licence, sub-source, date, whether it may be redistributed). The training
+and test files are built from these by a script, so a source can be removed or added without
+touching the others, and every row can be traced back.
+
+**Benchmark = our own split.** The aggregated dataset is split once into train and test; the test
+part is frozen and versioned and is the benchmark on which our model is compared with TMR, fakespot
+and desklib. Rules for the split:
+
+- Split by group, not by row: all texts that belong to one human source document or one prompt
+  (e.g. several answers to the same HC3 question, all generations for one RAID source) go to the
+  same side. Near-duplicates are removed first.
+- Stratified by source, domain and generator.
+- Known limitation, to be stated with every result: our model is trained on the same sources as
+  the test part, the other models are not necessarily; in turn they may have seen our test texts in
+  their own training. To show how far this matters, the test part also contains at least one
+  generator and one domain that are absent from our training, reported separately.
+- The documents of the existing 1200-text suite stay out of training, so that the old numbers
+  remain usable as a second view.
+
+Details per source:
+
+- **Human (own collection, needs no budget):** texts with a verifiable state from before 2022,
+  i.e. about a year before ChatGPT (Wikipedia dumps, news archives, forum dumps, reviews, scientific
+  abstracts, how-tos), English first, mixed by domain. Per text we keep source, date, licence and
+  domain, so that every label can be justified later.
+- **AI (own generation, method and budget open):** generated by us. For every human text one or more counterparts on the same topic, from
+  several current model families (Claude, GPT, Gemini, Llama, Mistral, Qwen), with different prompts
+  ("write about", "continue", "reword") and temperatures. The label is certain and topic is held
+  constant, so the model has to learn style rather than subject or publication date.
+- **Texts labelled as AI on the web:** used as an additional test set, not as the training base.
+  They are rare, often edited or mixed, and differ in topic and platform from the human texts.
+- **Lengths as in the browser:** random excerpts from 15 words to 2000 characters, with deliberate
+  weight on short paragraphs, where all three current models are weakest.
+- **Hard negatives:** human text that today's models flag (Wikipedia prose, how-tos, news
+  summaries) and confirmed false alarms from the feedback export (`import_feedback.py`).
+
+### Licences (checked 2026-10-11)
+
+This is a reading of the published licence statements, not legal advice.
+
+Three layers have to be kept apart: (1) the licence the dataset authors put on their compilation,
+(2) the rights in the underlying human texts, which the dataset authors cannot relicense, and
+(3) what we do with it: train and publish weights, or redistribute the texts themselves.
+AI-generated text has no human author and is in general not protected by copyright; the risk sits
+on the human side.
+
+| Dataset | Stated licence | Finding |
+|---|---|---|
+| MAGE (`yaful/MAGE`) | Apache-2.0 (HF card and GitHub LICENSE; README badge says CC BY 4.0) | Permissive either way. Sub-sources carry their own terms: Yelp (academic, non-commercial), IMDb, XSum/CNN (news publishers), Reddit. |
+| RAID (`liamdugan/raid`) | MIT (HF card and GitHub LICENSE) | Permissive. Train split labelled, test split unlabelled. Cards do not name the human sources per domain or the generators in the train split: check in the data and the paper. |
+| HC3 (`Hello-SimpleAI/HC3`) | CC BY-SA 4.0, "unless a source is stricter, then that applies" | Per sub-source (authors' table): reddit_eli5 BSD, wiki_csai CC BY-SA, open_qa "PWC Custom" (WikiQA), medicine and finance "Unknown". |
+| M4GT-Bench / M4 (`mbzuai-nlp`) | none (no LICENSE file, only a citation request) | No licence means no permission. Contains wikiHow (CC BY-NC-SA 3.0 for text before 2025-03-24). |
+| `Jinyan1/COLING_2025_MGT_en` | none | Compilation of the three above without its own licence. |
+
+Rules derived from this (agreed 2026-10-11):
+
+- **Training:** MAGE, RAID and HC3 are used, taken from their original repositories. Excluded:
+  M4GT-Bench and the COLING compilation as a source (no licence), HC3 `medicine`, `finance` and
+  `open_qa` (unknown or research-only), MAGE `yelp` (non-commercial terms). The legal basis for
+  training on the rest is text and data mining (§ 44b UrhG): allowed on lawfully accessible works
+  unless rights are reserved in machine-readable form; copies are deleted when no longer needed.
+- **Redistribution of texts** (published benchmark, anything bundled in the extension): only from
+  sources that allow it, with attribution. For everything else we publish the build scripts and
+  row identifiers, not the texts.
+- **Published model:** the model card lists every training source with its licence. Whether a
+  share-alike data licence reaches trained weights is legally unsettled; to be on the safe side the
+  weights are published under CC BY-SA 4.0 as long as HC3 is in the training data. The extension
+  code stays MIT; it downloads the model and does not bundle it.
+- **Own collection:** only sources with a clear open licence or public domain, e.g. Wikipedia and
+  Stack Exchange dumps (CC BY-SA), arXiv abstracts, Project Gutenberg, Wikinews, public-domain
+  government text. Reddit and review platforms are avoided as new sources (Reddit's terms require
+  permission for model training).
+- The existing eval suite uses M4GT sub-sources (wikipedia, wikihow, arxiv, reddit, peerread). It
+  remains a local measurement only and is never redistributed, as already noted in `TODO.md`.
+
+The V4.1 report supports the weighting: by its own account almost all post-training gains came from
+scaling the data, not from new algorithms.
+
+## Architecture
+
+### Backbone
+
+A small pretrained encoder, chosen by measured browser latency rather than by parameter count.
+Candidates (support in the pinned `@huggingface/transformers` and exact sizes still to be verified):
+
+- small ModernBERT-style encoders (Ettin family; mmBERT-small is multilingual),
+- MiniLM-class models (6–12 layers, width 384),
+- DeBERTa-v3-small/xsmall (note: dynamic int8 broke DeBERTa here, AUROC 0.998 → 0.973),
+- ALBERT-style models with shared layers (see lever 4).
+
+### Levers, and where the idea comes from
+
+DeepSeek-V4.1-Flash optimises a different cost (the KV cache of a generating model with 1M tokens of
+context). Its mechanisms do not apply to a classifier that makes one forward pass over ≤ 512 tokens.
+Several of its principles do:
+
+| # | Lever in our model | Principle in V4.1 | Effect | Risk |
+|---|---|---|---|---|
+| 1 | **Early exit with confidence:** classifier heads after a few layers; if one is confident, the remaining layers are not computed | Causal encoder-decoder: reading and generating do not need the same amount of model (8B vs. 16B active) | Latency on clearly human text, which is most of the web | Exit heads must be calibrated; ONNX needs the graph split into stages |
+| 2 | **Token reduction in upper layers:** pool neighbouring tokens (2:1) or drop unimportant ones after layer k | CSA compresses several tokens into one cache entry; bounded replay runs the upper half on 128 tokens only | Halving the sequence roughly quarters attention and halves the feed-forward cost of those layers | Loses detail; a classifier only needs a pooled output, so the risk is moderate |
+| 3 | **Hashed n-gram embeddings** added to the input: phrase memory by table lookup | Engram: 196B parameters of memory that cost almost no compute | Phrase-level signal without extra layers | Download grows with table size; lexical shortcuts, so only with paired data |
+| 4 | **Shared layer weights:** several layers use the same parameters | CSA2 shares state along the layer dimension (Full/Reindex/Reuse) | Download size only; latency unchanged | Needs a backbone pretrained that way (ALBERT), accuracy usually lower per layer |
+| 5 | **One model, adjustable effort:** the exit threshold is a setting | Reasoning effort 1–100 on one cost/quality curve instead of separate modes | "Fast / Balanced / Accurate" become one download with a slider instead of three models | Thresholds must be calibrated per effort level |
+| 6 | **4-bit or 8-bit weights** | FP4 KV cache | Download size | Must be checked per architecture, see DeBERTa above |
+| 7 | **Averaging checkpoints** from several training runs | Model merging across RL runs | Robustness at no inference cost | Small gain, only if runs share the initialisation |
+
+With the priorities above, levers 1 and 2 are the ones that matter (latency). Levers 4 and 6 only
+save download size and are dropped unless they turn out to be free; in particular the model may
+stay in 8-bit or full precision if that scores better. Lever 3 becomes more attractive, because a
+large lookup table costs download but almost no compute. A pure n-gram model could also serve as
+the first, near-free stage in front of the encoder.
+
+The 2 GB allowance does not by itself permit a large backbone: latency grows with layers × width²,
+which is exactly what makes desklib slow. A larger backbone is only an option together with levers
+1 and 2, so that the full depth runs on few paragraphs and few tokens.
+
+Lever 5 in plain terms: with early exit the model checks after, say, layers 4, 8 and 12 whether it
+is already sure. The effort setting is how sure it has to be to stop. Low effort stops early more
+often (faster, slightly more errors), high effort almost always computes all layers. It is planned as
+a visible setting that replaces the choice between several models.
+
+An indication for lever 1 from existing scores (1200 suite texts, fakespot as a pre-filter in front
+of desklib, thresholds chosen on the same data): 46–54% of human texts would never reach the
+expensive model, at a loss of 1–2 of 548 AI detections.
+
+### Trained the way it runs
+
+V4.1 was trained with sparse attention from the first step instead of converting a dense model
+afterwards. The same applies here: exit heads are trained jointly with the final head, token
+reduction is active during training, and quantisation is checked during training rather than after.
+
+## Confidence
+
+- Every exit head outputs a score; an exit is taken only above a calibrated confidence on either
+  side (clearly human or clearly AI).
+- Calibration per head on held-out data, so that a threshold means the same at every exit and the
+  displayed score no longer depends on which exit fired (TODO item 5).
+- Thresholds are set for a target false alarm rate (~1%), separately for short and long paragraphs,
+  with the existing cross-validation (`crossval_thresholds.py`).
+- The existing "uncertain" level stays: what no head decides confidently is shown as uncertain.
+
+## Evaluation
+
+- Main result: the frozen test part of our own dataset (see "Benchmark = our own split"), F1 at
+  ~1% false alarms plus AUROC, per source, domain, generator and length.
+- The held-out generator and domain inside the test part, reported separately.
+- Second view: the existing 1200-text suite (`evaluate_suite.py --backend hf:<repo>`), "as displayed".
+- Later additions to the test part: our own generations from current models, web texts labelled
+  as AI, other languages.
+- Latency and download measured in the browser (WASM), not only in PyTorch; candidates can be
+  benchmarked with random weights before any training.
+- Comparison against TMR, fakespot and desklib on identical texts.
+
+## Risks and open points
+
+- **Generalisation to new generators** is the main risk and depends on data breadth, not on
+  architecture. The first version will probably land below desklib (estimate).
+- **No usable GPU locally** (integrated Radeon): training runs on Kaggle or Colab.
+- **Licences:** see "Licences" above; still to check are the terms of use of the generating APIs
+  once the method for AI texts is chosen.
+- **Hosting:** a central server with a score cache shared between users would be the most efficient
+  form, but texts would leave the computer. That needs a controller, an extended privacy policy and
+  protection against manipulated entries (TODO item 8). The model itself is the same either way.
+- **Open decision:** how and with which models the AI texts are generated (no budget assigned yet).
