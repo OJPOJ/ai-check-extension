@@ -107,6 +107,13 @@ async function refreshHealth() {
     h?.ok === true ? h.detail || "Reachable" : h?.ok === false ? h.error || "Error" : "Not used yet";
 }
 
+// Browser provider without a downloaded model: scanning cannot work, point to the setup page
+async function refreshModelHint() {
+  if (config.provider !== "browser") return ($("noModel").hidden = true);
+  const st = await chrome.runtime.sendMessage({ type: "MODEL_STATUS" });
+  $("noModel").hidden = !(st?.ok && st.models?.[config.browserModel] && !st.models[config.browserModel].downloaded);
+}
+
 function render() {
   $("enabled").checked = config.enabled;
   document.body.classList.toggle("off", !config.enabled);
@@ -125,6 +132,7 @@ async function init() {
   render();
   refreshStats();
   refreshHealth();
+  refreshModelHint();
 }
 
 // The content script reports every change itself (STATS goes to background and popup) - no polling
@@ -169,6 +177,7 @@ $("scanNow").addEventListener("click", async () => {
   renderStats(stats);
 });
 
+$("openSetup").addEventListener("click", () => chrome.tabs.create({ url: chrome.runtime.getURL("setup.html") }));
 $("openOptions").addEventListener("click", () => chrome.runtime.openOptionsPage());
 
 init();

@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI Content Flag – Setup</title>
+<link rel="stylesheet" href="ui.css" />
+<style>
+  body { background: var(--surface); }
+  main { max-width: 720px; margin: 0 auto; padding: 32px 16px 48px; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .lead { margin: 0 0 20px; color: var(--muted); font-size: 14px; }
+  .card { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+  .card > h2 { margin-bottom: 12px; }
+  p { margin: 8px 0 0; }
+  ul { margin: 8px 0 0; padding-left: 20px; }
+  li + li { margin-top: 4px; }
+  [hidden] { display: none !important; }
+
+  .steps { display: flex; gap: 8px; margin: 0 0 16px; padding: 0; list-style: none; }
+  .steps li { flex: 1; margin: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--bg); color: var(--muted); font-size: 12.5px; }
+  .steps li.current { border-color: var(--accent); color: inherit; font-weight: 600; }
+  .steps li.done { color: inherit; }
+
+  .hero { margin-top: 12px; padding: 16px; border: 1px solid var(--accent); border-radius: 12px; box-shadow: 0 0 0 1px var(--accent); }
+  .hero .title { font-size: 16px; font-weight: 600; }
+  .hero .why { margin: 6px 0 0; }
+  .hero .row { margin-top: 14px; }
+  .hero button.primary { padding: 10px 16px; font-size: 14px; }
+  .others { margin-top: 14px; }
+  .others summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+  .others .options { margin-top: 10px; }
+  .how { margin: 8px 0 0; padding-left: 22px; }
+  .how li { margin-top: 8px; }
+  kbd { padding: 0 5px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px; background: var(--surface); }
+  .options { display: grid; gap: 10px; margin-top: 12px; }
+  .option { display: block; text-align: left; width: 100%; padding: 12px 14px; border: 1px solid var(--border);
+    border-radius: 10px; background: var(--bg); font: inherit; color: inherit; cursor: pointer; }
+  .option:hover { border-color: var(--muted); }
+  .option[aria-pressed="true"], .option.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .option b { font-size: 14px; }
+  .badge { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 999px; font-size: 11px; line-height: 18px;
+    background: var(--accent); color: var(--on-accent); font-weight: 600; vertical-align: 1px; }
+  .badge.neutral { background: var(--surface); color: var(--muted); border: 1px solid var(--border); }
+  .facts { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin-top: 8px; font-size: 12.5px; }
+  .facts dt { color: var(--muted); }
+  .facts dd { margin: 0; }
+
+  .panel { margin-top: 14px; padding: 12px 14px; border-radius: 10px; background: var(--surface); }
+  progress { width: 100%; height: 8px; margin-top: 10px; accent-color: var(--accent); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+  .row .spacer { flex: 1; }
+  .err { color: var(--red); }
+  .ok { color: var(--green); }
+
+  .samples { display: grid; gap: 12px; margin-top: 12px; }
+  .sample { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .sample blockquote { margin: 6px 0 0; font-size: 13px; line-height: 1.5; }
+  .sample .result { margin-top: 10px; min-height: 22px; }
+  .pill { display: inline-block; padding: 0 8px; border-radius: 999px; color: #fff; font-weight: 600; font-size: 12px; line-height: 20px; }
+  .pill.red { background: #dc2626; }
+  .pill.yellow { background: #a16207; }
+  .pill.green { background: #15803d; }
+  .pill.uncertain { background: #6b7280; }
+
+  .levels { display: grid; gap: 10px; margin-top: 12px; }
+  .level { display: grid; grid-template-columns: 110px 1fr; gap: 12px; align-items: start; }
+  .not { margin-top: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>AI Content Flag</h1>
+  <p class="lead">Three quick steps. Nothing is downloaded and nothing is scanned until you click a button.
+    Every step can be skipped and reopened later from the settings.</p>
+
+  <ol class="steps" id="steps">
+    <li data-step="1">1 · Choose a model</li>
+    <li data-step="2">2 · When to scan</li>
+    <li data-step="3">3 · Try it</li>
+    <li data-step="4">4 · Quick start</li>
+  </ol>
+  <div class="small muted" id="bgStatus" hidden style="margin:-4px 0 12px"></div>
+
+  <!-- Step 1 -->
+  <section class="card" data-step="1">
+    <h2>Choose a model</h2>
+    <p>The model runs entirely in your browser; the texts of the pages you read never leave the computer.
+      One download, then it works offline.</p>
+
+    <div class="hero" id="hero"></div>
+
+    <details class="others">
+      <summary>Other models (smaller and faster, but more false alarms)</summary>
+      <div class="options" id="models"></div>
+    </details>
+
+    <div class="panel" id="downloadPanel" hidden>
+      <div id="downloadInfo"></div>
+      <progress id="progress" max="1" value="0" hidden></progress>
+      <div class="small muted" id="downloadStatus" style="margin-top:6px"></div>
+      <div class="row">
+        <button id="download" class="primary">Download</button>
+        <button id="cancel" hidden>Cancel download</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <button id="later">Decide later</button>
+      <a class="small" href="options.html#detection">Use my own server instead</a>
+      <span class="spacer"></span>
+      <button id="next1" class="primary">Next</button>
+    </div>
+    <p class="small muted" id="continueNote" hidden>You can continue – the download keeps running in the background.</p>
+    <p class="small muted" id="noModelNote" hidden>Without a model nothing can be scored. The popup will link back here.</p>
+  </section>
+
+  <!-- Step 2 -->
+  <section class="card" data-step="2" hidden>
+    <h2>Choose when to scan</h2>
+    <p>Websites are only looked at when this setting says so. Online banking, mail and pages with password or
+      payment fields are never scanned automatically (blocklist, adjustable in the settings).</p>
+    <div class="options" id="modes"></div>
+    <div class="row">
+      <button id="back2">Back</button>
+      <span class="spacer"></span>
+      <button id="next2" class="primary">Next</button>
+    </div>
+  </section>
+
+  <!-- Step 3 -->
+  <section class="card" data-step="3" hidden>
+    <h2>Try it</h2>
+    <p>Two short texts that ship with the extension are scored locally, so you can see what the colors look like.
+      They were written for this page; the second imitates typical chatbot style.</p>
+    <div id="sampleBlock">
+      <div class="samples" id="samples"></div>
+      <div class="row">
+        <button id="score" class="primary">Score the samples</button>
+        <span class="small muted" id="scoreStatus"></span>
+      </div>
+    </div>
+    <p class="muted" id="noSamples" hidden>Choose and download a model in step 1 to try the samples – the legend below
+      explains the colors already.</p>
+
+    <div class="levels">
+      <div class="level"><span class="pill red">AI score 97</span>
+        <div><b>Flagged</b> – resembles what the model learned as AI text.</div></div>
+      <div class="level"><span class="pill yellow">AI score 75</span>
+        <div><b>Unclear</b> – some features, no clear tendency.</div></div>
+      <div class="level"><span class="pill green">AI score 12</span>
+        <div><b>Not flagged</b> – nothing typical found.</div></div>
+      <div class="level"><span class="pill uncertain">uncertain</span>
+        <div><b>Too short to tell</b> – high score, but too little text to be reliable.</div></div>
+    </div>
+
+    <div class="warn not">
+      <b>A hint, not proof:</b>
+      <ul>
+        <li><b>Human texts get marked red too</b> – especially factual, formulaic or very smoothly edited ones
+          (encyclopedia articles, press releases, how-tos).</li>
+        <li><b>Not a probability.</b> "AI score 97" does not mean "97% by an AI"; the number is not calibrated.</li>
+        <li><b>Not a judgment about people.</b> Please do not accuse anyone of using AI on this basis alone.</li>
+        <li><b>English only</b>, short texts are not scored automatically, revised AI text and newer models are
+          detected less well.</li>
+      </ul>
+    </div>
+
+    <div class="row">
+      <button id="back3">Back</button>
+      <span class="spacer"></span>
+      <a class="small" href="privacy.html" target="_blank">Privacy policy</a>
+      <button id="next3" class="primary">Next</button>
+    </div>
+  </section>
+
+  <!-- Step 4 -->
+  <section class="card" data-step="4" hidden>
+    <h2>You're set – how to use it</h2>
+    <ol class="how">
+      <li><b>Pin the extension</b> (puzzle icon in the toolbar) so the icon is always one click away.</li>
+      <li><b id="howScan">Open an article</b>, click the icon and press <b>Scan page now</b>
+        (or <kbd data-command="scan-page">Alt+Shift+S</kbd>). Paragraphs get a green, yellow or red mark with a score.</li>
+      <li><b>Click a mark</b> to see the score and why it is only a hint. Short texts are not scored automatically.</li>
+      <li><b>Single passage:</b> select text and press <kbd data-command="check-selection">Alt+Shift+C</kbd>, or right-click a paragraph →
+        "Check this paragraph for AI".</li>
+      <li><b>Switch off</b> with <kbd data-command="toggle-enabled">Alt+Shift+A</kbd> or the toggle in the popup. Banking and mail sites are never scanned.</li>
+    </ol>
+    <div class="row">
+      <button id="back4">Back</button>
+      <span class="spacer"></span>
+      <a class="small" href="options.html">All settings</a>
+      <button id="finish" class="primary">Close</button>
+    </div>
+  </section>
+
+  <p class="small muted"><a href="options.html">All settings</a></p>
+</main>
+
+<script src="generated/blocklist.js"></script>
+<script src="models.js"></script>
+<script src="config.js"></script>
+<script src="model-download.js"></script>
+<script src="setup-content.js"></script>
+<script src="setup.js"></script>
+</body>
+</html>

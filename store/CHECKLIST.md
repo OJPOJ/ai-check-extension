@@ -57,7 +57,7 @@ Check before uploading:
       `scripts/screenshot.mjs`) – no graphic design. For the real presence, better to design by hand
       or at least proofread.
 - [ ] Optionally further screenshots (up to 5 in Chrome): popup with counters, blocklist, "Check
-      model" result, welcome page (`welcome.html`) – `scripts/screenshot.mjs` can be extended for this
+      model" result, setup page (`setup.html`) – `scripts/screenshot.mjs` can be extended for this
       (further `ext.options.click(...)`/`ext.open(...)` steps plus screenshot).
 
 ## Already done (WP-03)

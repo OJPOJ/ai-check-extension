@@ -39,6 +39,8 @@ globalThis.AIVSAI_MODELS = {
       version: "b9aa251-q8",
       marker: "onnx/model_quantized.onnx", // if this file is in the cache, the model counts as downloaded
       download: "126 MB",
+      // Facts for the cards on the setup page (setup.js); numbers as in `summary`/training/EVAL_RESULTS.md
+      setup: { disk: "126 MB", speed: "~0.15 s per paragraph", falseAlarms: "~1% from 120 words, more on short or how-to texts" },
       info:
         "One-time download from Hugging Face (126 MB, public, no account/token needed), then usable " +
         "offline – the texts are only scored locally. Trained on English – German texts may be " +
@@ -54,6 +56,7 @@ globalThis.AIVSAI_MODELS = {
 
   desklib: {
     name: "desklib",
+    recommended: true, // main path on the setup page (setup.js): one button, the other models are folded away
     title: "Accurate – desklib",
     summary:
       "Recommended. DeBERTa-v3-large. ~1.3 s per paragraph, ~800 MB RAM. " +
@@ -80,6 +83,13 @@ globalThis.AIVSAI_MODELS = {
       version: "5fdea97-nbits8b32",
       marker: "onnx/model_quantized.onnx_data",
       download: "1.7 GB",
+      // Facts for the cards on the setup page (setup.js); numbers as in `summary`/training/EVAL_RESULTS.md
+      setup: {
+        disk: "~475 MB (converted)",
+        speed: "~1.3 s per paragraph",
+        falseAlarms: "~1% (lowest of the three), also on shorter texts",
+        pitch: "Fewest false alarms of the three, also on shorter paragraphs. Slower, so it works best when it scans what you are reading."
+      },
       askBeforeDownload: true, // confirmation prompt in the settings (data volume)
       build: {
         source: "desklib/ai-text-detector-v1.01",
@@ -129,6 +139,8 @@ globalThis.AIVSAI_MODELS = {
       version: "0c809a8-q8",
       marker: "onnx/model_quantized.onnx",
       download: "125 MB",
+      // Facts for the cards on the setup page (setup.js); numbers as in `summary`/training/EVAL_RESULTS.md
+      setup: { disk: "125 MB", speed: "~0.15 s per paragraph", falseAlarms: "~1% from 120 words" },
       info:
         "One-time download from Hugging Face (125 MB, public, no account/token needed), then usable " +
         "offline – the texts are only scored locally. ONNX conversion by a third party (not by the " +
