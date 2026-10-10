@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI Content Flag – Check result</title>
+<link rel="stylesheet" href="ui.css" />
+<style>
+  main { padding: 16px; }
+  .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-weight: 600; font-size: 12.5px;
+    border: 1px solid var(--border); background: var(--surface); }
+  .pill.green { color: var(--green); border-color: var(--green); }
+  .pill.yellow { color: var(--yellow); border-color: var(--yellow); }
+  .pill.red { color: var(--red); border-color: var(--red); }
+  h1 { margin: 10px 0 0; font-size: 16px; }
+  .notes { margin: 12px 0 0; padding-left: 18px; }
+  .notes li + li { margin-top: 4px; }
+  .excerpt { margin: 14px 0 0; padding: 8px 10px; border-left: 3px solid var(--border); color: var(--muted);
+    max-height: 9em; overflow: auto; white-space: pre-wrap; }
+  .error { margin: 0; padding: 10px; border-radius: 8px; background: var(--warn-bg); color: var(--warn-text); }
+  .actions { margin-top: 14px; display: flex; gap: 8px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <div id="status" class="muted">Checking for AI…</div>
+  <p id="error" class="error" hidden></p>
+  <div id="result" hidden>
+    <span id="pill" class="pill"></span>
+    <h1 id="title"></h1>
+    <ul id="notes" class="notes"></ul>
+  </div>
+  <div id="actions" class="actions" hidden></div>
+  <div id="excerpt" class="excerpt small" hidden></div>
+</main>
+
+<script src="generated/blocklist.js"></script>
+<script src="models.js"></script>
+<script src="config.js"></script>
+<script src="lang-detect.js"></script>
+<script src="manual-check.js"></script>
+<script src="selection-check.js"></script>
+</body>
+</html>

@@ -1,5 +1,6 @@
 (() => {
-  const MIN_WORDS = 40;
+  const Manual = AIVSAI_MANUAL;
+  const MIN_WORDS = Manual.MIN_WORDS;
   // Lower bound for paragraphs that may become a candidate ONLY as part of a group (see groupCandidates,
   // TODO.md item 2 / WP-10). Some sites (BBC: 7-38 words per <p>, test/REAL_PAGES.md) write such
   // short paragraphs that almost none reaches MIN_WORDS - previously every single paragraph dropped out before
@@ -35,8 +36,7 @@
   // Strip out within a paragraph: icon fonts ("chevron_right"), code blocks
   const STRIP_SELECTOR = "[aria-hidden='true'], pre";
   const LEVEL_CLASSES = ["aivsai-green", "aivsai-yellow", "aivsai-red", "aivsai-uncertain", "aivsai-badge"];
-  // Manual check: short texts too (result then comes with a note)
-  const MANUAL_MIN_WORDS = 5;
+  const MANUAL_MIN_WORDS = Manual.MANUAL_MIN_WORDS;
   const HIGHLIGHT_STATES = ["pending", "green", "yellow", "red", "uncertain"];
   // Heuristic "sensitive site": visible password, payment or one-time-code field. Fields in dialogs
   // do not count - otherwise the login popup of a news site ends the scan of the article underneath.
@@ -167,8 +167,19 @@
     GET_STATS: () => stats(),
     GET_FLAGGED: () => flaggedList(),
     JUMP_TO: ({ id }) => jumpTo(id),
-    CHECK_SELECTION: () => checkSelection(),
-    CHECK_ELEMENT: () => checkElement()
+    // Always answer: background.js treats "no answer" (no content script) and `fallback` as "show the result in
+    // its own window" - the PDF viewer's top frame has this script, but the selection lives in the viewer.
+    CHECK_SELECTION: ({ selectionText }) => {
+      const sel = getSelection();
+      if (selectionText && (!sel || sel.isCollapsed)) return { fallback: true };
+      checkSelection();
+      return { fallback: false };
+    },
+    CHECK_ELEMENT: () => {
+      if (!contextTarget?.isConnected) return { fallback: true };
+      checkElement();
+      return { fallback: false };
+    }
   };
 
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
@@ -242,22 +253,8 @@
     return text.trim();
   }
 
-  // Clip to AIVSAI.maxChars, preferably at the last sentence end (otherwise at the last space) - the model should
-  // not see a truncated half-sentence. Read only, deterministic: same text -> same excerpt.
-  function clipText(text) {
-    const maxChars = AIVSAI.maxChars(config);
-    if (text.length <= maxChars) return text;
-    const cut = text.slice(0, maxChars);
-    const minLength = maxChars * 0.6;
-    const sentence = cut.match(/^[\s\S]*[.!?…]["'”’»)\]]?(?=\s)/);
-    if (sentence && sentence[0].length >= minLength) return sentence[0];
-    const space = cut.lastIndexOf(" ");
-    return space >= minLength ? cut.slice(0, space) : cut;
-  }
-
-  function wordCount(text) {
-    return text.split(/\s+/).filter(Boolean).length;
-  }
+  const clipText = (text) => Manual.clipText(text, config);
+  const wordCount = Manual.wordCount;
 
   // ---------------------------------------------------------------------------
   // Grouping of short paragraphs (TODO.md item 2): adjacent paragraphs below reliableWords in the same
@@ -359,13 +356,8 @@
     return (await AIVSAI_LANG.detectAsync(text)) || attr;
   }
 
-  // `lang` if the model does not know the language (AIVSAI.languages), otherwise ""
-  function foreignOf(lang) {
-    const langs = AIVSAI.languages(config);
-    return lang && langs && !langs.includes(lang) ? lang : "";
-  }
-
-  const langList = (langs) => langs.map(AIVSAI_LANG.name).join(", ");
+  const foreignOf = (lang) => Manual.foreignOf(lang, config);
+  const langList = Manual.langList;
 
   // Paragraphs whose language is currently being detected: element -> hash (prevents double queueing if
   // another scan runs in the meantime)
@@ -601,19 +593,9 @@
     style(el);
   }
 
-  // Level of a result: short text or foreign language -> "uncertain" instead of yellow/red
-  function levelOf({ p, words, foreign }) {
-    return foreign ? "uncertain" : AIVSAI.level(p, config, words);
-  }
-
-  // Heading for a result, with the reason for "uncertain"
-  function levelTitle(rec, level) {
-    if (level !== "uncertain") return AIVSAI.LEVEL_TEXT[level];
-    return rec.foreign ? `Cannot be scored – ${AIVSAI_LANG.name(rec.foreign)}` : AIVSAI.LEVEL_TEXT.uncertain;
-  }
-
-  // AI score as a number from 0 to 100, deliberately not as a percentage: not calibrated, not a probability
-  const scoreText = (p) => `AI score ${Math.round(p * 100)}`;
+  const levelOf = (rec) => Manual.levelOf(rec, config);
+  const levelTitle = Manual.levelTitle;
+  const scoreText = Manual.scoreText;
 
   function style(el) {
     const rec = results.get(el);
@@ -854,9 +836,7 @@
     checkManual(text, { el, hash });
   }
 
-  function tooShort(words) {
-    return `Too little text (${words} ${words === 1 ? "word" : "words"}) – at least ${MANUAL_MIN_WORDS} words needed.`;
-  }
+  const tooShort = Manual.tooShort;
 
   // force: check even in a language the model does not know (button "Check anyway")
   async function checkManual(fullText, target, force = false) {
@@ -908,51 +888,7 @@
     reportStats();
   }
 
-  // Result view for the popover. For "uncertain" the reason comes first instead of the number, the raw value only in the text.
-  function resultView(rec) {
-    const { p, words } = rec;
-    const level = levelOf(rec);
-    const raw = `Raw value ${Math.round(p * 100)} of 100`;
-    const notes = [];
-    if (rec.grouped) {
-      notes.push(
-        `Score applies to ${rec.grouped} adjacent, short paragraphs together (${words} words in total) – ` +
-          "more context lowers false alarms on short paragraphs."
-      );
-    }
-    if (rec.foreign) {
-      notes.push(
-        `The model only knows ${langList(AIVSAI.languages(config))} – ${raw}, not meaningful in this language.`
-      );
-    } else if (level === "uncertain") {
-      const short = AIVSAI.shortRedFrom(config);
-      notes.push(
-        short === null
-          ? `Only ${words} words – under ${AIVSAI.reliableWords(config)} words the model is wrong too often ` +
-              `to mark a text as flagged. ${raw}.`
-          : `Only ${words} words – under ${AIVSAI.reliableWords(config)} words the model is wrong more often, ` +
-              `so a short text only counts as flagged from ${Math.round(short * 100)}. ${raw}.`
-      );
-    } else if (level === "red" && words < AIVSAI.reliableWords(config)) {
-      notes.push(
-        `Short text (${words} words) – the stricter threshold ${Math.round(AIVSAI.shortRedFrom(config) * 100)} applies to it, ` +
-          "so that it is not falsely flagged more often than a long one."
-      );
-    } else if (words < MIN_WORDS) {
-      notes.push(`Short text (${words} words) – result not very reliable.`);
-    }
-    if (rec.truncated) {
-      notes.push(`The first ${rec.text.length} characters (up to the sentence end) were scored – the model does not see more.`);
-    }
-    notes.push(
-      "Hint, not proof: The AI score shows how much the text resembles what the model learned as AI text " +
-        "– not a probability. Human texts can also score high.",
-      AIVSAI.providerLabel(config),
-      ...blockedNotes()
-    );
-    const pill = level === "uncertain" ? "uncertain" : scoreText(p);
-    return { pill: { text: pill, level }, title: levelTitle(rec, level), notes };
-  }
+  const resultView = (rec) => Manual.resultView(rec, config, blockedNotes());
 
   // On blocked sites only the single check is allowed - then make transparent what happened
   function blockedNotes() {

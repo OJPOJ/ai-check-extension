@@ -45,6 +45,7 @@
         "models.js",
         "config.js",
         "lang-detect.js",
+        "manual-check.js",
         "content-popover.js",
         "content.js"
       ],

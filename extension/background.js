@@ -58,8 +58,31 @@ function setMenusVisible(visible) {
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   const item = MENU_ITEMS[info.menuItemId];
-  if (item && tab?.id !== undefined) sendToTab(tab.id, { type: item.message }, info.frameId);
+  if (!item || tab?.id === undefined) return;
+  const msg = { type: item.message, selectionText: info.selectionText };
+  chrome.tabs.sendMessage(tab.id, msg, { frameId: info.frameId }, (resp) => {
+    // No content script in that frame, or it has no selection of its own - e.g. the browser's PDF viewer. The
+    // context menu still delivers the selected text, so the single check goes to an own window instead of a
+    // popover on the page.
+    if (chrome.runtime.lastError || resp?.fallback) openSelectionCheck(info.selectionText, tab.url).catch(() => {});
+  });
 });
+
+// Text goes to the window via session storage (memory only, removed once read), not via the URL
+async function openSelectionCheck(text, url) {
+  const id = crypto.randomUUID();
+  const clean = (text || "").replace(/\s+/g, " ").trim();
+  const job = clean
+    ? { text: clean, url }
+    : { error: "No text selected. Select text first, then right-click → \"Check selected text for AI\"." };
+  await chrome.storage.session.set({ [`selection:${id}`]: job });
+  await chrome.windows.create({
+    url: chrome.runtime.getURL(`selection-check.html?job=${id}`),
+    type: "popup",
+    width: 480,
+    height: 560
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Lifecycle, settings, keyboard shortcuts

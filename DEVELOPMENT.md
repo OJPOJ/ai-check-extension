@@ -335,6 +335,9 @@ extension/
   content.js            Text selection, queue/prioritization, marking, result register
                         (`results`: element → score, text, model, source – basis for feedback/reports)
   content-popover.js    Result popover of the manual check (Shadow DOM)
+  manual-check.js       Single check shared by content.js and selection-check.js: word limits, excerpt, result view
+  selection-check.*     Own result window for selected text without a content script (browser's PDF viewer,
+                        issue #31): background.js opens it from the context menu, the text travels via session storage
   popup.*, options.*    UI; the popup gets STATS pushed instead of polling
   setup.*               Guided setup after installation (model choice, scan mode, try-out)
   privacy.html          Privacy policy
