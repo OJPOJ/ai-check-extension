@@ -340,6 +340,8 @@ extension/
                         (issue #31). In the PDF viewer the top frame's popover is used (message CHECK_TEXT);
                         the text travels via session storage
   popup.*, options.*    UI; the popup gets STATS pushed instead of polling
+  pdf-paragraphs.js     Paragraphs from PDF text items (lines, headers/footers, headings, references, page breaks);
+                        pure, tested with synthetic layouts (test/unit) and generated PDFs (test/e2e/pdf-scan)
   viewer.*              PDF viewer (pdf.js components from vendor/pdfjs): file picker, drag and drop, ?file=<url>
                         with permission per origin; basis for scanning/marking PDFs (issue #30). Opened only by
                         the user (popup button), never by redirecting PDFs

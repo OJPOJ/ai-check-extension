@@ -2,22 +2,16 @@
   const Manual = AIVSAI_MANUAL;
   const MIN_WORDS = Manual.MIN_WORDS;
   // Lower bound for paragraphs that may become a candidate ONLY as part of a group (see groupCandidates,
-  // TODO.md item 2 / WP-10). Some sites (BBC: 7-38 words per <p>, test/REAL_PAGES.md) write such
-  // short paragraphs that almost none reaches MIN_WORDS - previously every single paragraph dropped out before
-  // grouping, and the whole article container became the only candidate instead
-  // (hasLongCandidateChild). 15 is clearly above typical navigation/caption lengths (often
-  // < 10 words: image credits, breadcrumbs, short labels) and clearly below MIN_WORDS, so that realistically
-  // several neighbors together reach MIN_WORDS. A single paragraph in this range that does not reach
-  // MIN_WORDS together with any neighbor stays unscored as before (no candidate).
-  const GROUP_MIN_WORDS = 15;
+  // Manual.groupRuns); the reasoning for 15 is in manual-check.js
+  const GROUP_MIN_WORDS = Manual.GROUP_MIN_WORDS;
   // How much text per paragraph goes to the model is determined by the model (AIVSAI.maxChars: TMR 2000, desklib
   // 1500 characters): more context helps a lot (TMR: 500 instead of 1500 characters = ~9% instead of <1% errors), chunks
   // are worse than one piece (training/EVAL_RESULTS.md, "Text length"). Applies equally to auto-scan and manual
   // check, so that the same paragraph always yields the same text and thus the same score/feedback entry.
   // Batches by amount of text instead of just by count: costs about as much compute time as 5 × 500
   // characters did before - a batch of long paragraphs would otherwise block the prioritization while scrolling.
-  const BATCH_MAX_ITEMS = 5;
-  const BATCH_MAX_CHARS = 2500;
+  const BATCH_MAX_ITEMS = Manual.BATCH_MAX_ITEMS;
+  const BATCH_MAX_CHARS = Manual.BATCH_MAX_CHARS;
   const DEBOUNCE_MS = 600;
   // lazyScan: only score paragraphs up to this many screen heights above/below the visible
   // area, the rest follows on scrolling
@@ -276,7 +270,7 @@
   // on its own stays single, a group only grows up to maxChars (model context).
   // ---------------------------------------------------------------------------
 
-  const GROUP_SEPARATOR = "\n\n";
+  const GROUP_SEPARATOR = Manual.GROUP_SEPARATOR;
   // Heading or list between two paragraphs -> no longer "directly adjacent"
   const GROUP_BREAK_SELECTOR = "h1, h2, h3, h4, h5, h6, ul, ol, table, hr";
 
@@ -301,32 +295,12 @@
   // is an array of found entries; single (long, foreign-language or unattachable) paragraphs
   // form a group with only one entry - phase 2 then treats them as before.
   function groupCandidates(found, cfg) {
-    if (!cfg.groupShortParagraphs) return found.map((f) => [f]);
-    const reliable = AIVSAI.reliableWords(cfg);
-    const limit = AIVSAI.maxChars(cfg);
-    const groups = [];
-    let open = null; // { items, chars, lang, lastEl } of the most recently started group that can still be extended
-    for (const f of found) {
-      const foreign = foreignOf(f.lang);
-      const short = !foreign && f.words < reliable;
-      if (
-        open &&
-        short &&
-        f.lang === open.lang &&
-        open.lastEl.parentElement === f.el.parentElement && // common parent node (block container)
-        !hasBreakBetween(open.lastEl, f.el) &&
-        open.chars + GROUP_SEPARATOR.length + f.text.length <= limit
-      ) {
-        open.items.push(f);
-        open.chars += GROUP_SEPARATOR.length + f.text.length;
-        open.lastEl = f.el;
-        continue;
-      }
-      const items = [f];
-      groups.push(items);
-      open = short ? { items, chars: f.text.length, lang: f.lang, lastEl: f.el } : null;
-    }
-    return groups;
+    // Structural condition on a page: common parent node (block container) and no heading/list between
+    return Manual.groupRuns(
+      found,
+      cfg,
+      (last, f) => last.el.parentElement === f.el.parentElement && !hasBreakBetween(last.el, f.el)
+    );
   }
 
   // Only score a container (e.g. <article>) if none of its child candidates can itself become a candidate
