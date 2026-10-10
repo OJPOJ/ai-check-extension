@@ -26,10 +26,10 @@
     .toc { position: static; display: flex; flex-wrap: wrap; gap: 4px; }
   }
 
-  .intro { margin: 0 0 16px; }
-  .card { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+  .intro { margin: 0 0 12px; }
+  .card { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; margin-bottom: 14px; }
   .card > h2 { margin-bottom: 2px; }
-  .lead { margin: 0 0 14px; font-size: 12px; color: var(--muted); }
+  .lead { margin: 0 0 12px; font-size: 12px; color: var(--muted); }
   h3 { font-size: 13px; margin: 20px 0 8px; padding-top: 16px; border-top: 1px solid var(--border); }
   .field { margin-top: 14px; }
   .field:first-child { margin-top: 0; }
@@ -42,7 +42,7 @@
   .choices { display: grid; gap: 8px; }
   .choices.two { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
   .choice {
-    display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px;
+    display: flex; gap: 10px; align-items: flex-start; padding: 8px 12px;
     border: 1px solid var(--border); border-radius: 10px; cursor: pointer;
   }
   .choice:has(input:checked) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
@@ -64,15 +64,26 @@
   .check { display: flex; gap: 8px; align-items: flex-start; margin-top: 12px; }
   .check input { margin-top: 3px; }
 
+  /* Basic settings on top, everything else folded away in <details id="advanced"> */
+  details.card > summary { cursor: pointer; font-weight: 600; font-size: 15px; }
+  details.card[open] > summary { margin-bottom: 4px; }
+  details.card h3.first { border-top: 0; padding-top: 0; margin-top: 14px; }
+  /* The "In the browser" form sits directly in the Model card, without its own panel */
+  .provider-fields[data-provider="browser"] { margin-top: 0; padding: 0; background: none; }
+  .provider-fields[data-provider="browser"] > .field > .label { display: none; } /* the card is titled "Model" */
+  /* title and description side by side: the basic view has to fit one screen */
+  .choices.compact .choice > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; }
+  .choices.compact .choice b { display: inline; }
+
   .bar {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 2; background: var(--bg); border-top: 1px solid var(--border);
     padding: 12px 16px;
   }
+  .bar:has(#status:empty) { display: none; }
   .bar-inner { max-width: 880px; margin: 0 auto; display: flex; gap: 8px; align-items: center; }
   #status { flex: 1; font-size: 12px; min-width: 0; }
   #status.ok { color: var(--green); }
   #status.err { color: var(--red); }
-  #status.dirty { color: var(--yellow); }
   progress { width: 100%; height: 8px; margin-top: 10px; accent-color: var(--accent); }
   .model-check { padding-top: 14px; border-top: 1px solid var(--border); }
   .checks { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 4px; font-size: 12px; }
@@ -101,21 +112,69 @@
 
 <div class="layout">
   <nav class="toc" aria-label="Sections">
-    <a href="#detection">Detection</a>
-    <a href="#display">Display</a>
+    <a href="#model">Model</a>
     <a href="#scanning">Scanning</a>
-    <a href="#blocklist">Blocklist</a>
-    <a href="#data">Data &amp; privacy</a>
+    <a href="#data">Stored data</a>
+    <a href="#advanced">Advanced</a>
   </nav>
 
   <main>
-    <p class="intro muted">Scores longer paragraphs of text with an AI-text classifier and marks them
-      green / yellow / red. Scores are estimates – they can be wrong, especially for short,
-      translated or heavily edited texts.</p>
+    <p class="intro muted">Scores are estimates and can be wrong. Changes are saved as you make them.</p>
 
-    <section class="card" id="detection">
-      <h2>Detection</h2>
-      <p class="lead">Where the texts are scored and with which model.</p>
+    <section class="card" id="model">
+      <h2>Model</h2>
+      <!-- The "In the browser" form (model choice + download) is placed here by options.js -->
+      <div id="browserForm"></div>
+      <p class="info" id="otherBackendNote" hidden></p>
+    </section>
+
+    <section class="card" id="scanning">
+      <h2>Scanning</h2>
+      <div class="choices compact">
+        <label class="choice"><input type="radio" name="scanMode" value="manual" />
+          <div><b>Only on button press</b><span>Nothing is scanned without a click. Selection and right-click always work.</span></div></label>
+        <label class="choice"><input type="radio" name="scanMode" value="sites" />
+          <div><b>Automatically on selected sites</b><span>Sites from the list below or added via the popup.</span></div></label>
+        <label class="choice"><input type="radio" name="scanMode" value="all" />
+          <div><b>Automatically on all sites</b><span>Every visited site – can be slow or costly with online backends.</span></div></label>
+      </div>
+
+      <div class="field" id="sitesField">
+        <label for="sites">Scan automatically on</label>
+        <textarea id="sites" rows="2" placeholder="example.com&#10;news.example.org"></textarea>
+        <div class="hint">One domain per line, subdomains are included.</div>
+      </div>
+    </section>
+
+    <section class="card" id="data">
+      <h2>Stored data</h2>
+      <div class="row">
+        <div class="hint" id="storeStatus" style="margin:0">Checking…</div>
+        <button id="storeClear" title="Removes the remembered scores; nothing is synced or sent anywhere">Delete all</button>
+      </div>
+      <div class="row field">
+        <div class="hint" id="feedbackStatus" style="margin:0">Checking…</div>
+        <div style="display:flex;gap:8px;flex:none">
+          <button id="feedbackExport">Export feedback</button>
+          <button id="feedbackClear">Delete feedback</button>
+        </div>
+      </div>
+      <label class="check"><input type="checkbox" id="feedbackButtons" />
+        <div>Ask in the check result where the text really comes from
+          <div class="hint">Stored only in this browser, after you consent – with the text, score and model, no address.
+            Export as JSONL; deleting also withdraws consent.</div></div></label>
+      <p class="small muted" style="margin:10px 0 0"><a href="privacy.html" target="_blank">Privacy policy</a> ·
+        <a href="about.html">About / licenses</a> ·
+        <a id="reportProblem" target="_blank" rel="noopener noreferrer">Report a problem</a></p>
+    </section>
+
+    <details class="card" id="advanced">
+      <summary>Advanced settings</summary>
+      <p class="lead" style="margin-top:6px">Thresholds, other backends, blocklist and details. The defaults suit most people.</p>
+
+      <h3 id="detection" class="first">Detection backend</h3>
+      <p class="lead">Where the texts are scored. Backends other than "In the browser" have to be confirmed
+        with the button below.</p>
       <!-- Selection and forms come from AIVSAI.PROVIDERS (config.js) and models.js -->
       <div class="choices two" id="providerChoices" role="radiogroup" aria-label="Detection backend"></div>
       <div id="providerForms"></div>
@@ -124,10 +183,15 @@
         <b id="privacyTarget"></b>. Use "Only on button press" or a site list if you do not want that
         for every site.
       </p>
-    </section>
+      <div class="row field" id="backendActions" hidden>
+        <div class="hint" id="pendingHint" style="margin:0"></div>
+        <div style="display:flex;gap:8px;flex:none">
+          <button id="test" title="Applies the backend and sends a sample text to it" hidden>Test connection</button>
+          <button id="save" class="primary" hidden>Use this backend</button>
+        </div>
+      </div>
 
-    <section class="card" id="display">
-      <h2>Display</h2>
+      <h3 id="display">Traffic light</h3>
       <p class="lead">From which score a paragraph is marked yellow or red.</p>
       <div class="slider-row">
         <label for="yellowFrom">Yellow from</label>
@@ -146,9 +210,8 @@
         <span><i class="dot red"></i>flagged (resembles AI text)</span>
       </div>
       <div class="hint">The score (0–100) is a raw value of the model, not a probability. Short paragraphs
-        (under 120 words) are not marked yellow but gray "uncertain", and red only if the model has a
-        stricter threshold for it (desklib: 98); paragraphs in languages the
-        model does not know are not scored.</div>
+        (under 120 words) are not marked yellow but gray "uncertain", and red only for very high scores;
+        paragraphs in languages the model does not know are not scored.</div>
       <div class="row" style="margin-top:12px;justify-content:flex-start">
         <button id="applyPreset">Recommended values for the selected model</button>
         <span class="hint" id="presetInfo" style="margin:0"></span>
@@ -158,39 +221,18 @@
         <div>Also mark unflagged paragraphs green<div class="hint">This shows you what was checked and <i>not</i> detected as AI.</div></div></label>
       <label class="check"><input type="checkbox" id="showBadge" />
         <div>Show score as a badge on the paragraph ("AI score 97")<div class="hint">Without a badge the score is still shown in the tooltip.</div></div></label>
-    </section>
 
-    <section class="card" id="scanning">
-      <h2>Scanning</h2>
-      <p class="lead">When sites are checked automatically. You can check individual passages at any time via selection
-        or right-click; Alt+Shift+S scans the current page.</p>
-      <div class="choices">
-        <label class="choice"><input type="radio" name="scanMode" value="manual" />
-          <div><b>Only on button press</b><span>Via the popup or Alt+Shift+S. No texts are sent without a click.</span></div></label>
-        <label class="choice"><input type="radio" name="scanMode" value="sites" />
-          <div><b>Automatically on selected sites</b><span>Add sites via the switch in the popup or enter them below.</span></div></label>
-        <label class="choice"><input type="radio" name="scanMode" value="all" />
-          <div><b>Automatically on all sites</b><span>Every visited site is analyzed – possibly expensive with cloud backends.</span></div></label>
-      </div>
-
-      <div class="field" id="sitesField">
-        <label for="sites">Scan automatically on</label>
-        <textarea id="sites" rows="4" placeholder="example.com&#10;news.example.org"></textarea>
-        <div class="hint">One domain per line, subdomains are included.</div>
-      </div>
-
-      <label class="check"><input type="checkbox" id="lazyScan" />
+      <h3 id="scanning-details">Scanning details</h3>
+      <label class="check" style="margin-top:0"><input type="checkbox" id="lazyScan" />
         <div>Only score paragraphs near the visible area
           <div class="hint">Up to 1.5 screen heights above/below the current position, the rest on scrolling.
-            Saves computing time and, with cloud backends, costs for passages you never read.</div></div></label>
+            Saves computing time and, with online backends, costs for passages you never read.</div></div></label>
       <label class="check"><input type="checkbox" id="groupShortParagraphs" />
         <div>Score short paragraphs together
           <div class="hint">Adjacent short paragraphs with no heading in between are scored as one text and
             share the result. On their own they are often too short for a reliable verdict.</div></div></label>
-    </section>
 
-    <section class="card" id="blocklist">
-      <h2>Blocklist</h2>
+      <h3 id="blocklist">Blocklist</h3>
       <p class="lead">Blocked sites are checked neither automatically nor via "Scan page now" – this takes
         precedence over all other settings. You can still deliberately check individual passages there via selection or
         right-click.</p>
@@ -214,11 +256,8 @@
       </div>
       <div class="hint">One domain per line, subdomains are included. Both also work via the popup
         ("Never scan here" / "Remove from blocklist").</div>
-    </section>
 
-    <section class="card" id="data">
-      <h2>Data &amp; privacy</h2>
-      <p class="lead">What the extension stores in this browser. None of it is synced or sent.</p>
+      <h3 id="retention">Remembered scores</h3>
       <div class="field">
         <label for="scoreRetentionDays">Remember scores for</label>
         <select id="scoreRetentionDays">
@@ -230,39 +269,11 @@
           <option value="365">1 year</option>
         </select>
         <div class="hint">Paragraphs that have already been scored are marked immediately on the next visit instead of being
-          computed again (or paid for again with cloud backends). Only a fingerprint
+          computed again (or paid for again with online backends). Only a fingerprint
           (hash) of the paragraph is stored, with score, model and time – <b>no text and no address</b>. About 0.25 KB
           per paragraph – 30 days of heavy browsing add up to a few MB.</div>
       </div>
-      <div class="row field">
-        <div class="hint" id="storeStatus" style="margin:0">Checking…</div>
-        <button id="storeClear">Delete all</button>
-      </div>
-
-      <h3>Feedback</h3>
-      <label class="check" style="margin-top:0"><input type="checkbox" id="feedbackButtons" />
-        <div>Ask in the check result where the text really comes from<div class="hint">After a check via
-          selection or right-click (also on paragraphs that are already marked) you can state whether the text comes from
-          a human or an AI – and how you know. The first time you are asked whether
-          the text may be stored for this.</div></div></label>
-      <div class="hint">The collection contains the <b>text</b> (up to 2000 characters), your answer, score, model and
-        the language of the page – no address. It stays in this browser; the extension sends it nowhere.
-        Exported as JSONL it serves as test material or training data (<code>training/import_feedback.py</code>).
-        Entries "just my impression" are not used as a training label there by default.</div>
-      <div class="row field">
-        <div class="hint" id="feedbackStatus" style="margin:0">Checking…</div>
-        <div style="display:flex;gap:8px;flex:none">
-          <button id="feedbackExport">Export</button>
-          <button id="feedbackClear">Delete and withdraw consent</button>
-        </div>
-      </div>
-
-      <p class="small muted" style="margin:16px 0 0"><a href="privacy.html" target="_blank">Privacy policy</a> ·
-        <a href="about.html">About / licenses</a> ·
-        <a id="reportProblem" target="_blank" rel="noopener noreferrer">Report a problem</a> ·
-        Model measurements: training/EVAL_RESULTS.md. Laya is deliberately not selectable until a fine-tuned
-        checkpoint exists (training/README.md).</p>
-    </section>
+    </details>
   </main>
 </div>
 
@@ -278,7 +289,7 @@
   <progress id="modelProgress" max="1" value="0" hidden></progress>
 </template>
 <template id="extra-custom">
-  <div class="hint field">Expected contract (shim_server.py fulfills it, details in server/README.md):</div>
+  <div class="hint field">Your server has to answer like this (details in the project documentation):</div>
   <pre>POST …/v1/score  {"texts": ["…", "…"], "model": "…", "lang": "en"}
 →    {"scores": [0.93, 0.12]}   // P(AI) 0..1 per text, same order
 
@@ -290,8 +301,6 @@ GET  …/v1/info?model=…   // optional, next to the score endpoint
 <div class="bar">
   <div class="bar-inner">
     <div id="status" role="status"></div>
-    <button id="test" title="Saves and sends a sample text to the selected backend">Test connection</button>
-    <button id="save" class="primary" title="Ctrl+S">Save</button>
   </div>
 </div>
 

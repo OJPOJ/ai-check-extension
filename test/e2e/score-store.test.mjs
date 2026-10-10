@@ -86,10 +86,9 @@ describe("Score store", () => {
         }),
       DAY
     );
-    // Otherwise the form shows the state before configure() - "Save" writes the whole form
     await ext.options.reload();
-    await ext.options.selectOption("#scoreRetentionDays", "7");
-    await ext.options.click("#save");
+    await ext.openAdvanced();
+    await ext.options.selectOption("#scoreRetentionDays", "7"); // saved immediately, no Save button
     const keys = () => storedScores(ext.options).then((rows) => rows.map((r) => r.k));
     await until(async () => !(await keys()).includes("old"), { message: "40-day-old entry not deleted" });
     assert.ok((await keys()).includes("recent"));
@@ -103,7 +102,6 @@ describe("Score store", () => {
 
   it("empties everything on “Do not store” and writes nothing new", async () => {
     await ext.options.selectOption("#scoreRetentionDays", "0");
-    await ext.options.click("#save");
     await until(async () => (await info()).count === 0, { message: "store not emptied" });
     await page.evaluate(() => {
       const p = document.createElement("p");

@@ -44,7 +44,7 @@ globalThis.AIVSAI = (() => {
     local: {
       name: "Local",
       title: "Local server",
-      description: "shim_server.py on this computer – texts do not leave the computer.",
+      description: "A scoring server running on this computer – texts do not leave the computer.",
       fields: [
         { key: "localUrl", type: "url", label: "Server URL", default: LOCAL_URL, placeholder: LOCAL_URL },
         { key: "localModel", type: "model", catalog: "server", label: "Model", default: "tmr" }
@@ -59,7 +59,7 @@ globalThis.AIVSAI = (() => {
     custom: {
       name: "Custom server",
       title: "Custom server / cloud",
-      description: "Any HTTP endpoint with a simple JSON contract, e.g. shim_server.py in the cloud.",
+      description: "Any HTTP endpoint with a simple JSON contract, e.g. your own scoring server in the cloud.",
       fields: [
         {
           key: "customUrl", type: "url", label: "Endpoint URL", default: "", required: true,
