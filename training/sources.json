@@ -1,5 +1,5 @@
 {
-  "comment": "Training sources for our own detector model (issue #46, MODEL_CONCEPT.md). One entry per source; fetch_sources.py reads this file. 'use': false keeps a sub-source out of the rows. 'terms' is what the original source states, 'terms_source' where it was read (checked 2026-10-11). 'assumed_cc': true marks sub-sources without any licence statement; by project decision of 2026-10-11 they are treated as if under a Creative Commons licence (attribution, share-alike). 'redistribute' says whether the texts may be passed on (published benchmark); false means scripts and row ids only. 'expected' holds the row count and SHA-256 of rows.jsonl that this file produces; fetch_sources.py fails if a run gives something else.",
+  "comment": "Training sources for our own detector model (issue #46, MODEL_CONCEPT.md). One entry per source; fetch_sources.py reads this file. 'use': false keeps a sub-source out of the rows. 'terms' is what the original source states, 'terms_source' where it was read (checked 2026-10-11). 'assumed_cc': true marks sub-sources without any licence statement; by project decision of 2026-10-11 they are treated as if under a Creative Commons licence (attribution, share-alike). 'redistribute' says whether the texts may be passed on (published benchmark); false means scripts and row ids only. 'expected' holds the row count and SHA-256 of rows.jsonl that this file produces; fetch_sources.py fails if a run gives something else. 'collected' lists the sources we collect ourselves (collect_human.py); their items are pinned by the id files under collected/ (gitignored, local).",
   "row_format": {
     "id": "<source>:<original row id>, stable across runs",
     "source": "key in this file",
@@ -160,6 +160,114 @@
       "expected": {
         "rows": 343665,
         "rows_sha256": "69bea4cae59201d86a533f1263f63c8304fdda759b8f4106988e7d5664a292ad"
+      }
+    }
+  },
+  "collected": {
+    "wikimedia": {
+      "title": "Wikimedia projects, pages as of the cutoff",
+      "cutoff": "2021-12-31",
+      "notes": [
+        "Random pages of the main namespace; taken is the last revision up to the cutoff. Row id and meta.url carry the revision id, which shows the state and its date at the source.",
+        "The revision is rendered by today's software and templates. The prose paragraphs are what was written then; a template that puts text into a paragraph could change it later, which fetch reports as 'changed'.",
+        "Only <p> paragraphs of 15 words or more outside tables, lists, quotes and boxes; pages below min_bytes of wikitext at the cutoff, list and disambiguation pages are skipped; at most 2000 words per page.",
+        "Attribution for redistribution: meta.url leads to the revision and its history of authors."
+      ],
+      "sub_sources": {
+        "wikipedia": {"domain": "wikipedia", "use": true, "site": "en.wikipedia.org", "min_bytes": 6000, "min_words": 150, "human_source": "English Wikipedia", "licence": "CC BY-SA 4.0", "terms": "CC BY-SA 4.0 (site info of the wiki's API)", "terms_source": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo", "assumed_cc": false, "redistribute": true},
+        "wikinews": {"domain": "news", "use": true, "site": "en.wikinews.org", "min_bytes": 1200, "min_words": 100, "human_source": "English Wikinews", "licence": "CC BY 4.0", "terms": "CC BY 4.0 (site info of the wiki's API)", "terms_source": "https://en.wikinews.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo", "assumed_cc": false, "redistribute": true},
+        "wikibooks": {"domain": "howto", "use": true, "site": "en.wikibooks.org", "min_bytes": 3000, "min_words": 150, "human_source": "English Wikibooks (textbooks, guides, cookbook)", "licence": "CC BY-SA 4.0", "terms": "CC BY-SA 4.0 (site info of the wiki's API)", "terms_source": "https://en.wikibooks.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo", "assumed_cc": false, "redistribute": true},
+        "wikivoyage": {"domain": "travel", "use": true, "site": "en.wikivoyage.org", "min_bytes": 4000, "min_words": 150, "human_source": "English Wikivoyage (travel guides)", "licence": "CC BY-SA 4.0", "terms": "CC BY-SA 4.0 (site info of the wiki's API)", "terms_source": "https://en.wikivoyage.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo", "assumed_cc": false, "redistribute": true}
+      }
+    },
+    "stackexchange": {
+      "title": "Stack Exchange answers from before the cutoff",
+      "cutoff": "2021-12-31",
+      "min_words": 40,
+      "min_score": 3,
+      "notes": [
+        "Answers with a score of 3 or more from random 60-day windows between 2011 and the cutoff, created before the cutoff and not edited after it (meta.date is the last edit). The API returns the current text; an answer edited later drops out at the next fetch.",
+        "Sites with prose rather than code or formulas. Answers containing a code block are skipped; quotes and lists are left out of the text.",
+        "Attribution for redistribution: meta.url, meta.author and meta.licence per answer."
+      ],
+      "sub_sources": {
+        "english": {"domain": "qa", "use": true, "site": "english.stackexchange.com", "human_source": "answers on english.stackexchange.com", "terms": "CC BY-SA, version per answer in meta.licence (field content_license of the API)", "terms_source": "https://stackoverflow.com/help/licensing", "assumed_cc": false, "redistribute": true},
+        "history": {"domain": "qa", "use": true, "site": "history.stackexchange.com", "human_source": "answers on history.stackexchange.com", "terms": "CC BY-SA, version per answer in meta.licence (field content_license of the API)", "terms_source": "https://stackoverflow.com/help/licensing", "assumed_cc": false, "redistribute": true},
+        "cooking": {"domain": "qa", "use": true, "site": "cooking.stackexchange.com", "human_source": "answers on cooking.stackexchange.com", "terms": "CC BY-SA, version per answer in meta.licence (field content_license of the API)", "terms_source": "https://stackoverflow.com/help/licensing", "assumed_cc": false, "redistribute": true},
+        "travel": {"domain": "qa", "use": true, "site": "travel.stackexchange.com", "human_source": "answers on travel.stackexchange.com", "terms": "CC BY-SA, version per answer in meta.licence (field content_license of the API)", "terms_source": "https://stackoverflow.com/help/licensing", "assumed_cc": false, "redistribute": true},
+        "diy": {"domain": "qa", "use": true, "site": "diy.stackexchange.com", "human_source": "answers on diy.stackexchange.com", "terms": "CC BY-SA, version per answer in meta.licence (field content_license of the API)", "terms_source": "https://stackoverflow.com/help/licensing", "assumed_cc": false, "redistribute": true},
+        "philosophy": {"domain": "qa", "use": true, "site": "philosophy.stackexchange.com", "human_source": "answers on philosophy.stackexchange.com", "terms": "CC BY-SA, version per answer in meta.licence (field content_license of the API)", "terms_source": "https://stackoverflow.com/help/licensing", "assumed_cc": false, "redistribute": true},
+        "academia": {"domain": "qa", "use": true, "site": "academia.stackexchange.com", "human_source": "answers on academia.stackexchange.com", "terms": "CC BY-SA, version per answer in meta.licence (field content_license of the API)", "terms_source": "https://stackoverflow.com/help/licensing", "assumed_cc": false, "redistribute": true},
+        "workplace": {"domain": "qa", "use": true, "site": "workplace.stackexchange.com", "human_source": "answers on workplace.stackexchange.com", "terms": "CC BY-SA, version per answer in meta.licence (field content_license of the API)", "terms_source": "https://stackoverflow.com/help/licensing", "assumed_cc": false, "redistribute": true},
+        "money": {"domain": "qa", "use": true, "site": "money.stackexchange.com", "human_source": "answers on money.stackexchange.com", "terms": "CC BY-SA, version per answer in meta.licence (field content_license of the API)", "terms_source": "https://stackoverflow.com/help/licensing", "assumed_cc": false, "redistribute": true},
+        "parenting": {"domain": "qa", "use": true, "site": "parenting.stackexchange.com", "human_source": "answers on parenting.stackexchange.com", "terms": "CC BY-SA, version per answer in meta.licence (field content_license of the API)", "terms_source": "https://stackoverflow.com/help/licensing", "assumed_cc": false, "redistribute": true},
+        "gardening": {"domain": "qa", "use": true, "site": "gardening.stackexchange.com", "human_source": "answers on gardening.stackexchange.com", "terms": "CC BY-SA, version per answer in meta.licence (field content_license of the API)", "terms_source": "https://stackoverflow.com/help/licensing", "assumed_cc": false, "redistribute": true},
+        "scifi": {"domain": "qa", "use": true, "site": "scifi.stackexchange.com", "human_source": "answers on scifi.stackexchange.com", "terms": "CC BY-SA, version per answer in meta.licence (field content_license of the API)", "terms_source": "https://stackoverflow.com/help/licensing", "assumed_cc": false, "redistribute": true},
+        "politics": {"domain": "qa", "use": true, "site": "politics.stackexchange.com", "human_source": "answers on politics.stackexchange.com", "terms": "CC BY-SA, version per answer in meta.licence (field content_license of the API)", "terms_source": "https://stackoverflow.com/help/licensing", "assumed_cc": false, "redistribute": true},
+        "law": {"domain": "qa", "use": true, "site": "law.stackexchange.com", "human_source": "answers on law.stackexchange.com", "terms": "CC BY-SA, version per answer in meta.licence (field content_license of the API)", "terms_source": "https://stackoverflow.com/help/licensing", "assumed_cc": false, "redistribute": true},
+        "outdoors": {"domain": "qa", "use": true, "site": "outdoors.stackexchange.com", "human_source": "answers on outdoors.stackexchange.com", "terms": "CC BY-SA, version per answer in meta.licence (field content_license of the API)", "terms_source": "https://stackoverflow.com/help/licensing", "assumed_cc": false, "redistribute": true},
+        "writing": {"domain": "qa", "use": true, "site": "writing.stackexchange.com", "human_source": "answers on writing.stackexchange.com", "terms": "CC BY-SA, version per answer in meta.licence (field content_license of the API)", "terms_source": "https://stackoverflow.com/help/licensing", "assumed_cc": false, "redistribute": true},
+        "skeptics": {"domain": "qa", "use": true, "site": "skeptics.stackexchange.com", "human_source": "answers on skeptics.stackexchange.com", "terms": "CC BY-SA, version per answer in meta.licence (field content_license of the API)", "terms_source": "https://stackoverflow.com/help/licensing", "assumed_cc": false, "redistribute": true},
+        "movies": {"domain": "qa", "use": true, "site": "movies.stackexchange.com", "human_source": "answers on movies.stackexchange.com", "terms": "CC BY-SA, version per answer in meta.licence (field content_license of the API)", "terms_source": "https://stackoverflow.com/help/licensing", "assumed_cc": false, "redistribute": true},
+        "biology": {"domain": "qa", "use": true, "site": "biology.stackexchange.com", "human_source": "answers on biology.stackexchange.com", "terms": "CC BY-SA, version per answer in meta.licence (field content_license of the API)", "terms_source": "https://stackoverflow.com/help/licensing", "assumed_cc": false, "redistribute": true},
+        "worldbuilding": {"domain": "qa", "use": true, "site": "worldbuilding.stackexchange.com", "human_source": "answers on worldbuilding.stackexchange.com", "terms": "CC BY-SA, version per answer in meta.licence (field content_license of the API)", "terms_source": "https://stackoverflow.com/help/licensing", "assumed_cc": false, "redistribute": true},
+        "interpersonal": {"domain": "qa", "use": true, "site": "interpersonal.stackexchange.com", "human_source": "answers on interpersonal.stackexchange.com", "terms": "CC BY-SA, version per answer in meta.licence (field content_license of the API)", "terms_source": "https://stackoverflow.com/help/licensing", "assumed_cc": false, "redistribute": true},
+        "bicycles": {"domain": "qa", "use": true, "site": "bicycles.stackexchange.com", "human_source": "answers on bicycles.stackexchange.com", "terms": "CC BY-SA, version per answer in meta.licence (field content_license of the API)", "terms_source": "https://stackoverflow.com/help/licensing", "assumed_cc": false, "redistribute": true},
+        "pets": {"domain": "qa", "use": true, "site": "pets.stackexchange.com", "human_source": "answers on pets.stackexchange.com", "terms": "CC BY-SA, version per answer in meta.licence (field content_license of the API)", "terms_source": "https://stackoverflow.com/help/licensing", "assumed_cc": false, "redistribute": true},
+        "music": {"domain": "qa", "use": true, "site": "music.stackexchange.com", "human_source": "answers on music.stackexchange.com", "terms": "CC BY-SA, version per answer in meta.licence (field content_license of the API)", "terms_source": "https://stackoverflow.com/help/licensing", "assumed_cc": false, "redistribute": true},
+        "photo": {"domain": "qa", "use": true, "site": "photo.stackexchange.com", "human_source": "answers on photo.stackexchange.com", "terms": "CC BY-SA, version per answer in meta.licence (field content_license of the API)", "terms_source": "https://stackoverflow.com/help/licensing", "assumed_cc": false, "redistribute": true}
+      }
+    },
+    "arxiv": {
+      "title": "arXiv abstracts from before the cutoff",
+      "cutoff": "2021-12-31",
+      "min_words": 80,
+      "licence": "CC0 1.0",
+      "notes": [
+        "Random category, year (2008 to the cutoff) and offset per request. The API returns the latest version of a paper; it is taken only if that version is from before the cutoff, and the id carries the version.",
+        "RAID's 'abstracts' come from arXiv as well; duplicates are removed when aggregating."
+      ],
+      "sub_sources": {
+        "cs": {
+          "domain": "sci_abstract",
+          "use": true,
+          "categories": ["cs.CL", "cs.CV", "cs.LG", "cs.SE", "cs.CR", "cs.HC"],
+          "human_source": "arXiv abstracts",
+          "terms": "CC0 1.0 for descriptive metadata, which may be retrieved, stored, transformed and shared",
+          "terms_source": "https://info.arxiv.org/help/api/tou.html",
+          "assumed_cc": false,
+          "redistribute": true
+        },
+        "physics": {
+          "domain": "sci_abstract",
+          "use": true,
+          "categories": ["astro-ph.GA", "cond-mat.mtrl-sci", "hep-th", "quant-ph", "physics.soc-ph"],
+          "human_source": "arXiv abstracts",
+          "terms": "CC0 1.0 for descriptive metadata, which may be retrieved, stored, transformed and shared",
+          "terms_source": "https://info.arxiv.org/help/api/tou.html",
+          "assumed_cc": false,
+          "redistribute": true
+        },
+        "math_stat": {
+          "domain": "sci_abstract",
+          "use": true,
+          "categories": ["math.CO", "math.PR", "math.OC", "stat.AP", "stat.ME"],
+          "human_source": "arXiv abstracts",
+          "terms": "CC0 1.0 for descriptive metadata, which may be retrieved, stored, transformed and shared",
+          "terms_source": "https://info.arxiv.org/help/api/tou.html",
+          "assumed_cc": false,
+          "redistribute": true
+        },
+        "bio_econ": {
+          "domain": "sci_abstract",
+          "use": true,
+          "categories": ["q-bio.NC", "q-bio.PE", "q-fin.GN", "econ.GN"],
+          "human_source": "arXiv abstracts",
+          "terms": "CC0 1.0 for descriptive metadata, which may be retrieved, stored, transformed and shared",
+          "terms_source": "https://info.arxiv.org/help/api/tou.html",
+          "assumed_cc": false,
+          "redistribute": true
+        }
       }
     }
   }

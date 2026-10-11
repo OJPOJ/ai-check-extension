@@ -74,6 +74,60 @@ To know before aggregating (details in the `notes` of `sources.json`):
   `-0613` versions, MAGE names no version. HC3's ChatGPT has no stated version either and is kept
   apart as `chatgpt-2022`.
 
+## Human texts we collect ourselves (issue #49)
+
+Texts with a state from before 2022 that can be checked at the source, from openly licensed
+sources only. They are listed under `collected` in `sources.json`:
+
+| Source | What is taken | Proof of the state | Licence |
+|---|---|---|---|
+| `wikimedia` | Wikipedia, Wikinews (news), Wikibooks (how-to, textbooks), Wikivoyage (travel): random pages as they were on 2021-12-31 | revision id and its timestamp | CC BY-SA 4.0, Wikinews CC BY 4.0 |
+| `stackexchange` | answers from 25 sites with prose, score 3 or more, created before 2022 and not edited since | creation and last edit date from the API | CC BY-SA, version per answer |
+| `arxiv` | abstracts whose latest version is from before 2022 | versioned arXiv id and its date | CC0 1.0 (metadata) |
+
+```
+.venv/Scripts/python.exe collect_human.py discover wikimedia --sub wikinews --n 500   # sample new items
+.venv/Scripts/python.exe collect_human.py fetch                                       # rows from the stored ids
+```
+
+`discover` asks the live APIs and appends to `collected/<source>.jsonl`: per item its id, the date
+of its state and a hash of its text, no text. These files are the pin of the collection. Like
+`data/` they are gitignored and stay on the machine that collected them, so another checkout
+samples its own items instead of reproducing these. `fetch` builds `data/sources/<source>/rows.jsonl` from exactly these ids, in the same
+row format as above (`label` 0, `generator` "human"); texts come from the local cache
+(`cache.jsonl`, gitignored) or are fetched again. An item whose text no longer matches its hash
+or that disappeared is left out and listed as `changed` or `gone`, so a second run either gives
+the same rows or names the difference.
+
+Per text `meta` keeps what a redistribution needs: `url` (for wiki pages the revision with its
+history of authors), `date`, `licence`, and for answers the `author`.
+
+What the text is: the `<p>` paragraphs of 15 words or more, outside tables, lists, quotes, code
+and boxes, joined by blank lines, at most 2000 words per page. Stack Exchange answers with a code
+block are skipped.
+
+State of the first collection (2026-10-11), 23,914 texts:
+
+| Source | Texts | Sub-sources |
+|---|---|---|
+| `wikimedia` | 6,024 | Wikinews 2,062 (news), Wikipedia 1,962, Wikibooks 1,000 (how-to), Wikivoyage 1,000 (travel) |
+| `stackexchange` | 9,890 | 25 sites, about 400 each (qa) |
+| `arxiv` | 8,000 | computer science, physics, mathematics and statistics, biology and economics, 2,000 each |
+
+A sample of stored ids fetched again from the network gave the same texts (13 wiki pages, 100
+answers, 50 abstracts).
+
+Limits to know:
+
+- Some Wikinews articles start with their dateline ("Tuesday, May 23, 2006 ...") in the first
+  paragraph. Texts are stored as fetched; remove it when building the training file.
+- A wiki revision is rendered by today's software. The prose is what was written then; a template
+  that writes into a paragraph could change it later (reported as `changed`).
+- The Stack Exchange API returns the current text. "Not edited since" rests on its edit date; an
+  answer edited later drops out at the next fetch from the network.
+- Stack Exchange allows 300 requests per day without a key, arXiv one request every three seconds.
+- Project Gutenberg is not included yet: the catalogue service did not answer on 2026-10-11.
+
 # Eval suite (broader, TODO item 3)
 
 Broader, reproducible eval set across several domains and current AI generators (not just

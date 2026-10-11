@@ -1,6 +1,7 @@
 training/.venv/
 training/data/
 training/data_smoketest/
+training/collected/
 training/eval_sample.jsonl
 training/eval_scores_*.jsonl
 server/.venv/

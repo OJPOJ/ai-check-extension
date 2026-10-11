@@ -2,7 +2,8 @@
 
 Status: 2026-10-11, concept. No model is built or measured yet; numbers marked "estimate" or
 "target" are not results. The steps are tracked in issue #46; the storage of the sources and the
-three public datasets exist (`sources.json`, `fetch_sources.py`, `README.md`).
+three public datasets exist (`sources.json`, `fetch_sources.py`, `README.md`), as does a first
+own collection of human texts from before 2022 (`collect_human.py`).
 
 ## Goal
 
@@ -153,7 +154,8 @@ Rules derived from this (agreed 2026-10-11):
   code stays MIT; it downloads the model and does not bundle it.
 - **Own collection:** only sources with a clear open licence or public domain, e.g. Wikipedia and
   Stack Exchange dumps (CC BY-SA), arXiv abstracts, Project Gutenberg, Wikinews, public-domain
-  government text. Reddit and review platforms are avoided as new sources (Reddit's terms require
+  government text. Collected so far: Wikipedia, Wikinews, Wikibooks and Wikivoyage pages as of
+  2021-12-31, Stack Exchange answers and arXiv abstracts (`sources.json`, "collected"). Reddit and review platforms are avoided as new sources (Reddit's terms require
   permission for model training).
 - The existing eval suite uses M4GT sub-sources (wikipedia, wikihow, arxiv, reddit, peerread). It
   remains a local measurement only and is never redistributed, as already noted in `TODO.md`.
