@@ -13,12 +13,12 @@ contract in `server/README.md`). Open:
   `model-check.test.mjs`).
 - **Reference set: more recent generators.** Since WP-11 HC3 + RAID wiki (114 texts, short and long). RAID
   also has GPT-4, ChatGPT and Cohere for "wiki" in the same MIT split – not included so far, would be
-  a small extension (`RAID_GENERATORS` in `training/build_reference_set.py`). Short paragraphs
+  a small extension (`RAID_GENERATORS` in `training/evaluation/build_reference_set.py`). Short paragraphs
   come only from HC3 (RAID wiki delivers none under 120 words).
 - **"Detailed check" for custom models** (optional in the settings): "Check model" now uses
   57 human texts and, with enough short texts, also suggests `shortRedFrom` – "none red"
   still only means false alarms roughly below ~5%, though. For reliable thresholds, send a few hundred paragraphs
-  of various lengths (method `training/crossval_thresholds.py`). Takes minutes and costs money with
+  of various lengths (method `training/evaluation/crossval_thresholds.py`). Takes minutes and costs money with
   cloud providers – only on request, with a notice. Servers can still specify both via `/v1/info`.
   Plus UI: `reliableWords`/`shortRedFrom` cannot be overridden by a slider for custom models.
 - **Later – custom ONNX in the browser:**
@@ -96,8 +96,8 @@ Open (for a later store listing details in `store/CHECKLIST.md`):
 - **Goal:** Thresholds mean the same across models.
 - **Implementation:** In `bg/scoring.js` apply per `modelKey` to the raw value. Raw values
   are stored, so a new calibration does not require re-scoring.
-- **Data basis:** Eval suite from item 3 (`training/evaluate_suite.py`, raw scores in
-  `training/data/eval_scores_*_suite.jsonl`), cross-validated ranges via `training/crossval_thresholds.py`.
+- **Data basis:** Eval suite from item 3 (`training/evaluation/evaluate_suite.py`, raw scores in
+  `training/data/eval_scores_*_suite.jsonl`), cross-validated ranges via `training/evaluation/crossval_thresholds.py`.
 
 ## 6. German/multilingual
 
@@ -105,7 +105,7 @@ Open (for a later store listing details in `store/CHECKLIST.md`):
 - **Extension:** `lang` per paragraph is already detected and sent along to server backends; what is open
   is that the provider then chooses the model (instead of skipping other languages).
 - **Groundwork:** Laya dataset is ready (`training/data/`, 142k examples), training open
-  (`training/README.md`).
+  (`training/finetune/README.md`).
 
 ## 7. Export/import reports per page
 
@@ -121,7 +121,7 @@ Voluntary upload to a dedicated collection server. Needs:
 - Protection against deliberately wrong labels (data poisoning).
 - Extended privacy policy.
 
-More important for training are generated data from several LLMs (`training/README.md`, "Feedback as a data
+More important for training are generated data from several LLMs (`training/finetune/README.md`, "Feedback as a data
 source").
 
 ## Technical items (from the v0.5 analysis)

@@ -17,9 +17,9 @@ sources.json. This script only executes that file:
 data/ is gitignored: no dataset text ends up in the repository.
 
 Usage:
-    .venv/Scripts/python.exe fetch_sources.py              # all sources
-    .venv/Scripts/python.exe fetch_sources.py hc3 mage     # only these
-    .venv/Scripts/python.exe fetch_sources.py --report     # print the receipts, fetch nothing
+    .venv/Scripts/python.exe dataset/fetch_sources.py              # all sources
+    .venv/Scripts/python.exe dataset/fetch_sources.py hc3 mage     # only these
+    .venv/Scripts/python.exe dataset/fetch_sources.py --report     # print the receipts, fetch nothing
 """
 
 import argparse
@@ -31,6 +31,7 @@ from collections import Counter
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+DATA = HERE.parent / "data"  # gitignored
 MANIFEST = HERE / "sources.json"
 
 # Length groups as in the extension: below MIN_WORDS (content.js) paragraphs are grouped or
@@ -295,7 +296,7 @@ def print_report(receipt: dict) -> None:
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("sources", nargs="*", help="keys from sources.json (default: all)")
-    ap.add_argument("--out-dir", default=str(HERE / "data" / "sources"))
+    ap.add_argument("--out-dir", default=str(DATA / "sources"))
     ap.add_argument("--report", action="store_true", help="print the existing receipts, fetch nothing")
     args = ap.parse_args()
 

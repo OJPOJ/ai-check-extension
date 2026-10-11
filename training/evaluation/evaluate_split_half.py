@@ -8,8 +8,8 @@ Results: EVAL_RESULTS.md, "Confidence for short paragraphs".
 Input: dump from evaluate_false_alarms.py (--dump), output: JSONL with the score of the halves.
 
 Usage (from this folder):
-    .venv/Scripts/python.exe evaluate_false_alarms.py desklib 150 --fine --dump fa_desklib.jsonl
-    .venv/Scripts/python.exe evaluate_split_half.py fa_desklib.jsonl halves_desklib.jsonl
+    .venv/Scripts/python.exe evaluation/evaluate_false_alarms.py desklib 150 --fine --dump fa_desklib.jsonl
+    .venv/Scripts/python.exe evaluation/evaluate_split_half.py fa_desklib.jsonl halves_desklib.jsonl
 """
 
 import argparse

@@ -11,17 +11,22 @@ Limitations: English only, ChatGPT 2023 only; both models may know HC3 from trai
 Results: EVAL_RESULTS.md, "False alarms on Wikipedia".
 
 Usage (from this folder):
-    python evaluate_false_alarms.py tmr 300
-    python evaluate_false_alarms.py desklib 60
-    python evaluate_false_alarms.py desklib 150 --fine   # 20-word steps below 120 (boundary "uncertain")
+    python evaluation/evaluate_false_alarms.py tmr 300
+    python evaluation/evaluate_false_alarms.py desklib 60
+    python evaluation/evaluate_false_alarms.py desklib 150 --fine   # 20-word steps below 120 (boundary "uncertain")
 """
 import argparse
 import json
 import random
 import re
+import sys
+from pathlib import Path
 
-import evaluate_backends as eb
-from prepare_dataset import iter_hc3_pairs
+# prepare_dataset.py (the HC3 reader) lives with the fine-tuning scripts
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "finetune"))
+
+import evaluate_backends as eb  # noqa: E402
+from prepare_dataset import iter_hc3_pairs  # noqa: E402
 
 MAX_CHARS = {"tmr": 2000, "desklib": 1500}
 # Word count ranges; 40 = minimum length of the auto-scan (content.js, MIN_WORDS)

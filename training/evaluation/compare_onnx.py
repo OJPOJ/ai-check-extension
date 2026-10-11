@@ -16,7 +16,7 @@ preprocessing: PyTorch reference recomputed here (with clipText) AND ONNX (with 
 ONNX vs. PyTorch comparison, isolated from the character clipping.
 
 Usage (from training/, data lives in the shared main checkout):
-    .venv/Scripts/python.exe compare_onnx.py --suite C:/_programme/DS/aivsai/training/data/eval_suite.jsonl --out-dir C:/_programme/DS/aivsai/training/data
+    .venv/Scripts/python.exe evaluation/compare_onnx.py --suite C:/_programme/DS/aivsai/training/data/eval_suite.jsonl --out-dir C:/_programme/DS/aivsai/training/data
 """
 import argparse
 import json

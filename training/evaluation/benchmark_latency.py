@@ -6,9 +6,9 @@ Simulates the batch sizes from extension/content.js (BATCH_SIZE=25,
 MAX_CHARS=500) on CPU (what runs for users without a dedicated GPU).
 
 Usage:
-    .venv/Scripts/python.exe benchmark_latency.py --backend tmr
-    .venv/Scripts/python.exe benchmark_latency.py --backend desklib
-    .venv/Scripts/python.exe benchmark_latency.py --backend laya
+    .venv/Scripts/python.exe evaluation/benchmark_latency.py --backend tmr
+    .venv/Scripts/python.exe evaluation/benchmark_latency.py --backend desklib
+    .venv/Scripts/python.exe evaluation/benchmark_latency.py --backend laya
 """
 
 import argparse

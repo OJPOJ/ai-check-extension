@@ -19,10 +19,10 @@ section - this makes the sections below comparable, but it is derived from the s
 smaller).
 
 Usage (from this folder):
-    python evaluate_suite.py --backend tmr
-    python evaluate_suite.py --backend desklib --desklib-n 400
-    python evaluate_suite.py --backend both --desklib-n 400
-    python evaluate_suite.py --backend hf:fakespot-ai/roberta-base-ai-text-detection-v1
+    python evaluation/evaluate_suite.py --backend tmr
+    python evaluation/evaluate_suite.py --backend desklib --desklib-n 400
+    python evaluation/evaluate_suite.py --backend both --desklib-n 400
+    python evaluation/evaluate_suite.py --backend hf:fakespot-ai/roberta-base-ai-text-detection-v1
 """
 import argparse
 import json

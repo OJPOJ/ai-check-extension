@@ -16,8 +16,8 @@ in this session, not verified on real rows. See README.md.
 
 Usage:
     pip install -r requirements.txt
-    python prepare_dataset.py --out-dir data --limit 2000   # smoke test, small
-    python prepare_dataset.py --out-dir data                # full dataset
+    python finetune/prepare_dataset.py --out-dir data --limit 2000   # smoke test, small
+    python finetune/prepare_dataset.py --out-dir data                # full dataset
 """
 
 import argparse

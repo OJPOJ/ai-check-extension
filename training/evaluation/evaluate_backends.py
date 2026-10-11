@@ -3,8 +3,8 @@ Evaluates one or more backends against eval_sample.jsonl (100 balanced
 examples from the HC3 holdout split) and prints Accuracy@0.5 + AUROC.
 
 Usage:
-    .venv/Scripts/python.exe evaluate_backends.py --backend laya
-    .venv/Scripts/python.exe evaluate_backends.py --backend tmr
+    .venv/Scripts/python.exe evaluation/evaluate_backends.py --backend laya
+    .venv/Scripts/python.exe evaluation/evaluate_backends.py --backend tmr
 """
 
 import argparse

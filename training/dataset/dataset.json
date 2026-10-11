@@ -1,0 +1,101 @@
+{
+  "comment": "Parameters of the aggregated dataset for our own detector model (issue #46/#50). build_dataset.py only executes this file. 'expected' pins what a run has to produce; after a deliberate change copy the new values from the error message and raise 'version'.",
+  "version": "v1",
+  "seed": 50,
+  "sources": [
+    "mage",
+    "raid",
+    "hc3",
+    "wikimedia",
+    "stackexchange",
+    "arxiv"
+  ],
+  "sources_comment": "All of these need data/sources/<source>/rows.jsonl (fetch_sources.py, collect_human.py). The order decides which of two duplicates is kept: the earlier source wins.",
+  "min_words": 15,
+  "drop": [
+    {
+      "source": "hc3",
+      "sub_source": "reddit_eli5",
+      "reason": "88% of the human answers are tokenised through and through (\"do n't\", \"( word )\", \"URL_0\") and cannot be put back together reliably. The ChatGPT answers are clean, but without their human side they would be 16,000 forum texts of one class; the sub-source is left out as a whole (decision of 2026-10-11). Human ELI5 answers without the artefact come from MAGE."
+    }
+  ],
+  "max_ai_per_group": {
+    "raid": 4
+  },
+  "max_ai_per_group_comment": "RAID has 34 generations per human document. Per document this many are kept, chosen by a seeded hash and from different generators. The held-out generators are kept whole: they only exist in the test part, where every row counts.",
+  "tokenised": {
+    "min_marks": 3,
+    "per_100_words": 1.5
+  },
+  "tokenised_comment": "A text with at least this many signs of tokeniser spacing, absolute and per 100 words, is dropped whatever its source or class. Fewer signs are repaired by normalise().",
+  "duplicates": {
+    "shingle_words": 5,
+    "min_shared": 3,
+    "max_rows_per_shingle": 20,
+    "duplicate": 0.7,
+    "related": 0.3,
+    "comment": "Similarity = common 5-word sequences / those of the shorter text, over all sequences. From 'duplicate' on one text stays and the groups are merged; from 'related' on the two texts must be on the same side of the split."
+  },
+  "suite": {
+    "path": "data/eval_suite.jsonl"
+  },
+  "excerpt": {
+    "max_chars": 2000,
+    "lengths": [
+      [
+        15,
+        39,
+        0.3
+      ],
+      [
+        40,
+        119,
+        0.4
+      ],
+      [
+        120,
+        330,
+        0.3
+      ]
+    ]
+  },
+  "split": {
+    "test": 0.1,
+    "validation": 0.05,
+    "comment": "Shares of the hash range per source group, not of the number of groups: a group keeps its side when data is added."
+  },
+  "held_out": {
+    "domains": [
+      "reviews"
+    ],
+    "generators": [
+      "cohere-command",
+      "cohere-command-chat"
+    ],
+    "group_prefixes": [
+      "mage:ood:"
+    ]
+  },
+  "expected": {
+    "inputs": {
+      "mage": "b1ec10ec8490db93254fed722ec65d99b8c597d82d94acae41631af89a70a9da",
+      "raid": "69bea4cae59201d86a533f1263f63c8304fdda759b8f4106988e7d5664a292ad",
+      "hc3": "0ced12568e1d4bd860ca1e5f31fd886cd183f6441aa2231663b030a72c4ce885",
+      "wikimedia": "b38c67dcce04e8c44cfda504519ee2bdf2ce3b63c6a63d3e279fb19057878aa7",
+      "stackexchange": "5909808315af221aac6c5c532909228a8098238ff0d3570d8b854b2272e27e29",
+      "arxiv": "3a7f5d551c726adafc813c2671457e5a977a5127606d11df10aeb5f94710f904",
+      "eval_suite": "ffbf370d718a69238908827c15f3e04a5e8ccb61e6c6c17ac6a0ef9abed8f827"
+    },
+    "rows": {
+      "train": 256119,
+      "validation": 14767,
+      "test": 46274
+    },
+    "sha256": {
+      "train": "589cb2fabdeac14b059830d259d3416c426c0b5cb6a9b8f89d405d638500219b",
+      "validation": "e02662214a4de9842bbd3485148134b529157b7805542f2df3443751c4d6e987",
+      "test": "468cc4b5c5f175cca6d87863ce4765934ac75561df7fa3644ed8524df72cc1d0",
+      "test_ids": "e00652e4c361a1a05e87f5b849b8db3d27592305d26730dfc9f02bc10c97f305"
+    }
+  }
+}

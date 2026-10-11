@@ -68,7 +68,7 @@ All fields optional. `version` goes into the extension's model key: if it change
 the text per paragraph, `suggestedThresholds` are the starting values of the traffic light. `reliableWords`: below this
 many words a high score becomes gray "uncertain" instead of yellow/red (default 120); `shortRedFrom`:
 stricter red threshold from which short paragraphs also turn red (default: never). Both should be measured
-– template: `training/evaluate_false_alarms.py` (false alarms on Wikipedia by length) and
+– template: `training/evaluation/evaluate_false_alarms.py` (false alarms on Wikipedia by length) and
 `training/EVAL_RESULTS.md`, "Confidence for short paragraphs". Without the endpoint (404/405/501) everything
 works, just without a version.
 

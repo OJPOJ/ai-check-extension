@@ -11,16 +11,16 @@ terms and their domains are defined under "collected" in sources.json.
 Two steps, so that the collection can be repeated without passing texts on:
 
     discover  samples new items from the live APIs and appends their ids to
-              collected/<source>.jsonl (gitignored: ids, dates and a hash of the text, no text).
+              collected/<source>.jsonl (in git: ids, dates and a hash of the text, no text).
     fetch     builds data/sources/<source>/rows.jsonl (gitignored) from exactly those ids, in
               the common row format of fetch_sources.py. Texts come from the local cache or are
               fetched again; items whose text changed or disappeared are listed.
 
 Usage:
-    .venv/Scripts/python.exe collect_human.py discover wikimedia --sub wikinews --n 500
-    .venv/Scripts/python.exe collect_human.py discover stackexchange --n 5000
-    .venv/Scripts/python.exe collect_human.py fetch                  # all collected sources
-    .venv/Scripts/python.exe collect_human.py fetch arxiv --refetch  # ignore the cache
+    .venv/Scripts/python.exe dataset/collect_human.py discover wikimedia --sub wikinews --n 500
+    .venv/Scripts/python.exe dataset/collect_human.py discover stackexchange --n 5000
+    .venv/Scripts/python.exe dataset/collect_human.py fetch                  # all collected sources
+    .venv/Scripts/python.exe dataset/collect_human.py fetch arxiv --refetch  # ignore the cache
 """
 
 import argparse
@@ -39,6 +39,7 @@ from pathlib import Path
 import fetch_sources as fs
 
 HERE = Path(__file__).resolve().parent
+DATA = HERE.parent / "data"  # gitignored
 IDS_DIR = HERE / "collected"
 USER_AGENT = "ai-check-extension-training/0.1 (https://github.com/OJPOJ/ai-check-extension)"
 
@@ -533,7 +534,7 @@ def main():
     ap.add_argument("--sub", action="append", help="discover: sub-source, repeatable (default: all of the source)")
     ap.add_argument("--n", type=int, default=100, help="discover: new texts per sub-source")
     ap.add_argument("--refetch", action="store_true", help="fetch: ignore the local cache")
-    ap.add_argument("--data-dir", default=str(HERE / "data" / "sources"))
+    ap.add_argument("--data-dir", default=str(DATA / "sources"))
     args = ap.parse_args()
 
     collected = fs.load_manifest()["collected"]

@@ -432,8 +432,8 @@ Cohere).
 Follow-up to "Broader eval suite": desklib was only measured there on a sample of 480/1200 texts,
 the threshold recommendation (redFrom 0.92–0.95 desklib, 0.985–0.987 TMR) was based on a
 single split without an error range. Here: desklib on all 1200 texts (the missing 720 computed afterwards,
-existing 480 scores reused - `training/desklib_fill_suite.py`, CPU, 2866 s = 47.8 min for
-the 720 new ones), plus a cross-validation of the thresholds (`training/crossval_thresholds.py`) and an
+existing 480 scores reused - `training/evaluation/desklib_fill_suite.py`, CPU, 2866 s = 47.8 min for
+the 720 new ones), plus a cross-validation of the thresholds (`training/evaluation/crossval_thresholds.py`) and an
 assessment of the WikiHow finding against the extension's actual candidate/grouping logic
 (`content.js`).
 
@@ -494,7 +494,7 @@ half/half split (stratified by domain × label). On half A: threshold as the 99t
 human scores (target ~1% false alarms). On half B (unseen): actual false alarm/detection rate.
 Separately for the group ≥120 words (governs `redFrom`) and <120 words (governs `shortRedFrom`, where
 present) - this is exactly the split that `config.js` `level()` actually uses (rule 9 in
-orchestration/README.md). Reproducible with `training/crossval_thresholds.py --backend both`.
+orchestration/README.md). Reproducible with `training/evaluation/crossval_thresholds.py --backend both`.
 
 | Backend | Bucket | Cross-validated threshold (median, 5th–95th perc.) | FA on test half (median, 5th–95th perc.) | AI detected (median, 5th–95th perc.) |
 |---|---|---|---|---|

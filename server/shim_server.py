@@ -151,7 +151,7 @@ class DesklibAIDetectionModel(PreTrainedModel):
 
     @property
     def all_tied_weights_keys(self):
-        # Compatibility fix for transformers>=5, see training/evaluate_backends.py
+        # Compatibility fix for transformers>=5, see training/evaluation/evaluate_backends.py
         return {}
 
     def forward(self, input_ids, attention_mask=None):
