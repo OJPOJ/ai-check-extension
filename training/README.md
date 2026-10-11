@@ -1,3 +1,79 @@
+# Training sources for our own model (issue #46)
+
+Concept, licence rules and decisions: `MODEL_CONCEPT.md`. Every source is kept separately and can
+be traced back:
+
+- `sources.json` (in git) is the manifest: per source the original repository, pinned revision,
+  file checksums and licence; per sub-source the domain, the human source, its terms and where
+  they were read, whether it is used (`use`) and whether its texts may be passed on
+  (`redistribute`). `assumed_cc` marks sub-sources without any licence statement, which we treat as
+  Creative Commons (decision of 2026-10-11).
+- `fetch_sources.py` executes the manifest. The original files stay in the Hugging Face cache
+  (RAID's `train.csv` alone is 11.8 GB) and are verified by SHA-256.
+- `data/sources/<source>/rows.jsonl` (gitignored) holds the rows in one common format, texts
+  unchanged; `receipt.json` next to it holds counts and the SHA-256 of `rows.jsonl`.
+- `expected` in `sources.json` pins the row count and that SHA-256 per source. A run that gives
+  something else fails, so a fresh checkout either reproduces the same rows or says so. After a
+  deliberate change of the manifest or a parser, copy the new values from the error message.
+
+```
+.venv/Scripts/python.exe fetch_sources.py              # all sources (first run downloads ~12.4 GB)
+.venv/Scripts/python.exe fetch_sources.py hc3 mage     # only these
+.venv/Scripts/python.exe fetch_sources.py --report     # counts from the receipts
+.venv/Scripts/python.exe -m unittest discover -s tests # row format and exclusions
+```
+
+One row:
+
+```json
+{"id": "raid:<uuid>", "source": "raid", "sub_source": "news", "domain": "news", "label": 1,
+ "generator": "gpt-4", "group": "raid:<uuid of the human document>", "text": "...",
+ "meta": {"attack": "none", "decoding": "greedy", "repetition_penalty": "no", "generator_raw": "gpt4"}}
+```
+
+`label` 1 is AI (MAGE's files have it the other way round; the script converts and checks it).
+`group` ties together what must stay on one side of the train/test split: all answers to one HC3
+question, all RAID generations for one human document, a MAGE continuation and the human text it
+continues. A sub-source that is not listed in `sources.json` stops the script.
+
+State of 2026-10-11, after checking generators and terms at the original sources:
+
+| Source | Rows | Human | AI | Sub-sources | Generators | Left out |
+|---|---|---|---|---|---|---|
+| HC3 | 69,680 | 52,178 | 17,502 | 2 | 1 | `medicine`, `finance`, `open_qa` (not downloaded) |
+| MAGE | 288,205 | 93,348 | 194,857 | 10 | 28 | `yelp`, `hswag`, `dialogsum`, `xsum` (147,639 rows) |
+| RAID | 343,665 | 9,819 | 333,846 | 6 | 11 | `news`, `recipes` (124,320 rows), the 11 adversarial attacks, `test.csv`, `extra.csv` |
+
+Left out because the source's own terms are non-commercial: MAGE `yelp` and `dialogsum`
+(CC BY-NC-SA), MAGE `hswag` (wikiHow text; the HellaSwag repository was taken down on GitHub in
+September 2026 after a notice by wikiHow), RAID `news` (BBC set "for non-commercial and research
+purposes only") and RAID `recipes` (RecipeNLG agreement). MAGE `xsum` states no terms of its own
+but consists of BBC articles and is left out like RAID `news`. Without a licence statement and
+therefore treated as Creative Commons: HC3 `reddit_eli5`, MAGE `cmv`, `eli5`, `wp`, `roct`,
+`sci_gen`, `tldr`, `imdb` and RAID `reviews`. MAGE `cnn` is used on the basis of the Apache-2.0
+licence on its dataset card, although the articles are publisher copyright. HC3 `medicine` and
+`finance` stay out.
+
+To know before aggregating (details in the `notes` of `sources.json`):
+
+- **RAID is 34:1 AI to human** (every human document has 34 generations) and has only
+  9,819 human texts. The aggregation has to balance this.
+- **MAGE continuations start with human text:** the model was given the first 30 words of the
+  human text, and the row contains them. Short excerpts must not be cut from the start of these rows.
+- **MAGE has no document ids:** the group is a hash of the first 12 words. That links 96% of the
+  continuations to their human text; `topical` and `specified` generations cannot be linked. In
+  the two out-of-domain files a paraphrase cannot be matched to its original, so each sub-source
+  there is one group as a whole.
+- **Groups do not reach across sources:** the same human texts may be in two datasets (ELI5 in
+  HC3 and MAGE, IMDb reviews in MAGE and RAID). Whether they overlap is not measured yet; the
+  aggregation has to find such duplicates and merge their groups.
+- **HC3 `reddit_eli5`:** human answers have spaces before punctuation (see below).
+- **Generator names** are normalised per source (`generators` in `sources.json`, original name in
+  `meta.generator_raw`) and were checked against the papers. `text-davinci-002` is the same
+  model in MAGE and RAID. `gpt-3.5-turbo` and `gpt-4` are the same family only: RAID used the
+  `-0613` versions, MAGE names no version. HC3's ChatGPT has no stated version either and is kept
+  apart as `chatgpt-2022`.
+
 # Eval suite (broader, TODO item 3)
 
 Broader, reproducible eval set across several domains and current AI generators (not just
