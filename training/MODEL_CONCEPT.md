@@ -1,7 +1,8 @@
 # Concept: our own detector model (small, fast, self-trained)
 
-Status: 2026-10-11, concept only. Nothing here is built or measured yet; numbers marked "estimate"
-or "target" are not results. The steps follow in a separate plan once this concept is agreed.
+Status: 2026-10-11, concept. No model is built or measured yet; numbers marked "estimate" or
+"target" are not results. The steps are tracked in issue #46; the storage of the sources and the
+three public datasets exist (`sources.json`, `fetch_sources.py`, `README.md`).
 
 ## Goal
 
@@ -103,16 +104,44 @@ on the human side.
 | Dataset | Stated licence | Finding |
 |---|---|---|
 | MAGE (`yaful/MAGE`) | Apache-2.0 (HF card and GitHub LICENSE; README badge says CC BY 4.0) | Permissive either way. Sub-sources carry their own terms: Yelp (academic, non-commercial), IMDb, XSum/CNN (news publishers), Reddit. |
-| RAID (`liamdugan/raid`) | MIT (HF card and GitHub LICENSE) | Permissive. Train split labelled, test split unlabelled. Cards do not name the human sources per domain or the generators in the train split: check in the data and the paper. |
+| RAID (`liamdugan/raid`) | MIT (HF card and GitHub LICENSE) | Permissive. Train split labelled, test split unlabelled. The train split has 8 domains and 11 generators (below). |
 | HC3 (`Hello-SimpleAI/HC3`) | CC BY-SA 4.0, "unless a source is stricter, then that applies" | Per sub-source (authors' table): reddit_eli5 BSD, wiki_csai CC BY-SA, open_qa "PWC Custom" (WikiQA), medicine and finance "Unknown". |
 | M4GT-Bench / M4 (`mbzuai-nlp`) | none (no LICENSE file, only a citation request) | No licence means no permission. Contains wikiHow (CC BY-NC-SA 3.0 for text before 2025-03-24). |
 | `Jinyan1/COLING_2025_MGT_en` | none | Compilation of the three above without its own licence. |
+
+RAID's labelled train split, read from the data and the paper (arXiv 2405.07940, tables 9 and 10):
+
+| Domain | Human source | Terms at the source |
+|---|---|---|
+| abstracts | arXiv abstracts (Paul and Rakshit 2021, Kaggle) | CC0 |
+| books | CMU Book Summary Dataset (Wikipedia plot summaries) | CC BY-SA |
+| news | BBC news 2004–2005 (Greene and Cunningham 2006) | "for non-commercial and research purposes only" |
+| poetry | poemhunter.com via Kaggle | CC0 according to the uploader |
+| recipes | RecipeNLG | agreement: non-commercial research and education only |
+| reddit | Webis-TLDR-17 | CC BY 4.0 |
+| reviews | IMDb reviews (Maas et al. 2011) | no licence stated |
+| wiki | Wikipedia introductions (GPT-wiki-intro) | CC (card), Wikipedia text is CC BY-SA |
+
+Generators: gpt-3.5-turbo-0613, gpt-4-0613, text-davinci-002, gpt2-xl, Llama-2-70b-chat,
+Mistral-7B (base and instruct), MPT-30B (base and chat), Cohere command (generate and chat).
+5,615,820 rows, of which 467,985 without an adversarial attack; 13,371 human documents, each with
+34 generations. A sample of 8 human abstracts looked up on arXiv was published 2013 to 2021.
+
+The sub-sources of MAGE and HC3 were checked the same way; the result per sub-source, with the
+place where it was read, is in `sources.json` (`terms`, `terms_source`).
 
 Rules derived from this (agreed 2026-10-11):
 
 - **Training:** MAGE, RAID and HC3 are used, taken from their original repositories. Excluded:
   M4GT-Bench and the COLING compilation as a source (no licence), HC3 `medicine`, `finance` and
-  `open_qa` (unknown or research-only), MAGE `yelp` (non-commercial terms). The legal basis for
+  `open_qa` (unknown or research-only), and every sub-source whose own terms are non-commercial:
+  MAGE `yelp`, `hswag` (wikiHow) and `dialogsum`, RAID `news` (BBC) and `recipes`. MAGE `xsum`
+  is excluded as well: it states no terms, but its texts are BBC articles like RAID `news`. A
+  sub-source without any licence statement is otherwise treated as Creative Commons (attribution,
+  share-alike) and used; these are marked `assumed_cc` in `sources.json` and their texts are not
+  redistributed. This assumption is ours, not a permission by the rights holders. Two exceptions
+  were decided individually: HC3 `medicine` and `finance` stay out, and MAGE `cnn` is used on the
+  basis of the Apache-2.0 licence on its dataset card. The legal basis for
   training on the rest is text and data mining (§ 44b UrhG): allowed on lawfully accessible works
   unless rights are reserved in machine-readable form; copies are deleted when no longer needed.
 - **Redistribution of texts** (published benchmark, anything bundled in the extension): only from

@@ -1,0 +1,166 @@
+{
+  "comment": "Training sources for our own detector model (issue #46, MODEL_CONCEPT.md). One entry per source; fetch_sources.py reads this file. 'use': false keeps a sub-source out of the rows. 'terms' is what the original source states, 'terms_source' where it was read (checked 2026-10-11). 'assumed_cc': true marks sub-sources without any licence statement; by project decision of 2026-10-11 they are treated as if under a Creative Commons licence (attribution, share-alike). 'redistribute' says whether the texts may be passed on (published benchmark); false means scripts and row ids only. 'expected' holds the row count and SHA-256 of rows.jsonl that this file produces; fetch_sources.py fails if a run gives something else.",
+  "row_format": {
+    "id": "<source>:<original row id>, stable across runs",
+    "source": "key in this file",
+    "sub_source": "name used by the dataset",
+    "domain": "our category",
+    "label": "1 = AI, 0 = human",
+    "generator": "normalised name, 'human' for label 0",
+    "group": "texts that share a human source document or a prompt; the split keeps a group on one side",
+    "text": "unchanged",
+    "meta": "source-specific fields"
+  },
+  "sources": {
+    "hc3": {
+      "title": "HC3 (Human ChatGPT Comparison Corpus)",
+      "repo": "Hello-SimpleAI/HC3",
+      "revision": "4d0ff18143b5a7e1b1e79beb540c04549d1e59d3",
+      "url": "https://huggingface.co/datasets/Hello-SimpleAI/HC3",
+      "licence": "CC BY-SA 4.0; a stricter licence of a sub-source takes precedence",
+      "files": {
+        "reddit_eli5.jsonl": "448cebaf7fdf27560daf6cc87cc1464be4988cf8110c0ec40c40b21c2c0193db",
+        "wiki_csai.jsonl": "4f78105c72e7edd3b619b3b44abac1e6f8bdb42211f22e43191d4dae889e1968"
+      },
+      "generators": {
+        "chatgpt": "chatgpt-2022"
+      },
+      "notes": [
+        "Generator: ChatGPT as offered on the web before the paper (arXiv 2301.07597, submitted 2023-01-18). Neither the paper abstract nor the dataset card names a model version, hence 'chatgpt-2022' instead of an API model name.",
+        "Human answers in reddit_eli5 have spaces before punctuation (tokenisation artefact of the ELI5 source); texts are stored unchanged, normalise when building the training file.",
+        "medicine and finance are marked 'Unknown' by the HC3 authors, who asked the owners. They stay excluded although they have no licence statement (decision of 2026-10-11)."
+      ],
+      "sub_sources": {
+        "reddit_eli5": {"domain": "forum", "use": true, "human_source": "ELI5 (Reddit), Fan et al. 2019", "terms": "HC3 authors' table says 'BSD License', but the ELI5 repository's LICENSE is BSD 'for ELI5 software'; no licence statement for the Reddit texts themselves", "terms_source": "https://github.com/Hello-SimpleAI/chatgpt-comparison-detection#dataset-copyright", "assumed_cc": true, "redistribute": false},
+        "wiki_csai": {"domain": "wikipedia", "use": true, "human_source": "Wikipedia", "terms": "CC BY-SA (HC3 authors' table)", "terms_source": "https://github.com/Hello-SimpleAI/chatgpt-comparison-detection#dataset-copyright", "assumed_cc": false, "redistribute": true},
+        "open_qa": {"domain": "qa", "use": false, "human_source": "WikiQA (Microsoft)", "terms": "'PWC Custom' (HC3 authors' table); Hugging Face tag 'other'", "terms_source": "https://github.com/Hello-SimpleAI/chatgpt-comparison-detection#dataset-copyright", "assumed_cc": false, "redistribute": false, "reason": "research-only terms"},
+        "medicine": {"domain": "qa", "use": false, "human_source": "Medical Dialog", "terms": "'Unknown' (HC3 authors' table)", "terms_source": "https://github.com/Hello-SimpleAI/chatgpt-comparison-detection#dataset-copyright", "assumed_cc": false, "redistribute": false, "reason": "licence unknown; excluded 2026-10-11"},
+        "finance": {"domain": "qa", "use": false, "human_source": "FiQA", "terms": "'Unknown' (HC3 authors' table)", "terms_source": "https://github.com/Hello-SimpleAI/chatgpt-comparison-detection#dataset-copyright", "assumed_cc": false, "redistribute": false, "reason": "licence unknown; excluded 2026-10-11"}
+      },
+      "expected": {
+        "rows": 69680,
+        "rows_sha256": "0ced12568e1d4bd860ca1e5f31fd886cd183f6441aa2231663b030a72c4ce885"
+      }
+    },
+    "mage": {
+      "title": "MAGE (Deepfake text detection in the wild)",
+      "repo": "yaful/MAGE",
+      "revision": "342663f0a2b775455c023f5d36a1341ff0ec5402",
+      "url": "https://huggingface.co/datasets/yaful/MAGE",
+      "licence": "Apache-2.0 (dataset card and GitHub LICENSE; README badge says CC BY 4.0)",
+      "files": {
+        "train.csv": "07b95008964d6be412aa764aa1e515d652c345305cebc522a7612c6015ba373a",
+        "valid.csv": "005e200957a4da551c8ac37079f43811db9c32f5141e3bdabb1caa257588691f",
+        "test.csv": "dcb8a8a8de1459d382ac2da5e0f1c39452e8bc47d186d7393f3ed4308f762ac7",
+        "test_ood_set_gpt.csv": "b9fe1faaa45fbbad446f527da12d42e3e9e3bbd207f7ea054e81ec8e922016d2",
+        "test_ood_set_gpt_para.csv": "a587909d155447ea2768cbd8f695a7febb65cdd7414da5c3b5ff6d6397463725"
+      },
+      "generators": {
+        "gpt-3.5-trubo": "gpt-3.5-turbo",
+        "gpt4": "gpt-4",
+        "7B": "llama-7b",
+        "13B": "llama-13b",
+        "30B": "llama-30b",
+        "65B": "llama-65b",
+        "GLM130B": "glm-130b",
+        "bloom_7b": "bloom-7b1",
+        "gpt_j": "gpt-j-6b",
+        "gpt_neox": "gpt-neox-20b",
+        "flan_t5_small": "flan-t5-small",
+        "flan_t5_base": "flan-t5-base",
+        "flan_t5_large": "flan-t5-large",
+        "flan_t5_xl": "flan-t5-xl",
+        "flan_t5_xxl": "flan-t5-xxl",
+        "opt_125m": "opt-125m",
+        "opt_350m": "opt-350m",
+        "opt_1.3b": "opt-1.3b",
+        "opt_2.7b": "opt-2.7b",
+        "opt_6.7b": "opt-6.7b",
+        "opt_13b": "opt-13b",
+        "opt_30b": "opt-30b",
+        "opt_iml_max_1.3b": "opt-iml-max-1.3b",
+        "opt_iml_30b": "opt-iml-30b",
+        "t0_3b": "t0-3b",
+        "t0_11b": "t0-11b"
+      },
+      "notes": [
+        "In the files label 1 is human and 0 is machine (confirmed in the GitHub README); the rows use our convention (1 = AI).",
+        "Generators checked against the paper (arXiv 2305.13242v3, 'Model sets'): 27 models - text-davinci-002/003 and gpt-3.5-turbo; LLaMA 6B/13B/30B/65B (the files call the smallest '7B'); GLM-130B; FLAN-T5 small to xxl; OPT 125M to 30B and OPT-IML; T0-3B/11B and BLOOM-7B1; GPT-J-6B and GPT-NeoX-20B. The unseen-domain set is 'GPT-4' without a version.",
+        "Prompt types: 'continuation' gives the model the first 30 words of the human text; 'topical' and 'specified' (OpenAI models only) give a topic, the latter with the kind of source.",
+        "The paraphrase set was made with gpt-3.5-turbo, sentence by sentence, from human and GPT-4 texts; MAGE counts all of it as machine (paper and README). The human rows of that file repeat those of test_ood_set_gpt.csv (762 of 762) and are skipped.",
+        "No document ids. For train/valid/test the group is a hash of the first 12 words: that links 96% of the 'continuation' texts in train.csv to their human text. 'topical' and 'specified' texts cannot be linked.",
+        "The two out-of-domain files have no usable link between a text and its paraphrase (the opening changes, the rows are not aligned). All their rows of one sub-source therefore share one group (mage:ood:<sub-source>), so that a text and its paraphrase never end up on different sides.",
+        "Because of the shared opening, the first 30 words of a 'continuation' text are human-written. Short excerpts must not be cut from the start of these rows.",
+        "MAGE's own train/valid/test split is not by document (about 7% of valid and test openings also occur in train); it is kept in meta.split only."
+      ],
+      "sub_sources": {
+        "cmv": {"domain": "forum", "use": true, "human_source": "Reddit r/ChangeMyView (Tan et al. 2016)", "terms": "no licence statement found", "terms_source": "https://arxiv.org/abs/2305.13242", "assumed_cc": true, "redistribute": false},
+        "eli5": {"domain": "forum", "use": true, "human_source": "ELI5 (Reddit), Fan et al. 2019", "terms": "repository LICENSE is BSD 'for ELI5 software'; Hugging Face tag 'unknown'", "terms_source": "https://github.com/facebookresearch/ELI5", "assumed_cc": true, "redistribute": false},
+        "wp": {"domain": "story", "use": true, "human_source": "Reddit WritingPrompts (Fan et al. 2018)", "terms": "no licence statement for the data (fairseq code is MIT)", "terms_source": "https://github.com/facebookresearch/fairseq", "assumed_cc": true, "redistribute": false},
+        "roct": {"domain": "story", "use": true, "human_source": "ROCStories (Mostafazadeh et al. 2016)", "terms": "no licence; access by form, 'free to everyone'", "terms_source": "https://cs.rochester.edu/nlp/rocstories/", "assumed_cc": true, "redistribute": false},
+        "hswag": {"domain": "misc", "use": false, "human_source": "HellaSwag (Zellers et al. 2019): ActivityNet captions and wikiHow", "terms": "wikiHow text is CC BY-NC-SA 3.0; the HellaSwag repository is blocked on GitHub since 2026-09-14 after a copyright notice by wikiHow", "terms_source": "https://github.com/github/dmca/blob/master/2026/09/2026-09-14-wikihow.md", "assumed_cc": false, "redistribute": false, "reason": "non-commercial terms and a takedown by the rights holder"},
+        "squad": {"domain": "wikipedia", "use": true, "human_source": "SQuAD (Rajpurkar et al. 2016), Wikipedia", "terms": "CC BY-SA 4.0", "terms_source": "https://huggingface.co/datasets/rajpurkar/squad", "assumed_cc": false, "redistribute": true},
+        "sci_gen": {"domain": "sci_abstract", "use": true, "human_source": "SciXGen (Chen et al. 2021), scientific papers", "terms": "no licence statement found (paper announces a public release)", "terms_source": "https://arxiv.org/abs/2110.10774", "assumed_cc": true, "redistribute": false},
+        "tldr": {"domain": "news", "use": true, "human_source": "TLDR_news (tldr.tech newsletters)", "terms": "no licence statement on the dataset card", "terms_source": "https://huggingface.co/datasets/JulesBelveze/tldr_news", "assumed_cc": true, "redistribute": false},
+        "xsum": {"domain": "news", "use": false, "human_source": "XSum (Narayan et al. 2018), BBC articles", "terms": "repository LICENSE is MIT (code); Hugging Face tag 'unknown'; articles are BBC copyright", "terms_source": "https://github.com/EdinburghNLP/XSum", "assumed_cc": false, "redistribute": false, "reason": "BBC articles: left out like raid/news, although this dataset states no terms of its own (decision of 2026-10-11)"},
+        "yelp": {"domain": "reviews", "use": false, "human_source": "Yelp dataset (Zhang et al. 2015)", "terms": "Yelp dataset terms: academic, non-commercial; Hugging Face tag 'other'", "terms_source": "https://huggingface.co/datasets/Yelp/yelp_review_full", "assumed_cc": false, "redistribute": false, "reason": "non-commercial terms"},
+        "cnn": {"domain": "news", "use": true, "human_source": "CNN/DailyMail (See et al. 2017)", "terms": "Apache-2.0 (Hugging Face card), MIT (repository). The articles are publisher copyright; used on the basis of the stated dataset licence, texts not redistributed (decision of 2026-10-11)", "terms_source": "https://huggingface.co/datasets/abisee/cnn_dailymail", "assumed_cc": false, "redistribute": false},
+        "dialogsum": {"domain": "dialogue", "use": false, "human_source": "DialogSum (Chen et al. 2021)", "terms": "CC BY-NC-SA 4.0", "terms_source": "https://github.com/cylnlp/dialogsum", "assumed_cc": false, "redistribute": false, "reason": "non-commercial terms"},
+        "imdb": {"domain": "reviews", "use": true, "human_source": "IMDb reviews (Maas et al. 2011)", "terms": "no licence stated, only a citation request; Hugging Face tag 'other'", "terms_source": "https://ai.stanford.edu/~amaas/data/sentiment/", "assumed_cc": true, "redistribute": false},
+        "pubmed": {"domain": "sci_abstract", "use": true, "human_source": "PubMedQA (Jin et al. 2019)", "terms": "MIT", "terms_source": "https://github.com/pubmedqa/pubmedqa", "assumed_cc": false, "redistribute": true}
+      },
+      "expected": {
+        "rows": 288205,
+        "rows_sha256": "b1ec10ec8490db93254fed722ec65d99b8c597d82d94acae41631af89a70a9da"
+      }
+    },
+    "raid": {
+      "title": "RAID",
+      "repo": "liamdugan/raid",
+      "revision": "865cac74188466cb0c3b7574a10204007b57a459",
+      "url": "https://huggingface.co/datasets/liamdugan/raid",
+      "licence": "MIT (dataset card and GitHub LICENSE)",
+      "files": {
+        "train.csv": "52f04ceebc126064e68fbd22d8b736964065745464f4bfd52e488150b49f84e4"
+      },
+      "not_fetched": {
+        "test.csv": "unlabelled (hidden test set of the RAID leaderboard)",
+        "extra.csv": "code, Czech and German; not needed for the English version"
+      },
+      "attacks": ["none"],
+      "generators": {
+        "chatgpt": "gpt-3.5-turbo",
+        "gpt4": "gpt-4",
+        "gpt3": "text-davinci-002",
+        "gpt2": "gpt2-xl",
+        "llama-chat": "llama-2-70b-chat",
+        "mistral": "mistral-7b",
+        "mistral-chat": "mistral-7b-instruct",
+        "mpt": "mpt-30b",
+        "mpt-chat": "mpt-30b-chat",
+        "cohere": "cohere-command",
+        "cohere-chat": "cohere-command-chat"
+      },
+      "notes": [
+        "train.csv has 5,615,820 rows: 467,985 without attack and the same rows under 11 adversarial attacks. 'attacks' selects which ones become rows; the group links an attacked text to its original.",
+        "Every human document has 34 generations (11 models, 2 or 4 decoding settings each), so label 1 outweighs label 0 by 34:1.",
+        "Generators checked against the paper (arXiv 2405.07940, table 10): gpt-3.5-turbo-0613, gpt-4-0613, text-davinci-002, gpt2-xl, Llama-2-70b-chat-hf, Mistral-7B-v0.1, Mistral-7B-Instruct-v0.1, mpt-30b, mpt-30b-chat, Cohere command via generate() and via chat().",
+        "Dates: the paper says most human documents are from datasets before 2022 and that only Wikipedia and Abstracts include later documents. A sample of 8 human abstracts from train.csv looked up on arXiv was published 2013 to 2021."
+      ],
+      "sub_sources": {
+        "abstracts": {"domain": "sci_abstract", "use": true, "human_source": "arXiv abstracts (Paul and Rakshit 2021, Kaggle 'arXiv Paper Abstracts')", "terms": "CC0 (Kaggle)", "terms_source": "https://www.kaggle.com/datasets/spsayakpaul/arxiv-paper-abstracts", "assumed_cc": false, "redistribute": true},
+        "books": {"domain": "books", "use": true, "human_source": "CMU Book Summary Dataset (Bamman and Smith 2013), Wikipedia plot summaries", "terms": "Creative Commons Attribution-ShareAlike", "terms_source": "https://www.cs.cmu.edu/~dbamman/booksummaries.html", "assumed_cc": false, "redistribute": true},
+        "news": {"domain": "news", "use": false, "human_source": "BBC news 2004-2005 (Greene and Cunningham 2006)", "terms": "'for non-commercial and research purposes only'; articles are BBC copyright", "terms_source": "http://mlg.ucd.ie/datasets/bbc.html", "assumed_cc": false, "redistribute": false, "reason": "non-commercial terms"},
+        "poetry": {"domain": "poetry", "use": true, "human_source": "poemhunter.com via Kaggle 'Poems Dataset (NLP)' (Arman 2020)", "terms": "CC0 according to the Kaggle uploader; the poems' own copyright is not addressed", "terms_source": "https://www.kaggle.com/datasets/michaelarman/poemsdataset", "assumed_cc": false, "redistribute": false},
+        "recipes": {"domain": "recipes", "use": false, "human_source": "RecipeNLG (Bien et al. 2020)", "terms": "agreement with Poznan University of Technology: 'only for non-commercial research and educational purposes'", "terms_source": "https://huggingface.co/datasets/mbien/recipe_nlg", "assumed_cc": false, "redistribute": false, "reason": "non-commercial terms"},
+        "reddit": {"domain": "forum", "use": true, "human_source": "Webis-TLDR-17 (Voelske et al. 2017), Reddit posts", "terms": "CC BY 4.0 (Zenodo record 1043504, Hugging Face card)", "terms_source": "https://zenodo.org/records/1043504", "assumed_cc": false, "redistribute": true},
+        "reviews": {"domain": "reviews", "use": true, "human_source": "IMDb reviews (Maas et al. 2011)", "terms": "no licence stated, only a citation request; Hugging Face tag 'other'", "terms_source": "https://ai.stanford.edu/~amaas/data/sentiment/", "assumed_cc": true, "redistribute": false},
+        "wiki": {"domain": "wikipedia", "use": true, "human_source": "Wikipedia introductions from GPT-wiki-intro (Bhat 2023)", "terms": "'cc' (dataset card); Wikipedia text is CC BY-SA", "terms_source": "https://huggingface.co/datasets/aadityaubhat/GPT-wiki-intro", "assumed_cc": false, "redistribute": true}
+      },
+      "expected": {
+        "rows": 343665,
+        "rows_sha256": "69bea4cae59201d86a533f1263f63c8304fdda759b8f4106988e7d5664a292ad"
+      }
+    }
+  }
+}
