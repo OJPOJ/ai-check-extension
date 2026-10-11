@@ -207,7 +207,7 @@ regex (`/^(ai|machine|generated)$/i`). `tokenizer_config.json` names
 `tokenizer_class: "RobertaTokenizer"` - already supported in `offscreen.js` (`TOKENIZER_CLASSES`),
 no change to `offscreen.js` needed (simplest of the three catalogue cases, as expected).
 
-### Method (`training/compare_onnx.py`, new)
+### Method (`training/evaluation/compare_onnx.py`, new)
 
 Loads both models (ONNX via `onnxruntime` + `transformers` tokenizer, PyTorch original via
 `transformers`) and scores them on the same `eval_suite.jsonl` (1200 texts) with **identical

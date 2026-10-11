@@ -18,9 +18,9 @@ to get an error range (5th-95th percentile) of today's numbers (task: "confidenc
 of the current values").
 
 Usage (from training/):
-    .venv/Scripts/python.exe crossval_thresholds.py --backend tmr
-    .venv/Scripts/python.exe crossval_thresholds.py --backend desklib
-    .venv/Scripts/python.exe crossval_thresholds.py --backend both --reps 200
+    .venv/Scripts/python.exe evaluation/crossval_thresholds.py --backend tmr
+    .venv/Scripts/python.exe evaluation/crossval_thresholds.py --backend desklib
+    .venv/Scripts/python.exe evaluation/crossval_thresholds.py --backend both --reps 200
 
 WP-09: --backend fakespot reads data/eval_scores_fakespot_suite.jsonl (ONNX scores, MedAliFarhat/
 ai-text-detector-onnx - exactly the numbers the extension would actually see, see compare_onnx.py).

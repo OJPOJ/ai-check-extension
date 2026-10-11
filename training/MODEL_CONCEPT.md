@@ -2,8 +2,9 @@
 
 Status: 2026-10-11, concept. No model is built or measured yet; numbers marked "estimate" or
 "target" are not results. The steps are tracked in issue #46; the storage of the sources and the
-three public datasets exist (`sources.json`, `fetch_sources.py`, `README.md`), as does a first
-own collection of human texts from before 2022 (`collect_human.py`).
+three public datasets exist, as does a first own collection of human texts from before 2022 and
+the first version of the cleaned and split dataset (all in `dataset/`, described in
+`dataset/README.md`).
 
 ## Goal
 
@@ -74,6 +75,14 @@ and desklib. Rules for the split:
   generator and one domain that are absent from our training, reported separately.
 - The documents of the existing 1200-text suite stay out of training, so that the old numbers
   remain usable as a second view.
+- Cleaning comes before the split and never looks at the label: what tells the sources apart
+  without telling the writers apart (line breaks, markup, quote style, tokeniser spacing, text
+  added by a platform) is removed from every text by one function, `normalise()` in
+  `dataset/build_dataset.py`. The extension has to apply the same function before scoring.
+- Version 1 (`dataset.json`): reviews are the held-out domain, Cohere's two models the held-out
+  generators. HC3 `reddit_eli5` is left out on both sides: its human answers are tokenised and
+  cannot be repaired, and the ChatGPT answers alone would be forum texts of one class. Numbers
+  and open points are in `dataset/README.md`, "The dataset".
 
 Details per source:
 

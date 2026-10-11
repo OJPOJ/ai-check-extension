@@ -26,7 +26,7 @@ The sub_source "wikipedia" above does NOT come from MAGE but from M4GT - contrar
 suggests. MAGE's own Wikipedia/SQuAD domain is called "squad" here (not included in DOMAINS above)
 and only has older generators (gpt-3.5-turbo, otherwise text-davinci-00x/flan-t5/opt/
 t0/bloom/GLM130B/gpt-j/gpt-neox - the category "older/smaller models" deliberately excluded in this
-script). training/build_reference_set.py therefore uses neither "wikipedia"
+script). training/evaluation/build_reference_set.py therefore uses neither "wikipedia"
 nor "squad" from this dataset, but RAID (liamdugan/raid, MIT) for the Wikipedia domain.
 
 Generators (column "model"): human and, where available for the domain,
@@ -42,8 +42,8 @@ blank lines either when read out) and, if needed, cut at the nearest sentence en
 (like clip() in evaluate_false_alarms.py, just word-based instead of character-based).
 
 Usage:
-    .venv/Scripts/python.exe build_eval_suite.py                 # default sizes (see below)
-    .venv/Scripts/python.exe build_eval_suite.py --out data/eval_suite.jsonl --seed 42
+    .venv/Scripts/python.exe evaluation/build_eval_suite.py                 # default sizes (see below)
+    .venv/Scripts/python.exe evaluation/build_eval_suite.py --out data/eval_suite.jsonl --seed 42
 """
 
 import argparse

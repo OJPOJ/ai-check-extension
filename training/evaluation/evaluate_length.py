@@ -12,17 +12,22 @@ texts), so that longer texts do not merely contain more of this shortcut.
 Results: EVAL_RESULTS.md, "Text length".
 
 Usage (from this folder):
-    .venv/Scripts/python.exe evaluate_length.py tmr 200 --normalize
-    .venv/Scripts/python.exe evaluate_length.py desklib 40
+    .venv/Scripts/python.exe evaluation/evaluate_length.py tmr 200 --normalize
+    .venv/Scripts/python.exe evaluation/evaluate_length.py desklib 40
 """
 
 import argparse
 import random
 import re
 import time
+import sys
+from pathlib import Path
 
-import evaluate_backends as eb
-from prepare_dataset import iter_hc3_pairs
+# prepare_dataset.py (the HC3 reader) lives with the fine-tuning scripts
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "finetune"))
+
+import evaluate_backends as eb  # noqa: E402
+from prepare_dataset import iter_hc3_pairs  # noqa: E402
 
 MIN_LEN = 1500
 

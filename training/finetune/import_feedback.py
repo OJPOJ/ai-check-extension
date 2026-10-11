@@ -16,7 +16,7 @@ only as a small addition to generated data (see README.md, "Feedback as a data s
 users deliver few, one-sided examples (mostly false alarms on their own favourite sites).
 
 Usage:
-    python import_feedback.py aivsai-feedback-2026-09-25.jsonl --out-dir data
+    python finetune/import_feedback.py aivsai-feedback-2026-09-25.jsonl --out-dir data
 """
 
 import argparse

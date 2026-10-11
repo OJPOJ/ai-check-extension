@@ -119,7 +119,7 @@ globalThis.AIVSAI_MODELS = {
     maxTokens: 512,
     maxChars: 2000,
     // Thresholds cross-validated (training/MODEL_SEARCH.md, "ONNX comparison and integration (WP-09)"; method like
-    // training/crossval_thresholds.py, WP-07): redFrom 0.999 (median of the cross-validation 0.9989, 5th-95th
+    // training/evaluation/crossval_thresholds.py, WP-07): redFrom 0.999 (median of the cross-validation 0.9989, 5th-95th
     // percentile 0.9982-0.9995) -> ~1.1% false alarms, ~90% detected at >=120 words. yellowFrom not
     // cross-validated (no false alarm target for yellow, purely informative as with TMR/desklib) - 0.95 leaves
     // about 13% of human texts appearing as "unclear" instead of "not flagged".
@@ -133,7 +133,7 @@ globalThis.AIVSAI_MODELS = {
     browser: {
       // Ready-made ONNX from a third party (MedAliFarhat), explicitly built for transformers.js - no
       // desklib_build.js-style conversion step needed, simplest of the three cases in the catalog.
-      // ONNX comparison against the PyTorch original: training/compare_onnx.py, numbers in MODEL_SEARCH.md.
+      // ONNX comparison against the PyTorch original: training/evaluation/compare_onnx.py, numbers in MODEL_SEARCH.md.
       repo: "MedAliFarhat/ai-text-detector-onnx",
       revision: "0c809a8de6e600ec2fd0fcdeb595a5461d93e8dc",
       version: "0c809a8-q8",

@@ -5,7 +5,7 @@ recomputing - for the full desklib run (n=1200), which came about over several c
 first 480, desklib_fill_suite.py for the rest).
 
 Usage (from training/):
-    .venv/Scripts/python.exe report_from_scores.py --backend desklib
+    .venv/Scripts/python.exe evaluation/report_from_scores.py --backend desklib
 """
 import argparse
 from pathlib import Path

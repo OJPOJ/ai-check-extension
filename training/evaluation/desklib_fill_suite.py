@@ -10,7 +10,7 @@ and at the end the complete 1200 rows to data/eval_scores_desklib_suite.jsonl (s
 order as eval_suite.jsonl).
 
 Usage (from training/):
-    .venv/Scripts/python.exe desklib_fill_suite.py --suite data/eval_suite.jsonl
+    .venv/Scripts/python.exe evaluation/desklib_fill_suite.py --suite data/eval_suite.jsonl
 """
 import argparse
 import json

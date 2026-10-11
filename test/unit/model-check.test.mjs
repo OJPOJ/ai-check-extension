@@ -18,7 +18,7 @@ afterEach(() => (globalThis.fetch = realFetch));
 const aiOf = (t) => REFERENCE_SET.find((r) => r.text.startsWith(t)).ai;
 
 // Synthetic set for testing assess() (independent of the actual size/composition
-// of the real reference set, which can change with training/build_reference_set.py): 20 human + 20 AI
+// of the real reference set, which can change with training/evaluation/build_reference_set.py): 20 human + 20 AI
 const SAMPLE_AI = [...Array(20).fill(false), ...Array(20).fill(true)];
 // Scores for the sample set: AI texts `ai`, human texts `human` (each as a function of the index within the class)
 const scoresFor = (human, ai) => {
@@ -55,7 +55,7 @@ describe("statistics", () => {
   });
 
   it("suggestThresholds: red just above the highest human text, yellow from the upper quartile", () => {
-    // desklib on the reference set (training/build_reference_set.py --check)
+    // desklib on the reference set (training/evaluation/build_reference_set.py --check)
     const desklib = [0, 0, 0, 0.01, 0.01, 0.02, 0.02, 0.02, 0.02, 0.03, 0.06, 0.06, 0.07, 0.09, 0.22, 0.27, 0.3, 0.44, 0.48, 0.58];
     assert.deepEqual(suggestThresholds(desklib), { yellowFrom: 0.22, redFrom: 0.59 });
     // slider limits, yellow always below red

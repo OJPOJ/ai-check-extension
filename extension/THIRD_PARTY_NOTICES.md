@@ -30,7 +30,7 @@ The bundled blocklist is compiled from the following sources and as a whole is u
   United Kingdom and the USA, CC0 1.0. https://www.wikidata.org/
 - Hand-picked additions (`scripts/build-blocklist.mjs`, `CURATED`).
 
-## Shipped data (`bg/reference-set.js`, via `training/build_reference_set.py`)
+## Shipped data (`bg/reference-set.js`, via `training/evaluation/build_reference_set.py`)
 
 The reference set for "Check model" (114 texts, 57 human and 57 AI texts, short and long
 paragraphs) comes from two sources:
@@ -47,7 +47,7 @@ paragraphs) comes from two sources:
 Reviewed and rejected (own or unclear terms of use): Yelp/IMDb reviews,
 press articles (XSum, CNN/DailyMail), arXiv/PubMed abstracts, WikiHow (CC BY-NC-SA), Reddit outside
 HC3, the "wikipedia" domain of `Jinyan1/COLING_2025_MGT_en` (comes from M4GT-Bench, without a license).
-License weighing per sub-source: header of `training/build_reference_set.py`.
+License weighing per sub-source: header of `training/evaluation/build_reference_set.py`.
 The reference set as a whole is under CC BY-SA 4.0.
 
 ## Models loaded at runtime (not included in the package)
@@ -65,7 +65,7 @@ The reference set as a whole is under CC BY-SA 4.0.
   (https://www.apache.org/licenses/LICENSE-2.0), © Fakespot/Mozilla. ONNX conversion by a
   third party (not the model's creator): `MedAliFarhat/ai-text-detector-onnx` (also Apache-2.0),
   revision `0c809a8de6e600ec2fd0fcdeb595a5461d93e8dc` – checked against the PyTorch original
-  (`training/compare_onnx.py`, results in `training/MODEL_SEARCH.md`). Base model RoBERTa-base
+  (`training/evaluation/compare_onnx.py`, results in `training/MODEL_SEARCH.md`). Base model RoBERTa-base
   (MIT, © Facebook AI); training data not disclosed in detail (reference to
   github.com/FakespotAILabs/ApolloDFT).
 
