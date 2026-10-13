@@ -609,3 +609,216 @@ changed).
   may have seen parts of the source datasets in training.
 - desklib now fully on 1200 texts (720 new + 480 from WP-01, text itself as the key when
   merging - no duplicates expected in this suite, but not checked separately).
+
+## Baselines on the frozen test part (2026-10-12, issue #46, work package 5)
+
+What our own model has to beat. TMR, fakespot and desklib scored the 46,274 excerpts of the test
+part of dataset `v1` (`dataset/README.md`), before any training
+(`evaluation/evaluate_test_part.py`; all numbers in `data/dataset/v1/baselines.json`, scores per
+text in `data/dataset/v1/scores/`, both gitignored).
+
+Method:
+
+- The models are the PyTorch originals at pinned revisions (TMR `0ceddea`, fakespot `f9cdb14`,
+  desklib `5fdea97`), not the quantised ONNX files the browser runs.
+- Every model gets an excerpt as the extension would send it: cut to `maxChars` (2000; desklib
+  1500, which shortens 2,048 excerpts) and truncated to `maxTokens`.
+- One threshold per model and length group, set so that at most 1% of the human texts of the view
+  `main` reach it (12,607 texts; 2,394 to 6,090 per group). It is applied unchanged to every other
+  group, view and to the suite. On `main` itself the false alarm rate is therefore 1.0% by
+  construction; the detection next to it is the result.
+- F1 is that of the class "AI" at this threshold. It depends on the ratio of the classes, which
+  differs by group (1.5 AI to 1 human in `main`, 7 to 1 in the reviews), so compare models within
+  a row, not rows with each other.
+- FA = false alarms (human texts at or above the threshold), det. = AI texts detected.
+- Compute time on the CPU: TMR 89 min, fakespot 86 min, desklib 385 min (116, 111 and 500 ms per
+  excerpt).
+
+Thresholds (as the score the extension displays):
+
+| Words | TMR | fakespot | desklib |
+|---|---|---|---|
+| 15-39 | 0.9848 | 0.9990 | 0.9942 |
+| 40-119 | 0.9859 | 0.9993 | 0.9932 |
+| 120-330 | 0.9802 | 0.9983 | 0.9676 |
+
+For long texts they agree with what the extension uses (TMR 0.98, fakespot 0.999, desklib 0.94 to
+0.95 cross-validated on the suite, here 0.968). For short texts desklib needs 0.993 to 0.994
+instead of the 0.98 in use.
+
+### Result per view
+
+| View | Human | AI | TMR F1 | TMR AUROC | TMR FA | TMR det. | fakespot F1 | fakespot AUROC | fakespot FA | fakespot det. | desklib F1 | desklib AUROC | desklib FA | desklib det. |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `main` | 12,607 | 19,066 | 0.479 | 0.847 | 1.0% | 31.7% | 0.624 | 0.885 | 1.0% | 45.6% | 0.711 | 0.950 | 1.0% | 55.5% |
+| `testbed` | 356 | 1,200 | 0.447 | 0.756 | 4.8% | 29.2% | 0.587 | 0.854 | 2.0% | 41.8% | 0.458 | 0.797 | 2.2% | 29.9% |
+| `held_out_domain` | 1,134 | 8,123 | 0.707 | 0.937 | 0.7% | 54.8% | 0.688 | 0.951 | 0.2% | 52.5% | 0.663 | 0.916 | 0.4% | 49.6% |
+| `held_out_generator` | 0 | 3,788 | 0.368 | 0.769 | – | 23.3% | 0.581 | 0.875 | – | 42.3% | 0.417 | 0.772 | – | 27.2% |
+
+`held_out_generator` has no human texts of its own; F1 and AUROC there are against the human texts
+of `main`.
+
+- **The numbers to beat on `main`: F1 0.624 (fakespot, the condition for shipping) and 0.711
+  (desklib, decides the default)**, at AUROC 0.885 and 0.950.
+- **desklib leads only on `main`.** On the two Cohere models and on MAGE's testbed (GPT-4 and
+  paraphrases) fakespot is clearly ahead (F1 0.581 against 0.417, and 0.587 against 0.458), and on
+  the reviews all three are close, TMR first. The order of the three models from the 1200-text
+  suite does not hold outside the generators and domains they do well on.
+- **The test part is much harder than the suite** (suite AUROC 0.929 / 0.960 / 0.991, here
+  0.847 / 0.885 / 0.950 on `main`). The reasons are below: short excerpts, and generators none of
+  the three detects.
+- The testbed has 356 human texts in few groups; its false alarm rates (2.0 to 4.8%) rest on 7
+  to 17 texts.
+
+### `main` by length
+
+| Words | Human | AI | TMR F1 | TMR AUROC | TMR FA | TMR det. | fakespot F1 | fakespot AUROC | fakespot FA | fakespot det. | desklib F1 | desklib AUROC | desklib FA | desklib det. |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `15-39` | 4,123 | 6,749 | 0.248 | 0.744 | 1.0% | 14.3% | 0.305 | 0.762 | 1.0% | 18.1% | 0.408 | 0.870 | 1.0% | 25.8% |
+| `40-119` | 6,090 | 8,585 | 0.458 | 0.866 | 1.0% | 29.9% | 0.690 | 0.913 | 1.0% | 53.1% | 0.782 | 0.966 | 1.0% | 64.6% |
+| `120-330` | 2,394 | 3,732 | 0.801 | 0.962 | 1.0% | 67.3% | 0.876 | 0.979 | 1.0% | 78.3% | 0.936 | 0.992 | 1.0% | 88.5% |
+
+Length decides more than the model: from the shortest to the longest group detection rises from
+14–26% to 67–89%. Below 40 words even desklib finds one AI text in four at 1% false alarms. This
+is where a model trained on paragraph-length excerpts can gain most.
+
+### `main` by domain
+
+| Domain | Human | AI | TMR F1 | TMR AUROC | TMR FA | TMR det. | fakespot F1 | fakespot AUROC | fakespot FA | fakespot det. | desklib F1 | desklib AUROC | desklib FA | desklib det. |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `books` | 163 | 656 | 0.803 | 0.937 | 1.2% | 67.2% | 0.856 | 0.968 | 1.2% | 75.0% | 0.818 | 0.973 | 0.0% | 69.2% |
+| `forum` | 3,427 | 4,935 | 0.413 | 0.867 | 0.5% | 26.1% | 0.561 | 0.918 | 0.2% | 39.0% | 0.701 | 0.961 | 0.8% | 54.2% |
+| `howto` | 102 | 0 | – | – | 1.0% | – | – | – | 2.0% | – | – | – | 1.0% | – |
+| `news` | 947 | 2,209 | 0.634 | 0.763 | 5.2% | 47.5% | 0.554 | 0.748 | 3.5% | 38.9% | 0.745 | 0.934 | 2.2% | 59.9% |
+| `poetry` | 208 | 834 | 0.568 | 0.953 | 0.0% | 39.7% | 0.798 | 0.974 | 0.0% | 66.4% | 0.774 | 0.983 | 0.0% | 63.1% |
+| `qa` | 1,075 | 0 | – | – | 0.6% | – | – | – | 0.2% | – | – | – | 0.3% | – |
+| `sci_abstract` | 1,940 | 2,610 | 0.387 | 0.854 | 0.5% | 24.1% | 0.624 | 0.916 | 0.5% | 45.5% | 0.635 | 0.947 | 0.6% | 46.7% |
+| `story` | 2,149 | 4,659 | 0.445 | 0.822 | 0.7% | 28.7% | 0.661 | 0.869 | 1.9% | 49.8% | 0.752 | 0.939 | 2.1% | 60.8% |
+| `travel` | 91 | 0 | – | – | 1.1% | – | – | – | 0.0% | – | – | – | 2.2% | – |
+| `wikipedia` | 2,505 | 3,163 | 0.466 | 0.837 | 0.9% | 30.6% | 0.598 | 0.840 | 1.2% | 43.1% | 0.657 | 0.943 | 0.5% | 49.1% |
+
+- **News** is the one domain where the threshold from all of `main` does not hold: 5.2% (TMR),
+  3.5% (fakespot) and 2.2% (desklib) false alarms, and AUROC 0.76 and 0.75 for the two RoBERTa
+  models. The human news texts are MAGE `cnn` and Wikinews.
+- **Stories** give fakespot and desklib about 2% false alarms.
+- `howto`, `qa` and `travel` have human texts only (Wikibooks, Stack Exchange, Wikivoyage): they
+  say something about false alarms (0.0 to 2.2% on 91 to 1,075 texts), nothing about detection.
+
+### `main` by source
+
+| Source | Human | AI | TMR F1 | TMR AUROC | TMR FA | TMR det. | fakespot F1 | fakespot AUROC | fakespot FA | fakespot det. | desklib F1 | desklib AUROC | desklib FA | desklib det. |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `arxiv` | 785 | 0 | – | – | 0.4% | – | – | – | 0.4% | – | – | – | 0.9% | – |
+| `hc3` | 80 | 94 | 0.561 | 0.883 | 1.2% | 39.4% | 0.818 | 0.945 | 0.0% | 69.1% | 0.777 | 0.976 | 2.5% | 64.9% |
+| `mage` | 9,165 | 15,176 | 0.436 | 0.820 | 1.1% | 28.1% | 0.572 | 0.860 | 1.2% | 40.3% | 0.694 | 0.944 | 1.1% | 53.5% |
+| `raid` | 941 | 3,796 | 0.630 | 0.934 | 0.3% | 46.0% | 0.797 | 0.960 | 0.4% | 66.3% | 0.775 | 0.972 | 0.3% | 63.4% |
+| `stackexchange` | 1,075 | 0 | – | – | 0.6% | – | – | – | 0.2% | – | – | – | 0.3% | – |
+| `wikimedia` | 561 | 0 | – | – | 1.2% | – | – | – | 1.2% | – | – | – | 0.7% | – |
+
+MAGE is the hard part (53.5% detected by desklib, 40.3% by fakespot) and carries the result, with
+77% of the rows of `main`. RAID's and HC3's generations are detected far more often.
+
+### By generator
+
+AI texts of `main` plus the two held-out Cohere models; AUROC against all human texts of `main`.
+
+| Generator | AI | TMR det. | TMR AUROC | fakespot det. | fakespot AUROC | desklib det. | desklib AUROC |
+|---|---|---|---|---|---|---|---|
+| `bloom-7b1` | 642 | 33.6% | 0.881 | 45.0% | 0.871 | 62.0% | 0.967 |
+| `chatgpt-2022` | 94 | 39.4% | 0.890 | 69.1% | 0.949 | 64.9% | 0.965 |
+| `cohere-command` | 1,888 | 13.8% | 0.698 | 28.0% | 0.831 | 13.8% | 0.686 |
+| `cohere-command-chat` | 1,900 | 32.7% | 0.838 | 56.6% | 0.919 | 40.6% | 0.858 |
+| `flan-t5-base` | 59 | 6.8% | 0.752 | 6.8% | 0.754 | 40.7% | 0.928 |
+| `flan-t5-large` | 77 | 1.3% | 0.597 | 0.0% | 0.637 | 31.2% | 0.908 |
+| `flan-t5-small` | 17 | 0.0% | 0.620 | 0.0% | 0.545 | 29.4% | 0.896 |
+| `flan-t5-xl` | 57 | 1.8% | 0.501 | 0.0% | 0.537 | 38.6% | 0.942 |
+| `flan-t5-xxl` | 192 | 8.9% | 0.648 | 7.3% | 0.652 | 54.2% | 0.939 |
+| `glm-130b` | 639 | 16.6% | 0.767 | 32.2% | 0.865 | 55.2% | 0.952 |
+| `gpt-3.5-turbo` | 1,799 | 50.3% | 0.935 | 72.3% | 0.966 | 70.0% | 0.974 |
+| `gpt-4` | 284 | 51.4% | 0.907 | 70.4% | 0.958 | 50.0% | 0.902 |
+| `gpt-j-6b` | 529 | 31.9% | 0.847 | 47.4% | 0.870 | 58.8% | 0.955 |
+| `gpt-neox-20b` | 330 | 65.5% | 0.942 | 64.5% | 0.909 | 73.6% | 0.978 |
+| `gpt2-xl` | 492 | 32.5% | 0.845 | 50.2% | 0.909 | 64.0% | 0.962 |
+| `llama-13b` | 653 | 11.0% | 0.721 | 19.8% | 0.826 | 41.0% | 0.920 |
+| `llama-2-70b-chat` | 509 | 57.0% | 0.927 | 82.3% | 0.979 | 73.5% | 0.976 |
+| `llama-30b` | 657 | 10.7% | 0.712 | 21.0% | 0.823 | 33.0% | 0.906 |
+| `llama-65b` | 657 | 8.7% | 0.691 | 18.9% | 0.800 | 30.0% | 0.884 |
+| `llama-7b` | 662 | 13.7% | 0.749 | 26.3% | 0.845 | 45.8% | 0.938 |
+| `mistral-7b` | 525 | 30.1% | 0.806 | 45.1% | 0.892 | 48.8% | 0.894 |
+| `mistral-7b-instruct` | 501 | 55.3% | 0.935 | 80.4% | 0.977 | 74.3% | 0.978 |
+| `mpt-30b` | 490 | 47.3% | 0.867 | 55.1% | 0.906 | 58.2% | 0.924 |
+| `mpt-30b-chat` | 468 | 58.3% | 0.953 | 84.0% | 0.986 | 78.0% | 0.982 |
+| `opt-1.3b` | 618 | 23.1% | 0.843 | 34.6% | 0.860 | 52.9% | 0.954 |
+| `opt-125m` | 611 | 17.2% | 0.812 | 19.6% | 0.819 | 59.6% | 0.966 |
+| `opt-13b` | 478 | 66.1% | 0.943 | 68.4% | 0.920 | 73.2% | 0.977 |
+| `opt-2.7b` | 599 | 35.9% | 0.880 | 47.7% | 0.888 | 61.3% | 0.967 |
+| `opt-30b` | 577 | 42.6% | 0.897 | 51.0% | 0.879 | 60.5% | 0.963 |
+| `opt-350m` | 589 | 36.2% | 0.867 | 38.9% | 0.838 | 63.3% | 0.968 |
+| `opt-6.7b` | 581 | 21.2% | 0.818 | 32.7% | 0.829 | 45.4% | 0.940 |
+| `opt-iml-30b` | 567 | 21.7% | 0.839 | 30.9% | 0.835 | 44.8% | 0.947 |
+| `opt-iml-max-1.3b` | 585 | 15.4% | 0.816 | 25.0% | 0.835 | 45.6% | 0.949 |
+| `t0-11b` | 105 | 6.7% | 0.749 | 20.0% | 0.806 | 22.9% | 0.913 |
+| `t0-3b` | 157 | 12.7% | 0.799 | 12.7% | 0.796 | 43.9% | 0.943 |
+| `text-davinci-002` | 1,764 | 21.0% | 0.842 | 41.6% | 0.903 | 43.7% | 0.935 |
+| `text-davinci-003` | 1,502 | 38.2% | 0.912 | 57.9% | 0.943 | 60.5% | 0.966 |
+
+- **Instruction-tuned chat models are detected best** (GPT-3.5, Llama 2 chat, Mistral instruct,
+  MPT chat: 70 to 84% by fakespot and desklib).
+- **TMR and fakespot barely detect older continuation models:** Flan-T5 0 to 9%, the Llama 1 models
+  9 to 26%, AUROC partly near 0.5. desklib finds 29 to 54% of them, which is most of its lead on
+  `main`.
+- **Cohere `command`** (held out for our model) is the weakest large group for all three: 13.8%
+  (TMR and desklib) and 28.0% (fakespot).
+- **GPT-4**: fakespot 70.4%, desklib 50.0%, on 284 texts.
+- Flan-T5 small to xl and T0 have 17 to 157 texts each; their rates are rough.
+
+### `main` at the thresholds the extension uses today
+
+Red as displayed: from `redFrom` at 120 words or more, from `shortRedFrom` below (TMR has none and
+never shows red there).
+
+| Length | Human | AI | TMR FA | TMR det. | fakespot FA | fakespot det. | desklib FA | desklib det. |
+|---|---|---|---|---|---|---|---|---|
+| `all` | 12,607 | 19,066 | 0.2% | 13.3% | 0.6% | 42.1% | 2.4% | 65.9% |
+| `long` | 2,394 | 3,732 | 1.0% | 67.8% | 0.4% | 74.4% | 1.4% | 91.7% |
+| `short` | 10,213 | 15,334 | 0.0% | 0.0% | 0.7% | 34.2% | 2.6% | 59.6% |
+
+desklib's thresholds, set on the suite, give 2.6% false alarms on short and 1.4% on long excerpts
+here; fakespot stays below 1%. Whether desklib's `shortRedFrom` should be raised is a question for
+#13, not decided here.
+
+### Second view: the 1200-text suite
+
+Whole suite texts (40 to 420 words, cut by `maxChars`), with the thresholds from the test part
+above, so the false alarm rate is a result here.
+
+|  | Human | AI | TMR F1 | TMR AUROC | TMR FA | TMR det. | fakespot F1 | fakespot AUROC | fakespot FA | fakespot det. | desklib F1 | desklib AUROC | desklib FA | desklib det. |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `suite` | 600 | 600 | 0.821 | 0.929 | 6.3% | 74.0% | 0.882 | 0.960 | 1.5% | 80.0% | 0.933 | 0.991 | 0.3% | 87.7% |
+| `forum` | 100 | 100 | 0.896 | 0.956 | 1.0% | 82.0% | 0.964 | 0.996 | 1.0% | 94.0% | 0.974 | 1.000 | 0.0% | 95.0% |
+| `howto` | 100 | 100 | 0.696 | 0.788 | 20.0% | 64.0% | 0.879 | 0.946 | 2.0% | 80.0% | 0.948 | 0.973 | 1.0% | 91.0% |
+| `news` | 100 | 100 | 0.853 | 0.937 | 13.0% | 84.0% | 0.910 | 0.955 | 3.0% | 86.0% | 0.937 | 0.991 | 1.0% | 89.0% |
+| `reviews` | 100 | 100 | 0.549 | 0.925 | 3.0% | 39.0% | 0.507 | 0.961 | 0.0% | 34.0% | 0.765 | 0.993 | 0.0% | 62.0% |
+| `sci_abstract` | 100 | 100 | 0.907 | 0.976 | 0.0% | 83.0% | 0.958 | 0.998 | 0.0% | 92.0% | 0.980 | 0.998 | 0.0% | 96.0% |
+| `wikipedia` | 100 | 100 | 0.953 | 0.995 | 1.0% | 92.0% | 0.954 | 0.982 | 3.0% | 94.0% | 0.964 | 0.995 | 0.0% | 93.0% |
+
+AUROC reproduces the earlier measurements (0.929, 0.964 without the character cut, 0.991). The
+thresholds from the test part transfer for fakespot and desklib (1.5% and 0.3% false alarms);
+TMR's 6.3% come from how-tos (20%) and news (13%), as found in "Securing the thresholds".
+
+### Limitations
+
+- **Thresholds are set on the texts they are reported on** (`main`). With 2,394 to 6,090 human
+  texts per group the 1% point rests on 23 to 60 texts, so the bias is small; our own model should
+  be measured the same way, or both with thresholds from the validation part.
+- **Training data of the three models is not known to us in detail.** MAGE, RAID and HC3 are
+  public; a model may have been trained on texts that are in this test part, which would flatter
+  it. Our model in turn is trained on the same sources (not the same documents). The held-out
+  views are the fairer comparison, and there the baselines are 0.37 to 0.71 F1.
+- **Not the browser models:** fp32 PyTorch instead of the 8-bit ONNX files. For fakespot the two
+  were compared (`MODEL_SEARCH.md`, WP-09); for TMR and desklib the difference on this test part is
+  not measured.
+- **Sources with one class** (collected human texts, 2,421 rows) only enter the false alarm side.
+- **One excerpt per row**, drawn once; no confidence intervals are computed. Groups below about
+  200 texts (single generators, `howto`, `travel`, HC3) are rough.
+- No current generators (Claude, Gemini, GPT-4o and later): work package 10 and #15.

@@ -105,7 +105,8 @@ def score_laya(texts, server_url="http://127.0.0.1:11500", model="english"):
     return scores
 
 
-def score_desklib(texts):
+def load_desklib(revision=None):
+    """Tokenizer and model of desklib: its repository has no class transformers can load by itself."""
     import torch
     import torch.nn as nn
     from transformers import AutoConfig, AutoModel, AutoTokenizer, PreTrainedModel
@@ -140,9 +141,16 @@ def score_desklib(texts):
             pooled = summed / counted
             return self.classifier(pooled)
 
-    tok = AutoTokenizer.from_pretrained(model_id)
-    model = DesklibAIDetectionModel.from_pretrained(model_id)
+    tok = AutoTokenizer.from_pretrained(model_id, revision=revision)
+    model = DesklibAIDetectionModel.from_pretrained(model_id, revision=revision)
     model.eval()
+    return tok, model
+
+
+def score_desklib(texts):
+    import torch
+
+    tok, model = load_desklib()
 
     scores = []
     batch_size = 8
