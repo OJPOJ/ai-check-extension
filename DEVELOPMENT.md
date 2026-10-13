@@ -40,6 +40,8 @@ Icons: source `extension/icons/icon.svg`, PNGs (16/32/48/128, in Git) via `npm r
 Store screenshots: `npm run screenshots` → `store/screenshots/` (harness with fake scores, UI demo only).
 Text selection, grouping and language on real pages: `npm run measure:pages` (URL list in
 `scripts/measure-pages.urls.txt`, fake backend, ~5–8 min.) → `test/REAL_PAGES.md`.
+Latency of candidate encoders for our own model in the browser (WASM): `npm run measure:latency`, after the
+export described in `training/model/README.md` → `training/EVAL_RESULTS.md`.
 Store texts, justification of the permissions and open items for submission: `store/`.
 The script (`scripts/package.mjs`) aborts on uncommitted changes under `extension/`
 (`node scripts/package.mjs --allow-dirty` builds anyway, file name with `-dirty`), a missing

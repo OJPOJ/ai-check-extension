@@ -1,7 +1,7 @@
 # Concept: our own detector model (small, fast, self-trained)
 
-Status: 2026-10-11, concept. No model is built or measured yet; numbers marked "estimate" or
-"target" are not results. The steps are tracked in issue #46; the storage of the sources and the
+Status: 2026-10-13, concept. No model is trained yet; numbers marked "estimate" or
+"target" are not results. The latency of the candidate backbones is measured (see "Backbone"). The steps are tracked in issue #46; the storage of the sources and the
 three public datasets exist, as does a first own collection of human texts from before 2022 and
 the first version of the cleaned and split dataset (all in `dataset/`, described in
 `dataset/README.md`).
@@ -177,12 +177,31 @@ scaling the data, not from new algorithms.
 ### Backbone
 
 A small pretrained encoder, chosen by measured browser latency rather than by parameter count.
-Candidates (support in the pinned `@huggingface/transformers` and exact sizes still to be verified):
+The candidates were built with random weights and measured in the browser (work package 6;
+`EVAL_RESULTS.md`, "Latency of candidate encoders in the browser"; repositories, sizes and licences
+in the table there). All of them run in the ONNX Runtime Web pinned by `@huggingface/transformers`.
+8-bit weights, whole model without early exit or token reduction, ms per paragraph:
 
-- small ModernBERT-style encoders (Ettin family; mmBERT-small is multilingual),
-- MiniLM-class models (6–12 layers, width 384),
-- DeBERTa-v3-small/xsmall (note: dynamic int8 broke DeBERTa here, AUROC 0.998 → 0.973),
-- ALBERT-style models with shared layers (see lever 4).
+| Candidate | Layers × width | 128 tokens | 512 tokens | 8-bit file |
+|---|---|---|---|---|
+| ettin-17m | 7 × 256 | 15 | 63 | 17 MB |
+| minilm-l6-h384 | 6 × 384 | 25 | 123 | 31 MB |
+| **ettin-32m** | 10 × 384 | 38 | 164 | 33 MB |
+| minilm-l12-h384 | 12 × 384 | 53 | 245 | 34 MB |
+| deberta-v3-xsmall | 12 × 384 | 77 | 380 | 84 MB |
+| **ettin-68m** | 19 × 512 | 96 | 444 | 70 MB |
+| mmbert-small (multilingual) | 22 × 384 | 97 | 448 | 142 MB |
+| deberta-v3-small | 6 × 768 | 102 | 514 | 165 MB |
+| RoBERTa-base (TMR, fakespot) | 12 × 768 | 144 | 663 | 125 MB |
+| deberta-v3-base | 12 × 768 | 201 | 1033 | 229 MB |
+| **ettin-150m** | 22 × 768 | 202 | 1017 | 151 MB |
+| albert-base-v2 | 12 × 768 | 241 | 1059 | 34 MB |
+| DeBERTa-v3-large (desklib) | 24 × 1024 | 647 | 3132 | 590 MB |
+
+Going into training (work package 7): the three sizes of the Ettin family in bold, with mmBERT as
+the multilingual model of the same family. ettin-150m only pays off with levers 1 and 2. DeBERTa-v3
+small and base are the fallback (note: dynamic int8 broke DeBERTa here, AUROC 0.998 → 0.973). ALBERT
+is dropped: shared layers save download, not compute (lever 4).
 
 ### Levers, and where the idea comes from
 
@@ -199,6 +218,9 @@ Several of its principles do:
 | 5 | **One model, adjustable effort:** the exit threshold is a setting | Reasoning effort 1–100 on one cost/quality curve instead of separate modes | "Fast / Balanced / Accurate" become one download with a slider instead of three models | Thresholds must be calibrated per effort level |
 | 6 | **4-bit or 8-bit weights** | FP4 KV cache | Download size | Must be checked per architecture, see DeBERTa above |
 | 7 | **Averaging checkpoints** from several training runs | Model merging across RL runs | Robustness at no inference cost | Small gain, only if runs share the initialisation |
+
+Measured with random weights (work package 6): lever 2 saves 36 to 39% of the time at 512 tokens,
+and splitting the graph into stages for lever 1 costs neither time nor download.
 
 With the priorities above, levers 1 and 2 are the ones that matter (latency). Levers 4 and 6 only
 save download size and are dropped unless they turn out to be free; in particular the model may
