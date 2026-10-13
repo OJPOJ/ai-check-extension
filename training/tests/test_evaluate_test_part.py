@@ -5,6 +5,7 @@ They use scores written here, no model and no real data.
     .venv/Scripts/python.exe -m unittest discover -s tests -v
 """
 
+import json
 import math
 import sys
 import unittest
@@ -106,6 +107,12 @@ class EvaluateTest(unittest.TestCase):
         out = ev.evaluate(self.rows, self.logits, "tmr", CFG)  # TMR has no shortRedFrom
         self.assertEqual(out["shipped"]["short"]["detected"], 0.0)
         self.assertEqual(out["shipped"]["long"]["detected"], 1.0)
+
+    def test_a_run_of_our_own_gets_the_same_tables_without_shipped_thresholds(self):
+        out = ev.evaluate(self.rows, self.logits, "ettin-68m", CFG)
+        self.assertNotIn("shipped", out)
+        baseline = {k: v for k, v in ev.evaluate(self.rows, self.logits, "tmr", CFG).items() if k != "shipped"}
+        self.assertEqual(json.dumps(out), json.dumps(baseline))  # as text: the tables hold NaN
 
     def test_length_group_of_texts_outside_the_excerpt_range(self):
         groups = ev.length_groups(CFG)

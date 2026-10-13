@@ -24,6 +24,10 @@ Usage (from training/):
     .venv/Scripts/python.exe evaluation/evaluate_test_part.py score                  # all models; continues an interrupted run
     .venv/Scripts/python.exe evaluation/evaluate_test_part.py score tmr --set suite  # the 1200-text suite as a second view
     .venv/Scripts/python.exe evaluation/evaluate_test_part.py report                 # tables, and baselines.json next to the scores
+    .venv/Scripts/python.exe evaluation/evaluate_test_part.py report --run ettin-68m # the same with our own model next to them (comparison.json)
+
+`--run` takes runs of model/train.py (data/runs/<name>/scores/test.jsonl, the score of the last
+exit). Their texts were cut to 512 tokens by the run itself.
 """
 
 import argparse
@@ -44,6 +48,7 @@ HERE = Path(__file__).resolve().parent
 DATA = HERE.parent / "data"  # gitignored
 CONFIG = HERE.parent / "dataset" / "dataset.json"
 SUITE = DATA / "eval_suite.jsonl"
+RUNS = DATA / "runs"  # our own models: model/train.py
 
 # maxChars, maxTokens and the thresholds in use are those of extension/models.js (only read here).
 MODELS = {
@@ -265,6 +270,8 @@ def evaluate(rows: list, logits: dict, model: str, cfg: dict, thresholds=None) -
         # per generator against all human texts of `main`: there is no human side per generator
         "generator": by("generator", [r for r in main if r["label"] == 1] + views.get("held_out_generator", []), main_humans),
     }
+    if model not in MODELS:  # a run of our own: nothing is shipped yet
+        return out
     # the traffic light as the extension shows it today: red from redFrom, short texts from shortRedFrom
     s = MODELS[model]["shipped"]
     shipped = []
@@ -295,16 +302,28 @@ def print_table(title: str, results: dict, section: str, columns=("f1", "auroc",
         print(f"| {k} | {first['human']:,} | {first['ai']:,} | " + " | ".join(cells) + " |")
 
 
-def report(models: list, cfg: dict) -> None:
+def report(models: list, cfg: dict, runs=()) -> None:
     rows = load_rows("test", cfg)
-    results, suite_results = {}, {}
+    results, suite_results, run_records = {}, {}, {}
     for name in models:
         logits = read_scores(scores_path("test", name, cfg))
         missing = sum(r["id"] not in logits for r in rows)
         if missing:
             sys.exit(f"{name}: {missing} of {len(rows)} test rows have no score yet - run 'score {name}' first")
         results[name] = evaluate(rows, logits, name, cfg)
+    for name in runs:
+        if name in MODELS:
+            sys.exit(f"--run {name}: a run must not have the name of a baseline")
+        logits = read_scores(RUNS / name / "scores" / "test.jsonl")
+        missing = sum(r["id"] not in logits for r in rows)
+        if missing:
+            sys.exit(f"{name}: {missing} of {len(rows)} test rows have no score in {RUNS / name / 'scores' / 'test.jsonl'} (a run with --rows does not score all of them)")
+        results[name] = evaluate(rows, logits, name, cfg)
+        run_records[name] = json.loads((RUNS / name / "run.json").read_text(encoding="utf-8"))
+    models = models + list(runs)
     for name in models:
+        if name not in MODELS:  # the suite as a second view of our own model: work package 8
+            continue
         suite_logits = read_scores(scores_path("suite", name, cfg))
         if suite_logits:
             thresholds = {g: t["logit"] for g, t in results[name]["thresholds"].items()}
@@ -319,15 +338,18 @@ def report(models: list, cfg: dict) -> None:
     print_table("`main` by domain", results, "domain")
     print_table("`main` by source", results, "source")
     print_table("By generator (`main` and the held-out generators; AUROC against all human texts of `main`)", results, "generator", ("detected", "auroc"))
-    print_table("`main` at the thresholds the extension uses today (short: below 120 words)", results, "shipped", ("fa", "detected"))
+    shipped = {m: r for m, r in results.items() if "shipped" in r}
+    if shipped:
+        print_table("`main` at the thresholds the extension uses today (short: below 120 words)", shipped, "shipped", ("fa", "detected"))
     if suite_results:
         print_table("1200-text suite, whole texts, thresholds as above", suite_results, "view")
         print_table("1200-text suite by domain", suite_results, "domain")
 
-    out = scores_path("test", models[0], cfg).parent.parent / "baselines.json"
+    # the baselines alone keep their file; a comparison with runs of our own gets another one
+    out = DATA / "dataset" / cfg["version"] / ("comparison.json" if runs else "baselines.json")
     payload = {"dataset": cfg["version"], "target_false_alarms": TARGET_FA,
-               "models": {m: {k: MODELS[m][k] for k in ("repo", "revision", "max_chars", "max_tokens")} for m in models},
-               "test": results, "suite": suite_results}
+               "models": {m: {k: MODELS[m][k] for k in ("repo", "revision", "max_chars", "max_tokens")} for m in models if m in MODELS},
+               "runs": run_records, "test": results, "suite": suite_results}
     out.write_text(json.dumps(payload, indent=1).replace("NaN", "null"), encoding="utf-8")
     print(f"\nAll numbers -> {out}")
 
@@ -337,6 +359,7 @@ def main():
     ap.add_argument("command", choices=["score", "report"])
     ap.add_argument("models", nargs="*", choices=[*MODELS, []], help="default: all")
     ap.add_argument("--set", dest="which", choices=["test", "suite"], default="test", help="what to score")
+    ap.add_argument("--run", nargs="+", default=[], metavar="NAME", help="report: runs of model/train.py to put next to the models")
     ap.add_argument("--limit", type=int, help="score only this many texts, spread over all lengths (to try a model out)")
     args = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
@@ -346,7 +369,7 @@ def main():
         for name in models:
             score(name, args.which, cfg, args.limit)
     else:
-        report(models, cfg)
+        report(models, cfg, args.run)
 
 
 if __name__ == "__main__":

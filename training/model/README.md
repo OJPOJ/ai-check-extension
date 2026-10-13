@@ -2,14 +2,17 @@
 
 The detector model of issue #46: a pretrained encoder with early exit and token reduction
 (concept: [`../MODEL_CONCEPT.md`](../MODEL_CONCEPT.md), "Architecture"). So far the model
-definition and the latency measurement of the candidates (work package 6); no weights are trained
-yet. All commands run from `training/`; everything built goes to `data/latency/` (gitignored).
+definition, the latency measurement of the candidates (work package 6) and the training script
+(work package 7); no trained weights exist yet. All commands run from `training/`; everything
+built goes to `data/latency/` and `data/runs/` (gitignored).
 
 | File | What |
 |---|---|
 | `staged.py` | the model: a Hugging Face encoder whose layers are called one by one, with a classifier head after some of them (`exits`; 0 is a head on the embeddings), 2:1 pooling of neighbouring tokens from one layer on (`reduce_after`, also several times) and optionally hashed n-gram embeddings added to the input (`ngram`). `StagedClassifier` returns the scores of all exits (training); `Stage` is the part between two exits (one ONNX graph each, the browser stops after a confident one); `Full` is the model without early exit |
 | `export_candidates.py` | builds every candidate from its published configuration with random weights and exports it to ONNX, in full precision (checked against PyTorch) and 8-bit (run once, its difference recorded) |
 | `latency_report.py` | the tables in `EVAL_RESULTS.md` from the browser measurement |
+| `train.py` | trains a candidate on our dataset, with its exits and token reduction from the first step, and scores validation and test with all exits |
+| `train_notebook.ipynb` | runs `train.py` in a GPU session on Kaggle or Colab |
 
 Adapters exist for the BERT/RoBERTa format (MiniLM), ALBERT, DeBERTa-v2/v3 and ModernBERT (Ettin, mmBERT).
 A further family needs one class in `staged.py` (`BACKBONES`) and a line in the test that compares
@@ -53,3 +56,67 @@ stand-in. Options: `--only a,b`, `--precision q8`, `--lengths 32,128`, `--thread
 `results.json`; it stops if the rest of the file was measured under another environment (machine,
 browser, library, backend, threads, lengths), because the file states one environment for all. Close other programs before a run; the numbers are medians, but
 a busy machine still shifts them.
+
+## Training (issue #46, work package 7)
+
+`train.py` fine-tunes a candidate of `CANDIDATES` (`export_candidates.py`) from its published
+weights at the pinned revision. Exits, token reduction and n-gram table are those of
+`levers()`, the same function the latency export uses, so the model that is trained is the one
+that was measured.
+
+```
+.venv/Scripts/python.exe model/train.py --list
+.venv/Scripts/python.exe model/train.py ettin-32m --rows 400 --epochs 1 --out data/runs/try   # does it run at all: about a minute on a CPU
+.venv/Scripts/python.exe model/train.py ettin-68m --hours 11     # a run into data/runs/ettin-68m/; needs a GPU
+.venv/Scripts/python.exe model/train.py ettin-68m --score        # score validation and test again
+.venv/Scripts/python.exe evaluation/evaluate_test_part.py report --run ettin-68m ettin-32m   # next to the baselines
+```
+
+There is no usable GPU locally. A real run goes through `train_notebook.ipynb` on Kaggle or
+Colab: it clones the repository at a commit and reads the dataset from a **private** dataset
+there (`data/dataset/v1/{train,validation,test}.jsonl`, 575 MB; not every source may be
+redistributed). The script refuses files whose SHA-256 is not the one in `dataset/dataset.json`.
+
+What a run does:
+
+- **Texts.** Per text and epoch a new excerpt of whole sentences (`excerpt()` of
+  `build_dataset.py`: 15 to 330 words, at most 2,000 characters), cut to 512 tokens. Texts are
+  shuffled and every stretch of 50 batches is sorted by length before it is cut into batches.
+  Order and excerpts depend on the seed and the epoch only.
+- **Loss.** Binary cross-entropy of every exit head, mean over the exits. A text is weighted by
+  its class so that human and AI texts weigh the same in total (the dataset has 1.5 AI texts
+  per human one). Sources are not weighted.
+- **Optimiser.** AdamW, 3 epochs, batches of 32, learning rate 5e-5 for the encoder and 1e-3 for
+  what starts random (exit heads, n-gram table), linear warm-up over 6% of the steps and linear
+  decay, half precision on a GPU. The n-gram table adds nothing at the first step, so the
+  encoder starts from what it was pretrained on. All of these are options (`--help`); the
+  defaults are a starting point, not a tuned result.
+- **Validation.** After every epoch on the stored excerpts of the validation part: AUROC and
+  the share of AI texts found at 1% false alarms, per exit. The epoch with the highest share
+  (mean over the exits) is kept. The test part is scored once at the end and chooses nothing.
+- **Interruption.** `checkpoint.pt` is written every 30 minutes, at the end of an epoch and
+  when `--hours` are over. The same command continues from it with the same order of texts,
+  excerpts and learning rates (in the tests an interrupted run ends at the same weights), and
+  refuses to continue with other settings. `--resume-from` takes the folder of an earlier
+  session where the output folder starts empty (Kaggle).
+
+Files of a run (`data/runs/<name>/`):
+
+| File | What |
+|---|---|
+| `run.json` | candidate, revision, levers, settings, checksums of the dataset files, commit, library versions, GPU, the epoch that was kept |
+| `log.jsonl` | every 100 steps the loss per exit and the learning rate; per epoch the validation numbers |
+| `model.pt` | weights of the best epoch (`StagedClassifier.state_dict()`) |
+| `checkpoint.pt` | everything to continue; not needed once the run is done |
+| `scores/{validation,test}.jsonl` | per id the log-odds of all exits (`exits`) and of the last one (`logit`, the field the baselines have) |
+| `scores/summary.json` | AUROC and share found at 1% false alarms per exit, per split and view |
+
+`evaluate_test_part.py report --run <name>` puts the last exit of a run next to TMR, fakespot
+and desklib on identical texts, with thresholds set the same way, and writes `comparison.json`
+next to `baselines.json`. Thresholds per exit, calibration and the expected latency with the
+real shares per exit are work package 8.
+
+Limits to know: the share "found at 1% false alarms" in `log.jsonl` and `summary.json` uses a
+threshold set on the same texts and one threshold for all lengths, so it compares epochs and
+exits and is not a result; results are the tables of `evaluate_test_part.py`. Dropout and the
+GPU make a continued run on a GPU close to, not bit-identical with, an uninterrupted one.

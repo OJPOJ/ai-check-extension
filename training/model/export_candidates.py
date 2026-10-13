@@ -32,7 +32,7 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from staged import Full, Stage, StagedClassifier  # noqa: E402
+from staged import Full, Stage, StagedClassifier, default_exits  # noqa: E402
 
 OUT = Path(__file__).resolve().parent.parent / "data" / "latency"
 
@@ -86,6 +86,19 @@ for _base in ("ettin-32m", "ettin-68m", "ettin-150m"):
 PARITY_TOLERANCE = 1e-3  # ONNX against PyTorch, largest difference of a logit or hidden value
 
 
+def levers(name, layers):
+    """
+    Exits, token reduction and n-gram table of a candidate with `layers` layers, as arguments of
+    `StagedClassifier`: token reduction after the first exit, or what the variant says.
+    """
+    spec = CANDIDATES[name]
+    exits = default_exits(layers)
+    first, second = exits[:2]
+    ngram = NGRAM if spec.get("ngram") else None
+    reduce = {"twice": (first, second), "early": (1, first)}.get(spec.get("reduce"), first)
+    return {"exits": [0, *exits] if ngram else exits, "reduce_after": reduce, "ngram": ngram}
+
+
 def build(name, seed=0):
     """
     Encoder with random weights from the published configuration. A candidate comes without and with
@@ -99,12 +112,8 @@ def build(name, seed=0):
     encoder = AutoModel.from_config(config)
     plain = StagedClassifier(encoder).eval()
     if "base" in spec:
-        first, second = plain.exits[:2]
-        ngram = NGRAM if spec.get("ngram") else None
-        reduce = {"twice": (first, second), "early": (1, first)}.get(spec.get("reduce"), first)
-        exits = [0, *plain.exits] if ngram else plain.exits
-        return config, StagedClassifier(encoder, exits=exits, reduce_after=reduce, ngram=ngram).eval(), None
-    reduced = StagedClassifier(encoder, exits=plain.exits, reduce_after=plain.exits[0]).eval()
+        return config, StagedClassifier(encoder, **levers(name, plain.backbone.num_layers)).eval(), None
+    reduced = StagedClassifier(encoder, **levers(name, plain.backbone.num_layers)).eval()
     reduced.heads = plain.heads
     return config, plain, reduced
 
