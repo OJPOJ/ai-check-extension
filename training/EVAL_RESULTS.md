@@ -822,3 +822,290 @@ TMR's 6.3% come from how-tos (20%) and news (13%), as found in "Securing the thr
 - **One excerpt per row**, drawn once; no confidence intervals are computed. Groups below about
   200 texts (single generators, `howto`, `travel`, HC3) are rough.
 - No current generators (Claude, Gemini, GPT-4o and later): work package 10 and #15.
+
+## Latency of candidate encoders in the browser (2026-10-13, issue #46, work package 6)
+
+What each candidate backbone for our own model costs in the browser, before any of them is
+trained: built from its published configuration with random weights, exported to ONNX and run in
+Chromium with the ONNX Runtime Web the extension uses (`model/export_candidates.py`,
+`npm run measure:latency`, `model/latency_report.py`; raw numbers in `data/latency/`, gitignored).
+Latency depends on the architecture and the number of tokens, not on the values of the weights.
+Nothing here says anything about detection quality.
+
+Method:
+
+- Measured 2026-10-13: Chromium 153.0.8010.12, onnxruntime-web 1.31.0-dev.20260914-8d85527a0 (ort-wasm-simd-threaded.asyncify.wasm), backend wasm, 8 threads, AMD Ryzen 7 5800U with Radeon Graphics (16 logical cores). One text per call, median of 7 to 25 runs after 2 warm-up runs, the fastest of 2 passes (each in a new page), 8-bit weights unless stated.
+- Lengths in tokens: 32 is a short paragraph (about 25 words), 128 about 95 words, 512 the full
+  context (about 2000 characters of English).
+- 8-bit: dynamic quantisation of the MatMul weights with onnxruntime (`quantize_dynamic`, signed
+  weights), as in the `q8` files the extension loads.
+- Early exit: exits after a third, two thirds and all layers, each stage its own ONNX graph that
+  takes the hidden states of the one before. Token reduction: neighbouring tokens pooled 2:1 after
+  the first exit. Every graph in full precision gives the same values as the PyTorch model
+  (largest difference 3e-6).
+- Anchors: RoBERTa-base (the architecture of TMR and fakespot) and DeBERTa-v3-large (desklib),
+  built and measured the same way, plus the real TMR file of the extension.
+
+### Candidates
+
+Sizes are those of the single graph without early exit. "Multilingual" is the model of the same
+family that would replace the backbone for other languages (#23).
+
+| Candidate | Repository | Layers × width | Parameters (of which embeddings) | fp32 | q8 | Licence | Multilingual |
+|---|---|---|---|---|---|---|---|
+| ettin-17m | `jhu-clsp/ettin-encoder-17m` | 7 × 256 | 17 M (13 M) | 68 MB | 17 MB | MIT | `jhu-clsp/mmBERT-small` |
+| ettin-32m | `jhu-clsp/ettin-encoder-32m` | 10 × 384 | 32 M (19 M) | 128 MB | 33 MB | MIT | `jhu-clsp/mmBERT-small` |
+| ettin-68m | `jhu-clsp/ettin-encoder-68m` | 19 × 512 | 68 M (26 M) | 274 MB | 70 MB | MIT | `jhu-clsp/mmBERT-small` |
+| ettin-150m | `jhu-clsp/ettin-encoder-150m` | 22 × 768 | 149 M (39 M) | 598 MB | 151 MB | MIT | `jhu-clsp/mmBERT-base` |
+| mmbert-small | `jhu-clsp/mmBERT-small` | 22 × 384 | 140 M (98 M) | 564 MB | 142 MB | MIT | itself |
+| minilm-l6-h384 | `nreimers/MiniLMv2-L6-H384-distilled-from-RoBERTa-Large` | 6 × 384 | 30 M (19 M) | 121 MB | 31 MB | none on the card (MiniLM itself: MIT) | `nreimers/mMiniLMv2-L6-H384-distilled-from-XLMR-Large` |
+| minilm-l12-h384 | `microsoft/MiniLM-L12-H384-uncased` | 12 × 384 | 33 M (12 M) | 134 MB | 34 MB | MIT | `microsoft/Multilingual-MiniLM-L12-H384` |
+| deberta-v3-xsmall | `microsoft/deberta-v3-xsmall` | 12 × 384 | 71 M (49 M) | 284 MB | 84 MB | MIT | `microsoft/mdeberta-v3-base` |
+| deberta-v3-small | `microsoft/deberta-v3-small` | 6 × 768 | 141 M (98 M) | 566 MB | 165 MB | MIT | `microsoft/mdeberta-v3-base` |
+| deberta-v3-base | `microsoft/deberta-v3-base` | 12 × 768 | 184 M (98 M) | 737 MB | 229 MB | MIT | `microsoft/mdeberta-v3-base` |
+| albert-base-v2 | `albert/albert-base-v2` | 12 × 768 | 12 M (4 M) | 46 MB | 34 MB | Apache-2.0 | `cservan/malbert-base-cased-128k` |
+| roberta-base (anchor: TMR, fakespot) | `FacebookAI/roberta-base` | 12 × 768 | 125 M (39 M) | 497 MB | 125 MB | MIT | `FacebookAI/xlm-roberta-base` |
+| deberta-v3-large (anchor: desklib) | `microsoft/deberta-v3-large` | 24 × 1024 | 434 M (131 M) | 1739 MB | 590 MB | MIT | – |
+
+### Result: whole model
+
+8-bit weights, ms per paragraph by number of tokens:
+
+| Candidate | 32 | 64 | 128 | 256 | 512 |
+|---|---|---|---|---|---|
+| ettin-17m | 9 | 10 | 15 | 28 | 63 |
+| ettin-32m | 17 | 23 | 38 | 68 | 164 |
+| ettin-68m | 36 | 57 | 96 | 186 | 444 |
+| ettin-150m | 67 | 111 | 202 | 423 | 1017 |
+| mmbert-small | 35 | 58 | 97 | 193 | 448 |
+| minilm-l6-h384 | 13 | 15 | 25 | 49 | 123 |
+| minilm-l12-h384 | 21 | 31 | 53 | 100 | 245 |
+| deberta-v3-xsmall | 29 | 44 | 77 | 154 | 380 |
+| deberta-v3-small | 35 | 55 | 102 | 215 | 514 |
+| deberta-v3-base | 73 | 113 | 201 | 431 | 1033 |
+| albert-base-v2 | 70 | 123 | 241 | 493 | 1059 |
+| roberta-base (anchor: TMR, fakespot) | 52 | 80 | 144 | 291 | 663 |
+| deberta-v3-large (anchor: desklib) | 211 | 342 | 647 | 1346 | 3132 |
+| tmr-real (anchor: TMR as the extension runs it, real weights) | 49 | 79 | 142 | 294 | 666 |
+
+Full precision:
+
+| Candidate | 32 | 64 | 128 | 256 | 512 |
+|---|---|---|---|---|---|
+| ettin-17m | 10 | 12 | 19 | 35 | 80 |
+| ettin-32m | 17 | 27 | 47 | 93 | 216 |
+| ettin-68m | 47 | 77 | 148 | 283 | 635 |
+| ettin-150m | 103 | 182 | 333 | 686 | 1577 |
+| mmbert-small | 48 | 80 | 141 | 289 | 640 |
+| minilm-l6-h384 | 15 | 22 | 37 | 76 | 173 |
+| minilm-l12-h384 | 25 | 40 | 75 | 150 | 346 |
+| deberta-v3-xsmall | 33 | 50 | 96 | 193 | 462 |
+| deberta-v3-small | 46 | 75 | 144 | 297 | 689 |
+| deberta-v3-base | 88 | 153 | 285 | 592 | 1378 |
+| albert-base-v2 | 66 | 122 | 240 | 493 | 1057 |
+| roberta-base (anchor: TMR, fakespot) | 72 | 124 | 246 | 501 | 1092 |
+
+- **Random weights are a valid stand-in:** the random RoBERTa-base and the real TMR file differ by
+  at most 6% at every length (663 and 666 ms at 512 tokens). 142 ms at 128 tokens matches the
+  ~0.15 s per paragraph known for TMR.
+- **Width costs more than depth.** The candidates of width 384 need 25 to 97 ms at 128 tokens, those
+  of width 768 with 12 or more layers 200 to 240 ms, more than TMR's 144 ms.
+- ettin-32m is 3 to 4 times as fast as TMR and 12 to 20 times as fast as the desklib architecture,
+  ettin-68m 1.5 and 6 to 7 times. ettin-150m and deberta-v3-base need about 1 s at 512 tokens: 1.5
+  times TMR, a third of the desklib architecture.
+- mmbert-small, the multilingual model of the Ettin family, costs the same as ettin-68m (22 × 384
+  against 19 × 512); its 142 MB are mostly the vocabulary of 256,000 tokens.
+- 8-bit weights make the ModernBERT-style and MiniLM models 1.2 to 1.65 times as fast, RoBERTa-base
+  1.65 to 1.7 times, DeBERTa 1.2 to 1.4 times. For ALBERT they change nothing.
+- **ALBERT is not a candidate:** shared weights save download (34 MB), not compute. It needs as
+  long as RoBERTa-base in full precision (1.06 s at 512 tokens).
+
+### Token reduction
+
+| Candidate | Reduced after layer | 128: without | 128: with | 512: without | 512: with | Saved at 512 |
+|---|---|---|---|---|---|---|
+| ettin-17m | 2 | 15 | 11 | 63 | 41 | 36% |
+| ettin-32m | 3 | 38 | 26 | 164 | 100 | 39% |
+| ettin-68m | 6 | 96 | 68 | 444 | 272 | 39% |
+| ettin-150m | 7 | 202 | 143 | 1017 | 747 | 27% |
+| mmbert-small | 7 | 97 | 68 | 448 | 278 | 38% |
+| minilm-l6-h384 | 2 | 25 | 19 | 123 | 75 | 38% |
+| minilm-l12-h384 | 4 | 53 | 39 | 245 | 151 | 38% |
+| deberta-v3-xsmall | 4 | 77 | 54 | 380 | 238 | 37% |
+| deberta-v3-small | 2 | 102 | 71 | 514 | 328 | 36% |
+| deberta-v3-base | 4 | 201 | 141 | 1033 | 641 | 38% |
+| albert-base-v2 | 4 | 241 | 164 | 1059 | 680 | 36% |
+
+Pooling the tokens 2:1 after the first third of the layers saves 36 to 39% at 512 tokens and 24 to
+32% at 128 tokens, for every architecture. The 27% of ettin-150m is one disturbed number: its
+stages with token reduction add up to 615 ms (table for 512 tokens below), which is 40% less.
+
+### Early exit
+
+At 128 tokens: ms until each exit has its score (the stages added up), next to the model as one
+graph; then the same with token reduction, and the mean per paragraph when a share of the
+paragraphs leaves at the first/second/last exit. The shares are assumptions (the real ones come
+out of work package 8); 50/20/30 follows the indication in `MODEL_CONCEPT.md` that about half of
+the human texts never need the expensive model.
+
+| Candidate | Exits after layer | Until exit, without reduction | One graph | Until exit, with reduction | Mean, nothing leaves early | Mean, 50/20/30 | Mean, 70/15/15 |
+|---|---|---|---|---|---|---|---|
+| ettin-17m | 2/5/7 | 6 / 14 / 19 | 15 | 6 / 11 / 14 | 14 | 9 | 8 |
+| ettin-32m | 3/7/10 | 11 / 27 / 39 | 38 | 12 / 20 / 26 | 26 | 18 | 15 |
+| ettin-68m | 6/13/19 | 31 / 67 / 98 | 96 | 31 / 51 / 68 | 68 | 46 | 40 |
+| ettin-150m | 7/15/22 | 66 / 145 / 215 | 202 | 65 / 106 / 142 | 142 | 96 | 82 |
+| mmbert-small | 7/15/22 | 33 / 73 / 104 | 97 | 31 / 52 / 70 | 70 | 47 | 40 |
+| minilm-l6-h384 | 2/4/6 | 9 / 17 / 25 | 25 | 10 / 16 / 20 | 20 | 14 | 13 |
+| minilm-l12-h384 | 4/8/12 | 19 / 37 / 54 | 53 | 18 / 29 / 39 | 39 | 27 | 23 |
+| deberta-v3-xsmall | 4/8/12 | 26 / 51 / 77 | 77 | 26 / 40 / 54 | 54 | 37 | 33 |
+| deberta-v3-small | 2/4/6 | 36 / 71 / 107 | 102 | 39 / 58 / 76 | 76 | 54 | 47 |
+| deberta-v3-base | 4/8/12 | 69 / 137 / 205 | 201 | 68 / 106 / 142 | 142 | 98 | 85 |
+| albert-base-v2 | 4/8/12 | 81 / 162 / 243 | 241 | 81 / 122 / 164 | 164 | 114 | 99 |
+
+At 512 tokens:
+
+| Candidate | Exits after layer | Until exit, without reduction | One graph | Until exit, with reduction | Mean, nothing leaves early | Mean, 50/20/30 | Mean, 70/15/15 |
+|---|---|---|---|---|---|---|---|
+| ettin-17m | 2/5/7 | 22 / 51 / 71 | 63 | 21 / 36 / 46 | 46 | 31 | 27 |
+| ettin-32m | 3/7/10 | 51 / 119 / 170 | 164 | 51 / 80 / 101 | 101 | 72 | 63 |
+| ettin-68m | 6/13/19 | 143 / 309 / 451 | 444 | 142 / 214 / 275 | 275 | 196 | 173 |
+| ettin-150m | 7/15/22 | 322 / 686 / 1011 | 1017 | 321 / 478 / 615 | 615 | 441 | 389 |
+| mmbert-small | 7/15/22 | 144 / 309 / 455 | 448 | 146 / 219 / 282 | 282 | 201 | 177 |
+| minilm-l6-h384 | 2/4/6 | 42 / 86 / 130 | 123 | 43 / 61 / 78 | 78 | 57 | 51 |
+| minilm-l12-h384 | 4/8/12 | 84 / 167 / 249 | 245 | 84 / 119 / 153 | 153 | 112 | 99 |
+| deberta-v3-xsmall | 4/8/12 | 134 / 265 / 395 | 380 | 131 / 186 / 240 | 240 | 175 | 156 |
+| deberta-v3-small | 2/4/6 | 178 / 355 / 532 | 514 | 178 / 255 / 330 | 330 | 239 | 213 |
+| deberta-v3-base | 4/8/12 | 346 / 693 / 1039 | 1033 | 350 / 504 / 656 | 656 | 473 | 419 |
+| albert-base-v2 | 4/8/12 | 357 / 715 / 1073 | 1059 | 355 / 521 / 686 | 686 | 488 | 430 |
+
+- **Splitting the model into stages costs nothing measurable:** from 128 tokens on, the stages
+  added up are within 7% of the single graph. The exception is the smallest model (ettin-17m: 4 to
+  8 ms more); at 32 tokens the small models pay 2 to 4 ms for the two extra calls.
+- The download does not grow either: the stages together are as large as the single graph. (The
+  exception is ALBERT, whose shared weights are copied into every stage: 90 instead of 34 MB.)
+- The first exit has its score after about a third of the time. With token reduction and the
+  shares 50/20/30, the mean per paragraph is 43 to 49% of the whole model without both levers at
+  512 tokens and 47 to 60% at 128 tokens.
+- With both levers ettin-150m needs 0.39 to 0.62 s at 512 tokens and 82 to 142 ms at 128 tokens,
+  which is at or below TMR (663 and 144 ms); ettin-68m 173 to 275 ms and 40 to 68 ms.
+
+### Our own variants of the Ettin models
+
+The candidates above are published models as they are. Three changes around their pretrained
+layers, each built into ettin-32m, ettin-68m and ettin-150m and measured the same way (8-bit only,
+in a later run on the same day and machine):
+
+- **`-tr2`:** tokens pooled 2:1 after the first and again after the second exit, so the last third
+  of the layers runs on a quarter of the tokens.
+- **`-tr-early`:** tokens pooled after the first layer and again after the first exit, so the first
+  third runs on half and the rest on a quarter.
+- **`-ngram`:** hashed n-gram embeddings added to the input (`MODEL_CONCEPT.md`, lever 3: one table
+  of 2^20 rows × 64, looked up by the hash of the two and three token ids ending at a token, widened
+  to the width of the model) and an additional exit on the embeddings, before any layer. Token
+  reduction as in the candidate.
+
+At 128 tokens; in brackets the candidate itself with token reduction after the first exit (from the
+tables above). "One graph" is the whole model, "Until exit" the stages added up, the means as in
+"Early exit" (nothing leaves at the exit on the embeddings):
+
+| Variant | Exits after layer | Reduced after layer | q8 | One graph | Until exit | Mean, 50/20/30 | Mean, 70/15/15 |
+|---|---|---|---|---|---|---|---|
+| ettin-32m-tr2 | 3/7/10 | 3/7 | 33 MB | 25 (26) | 12 / 21 / 25 | 18 (18) | 15 (15) |
+| ettin-32m-tr-early | 3/7/10 | 1/3 | 33 MB | 18 (26) | 9 / 14 / 17 | 12 (18) | 11 (15) |
+| ettin-32m-ngram | 0/3/7/10 | 3 | 100 MB | 26 (26) | 1 / 13 / 21 / 27 | 19 (18) | 16 (15) |
+| ettin-68m-tr2 | 6/13/19 | 6/13 | 70 MB | 65 (68) | 34 / 54 / 62 | 46 (46) | 41 (40) |
+| ettin-68m-tr-early | 6/13/19 | 1/6 | 70 MB | 43 (68) | 24 / 36 / 45 | 32 (46) | 29 (40) |
+| ettin-68m-ngram | 0/6/13/19 | 6 | 137 MB | 63 (68) | 1 / 27 / 47 / 62 | 41 (46) | 35 (40) |
+| ettin-150m-tr2 | 7/15/22 | 7/15 | 151 MB | 112 (143) | 60 / 96 / 116 | 84 (96) | 74 (82) |
+| ettin-150m-tr-early | 7/15/22 | 1/7 | 151 MB | 99 (143) | 39 / 62 / 80 | 56 (96) | 49 (82) |
+| ettin-150m-ngram | 0/7/15/22 | 7 | 218 MB | 148 (143) | 1 / 60 / 95 / 128 | 88 (96) | 76 (82) |
+
+At 512 tokens:
+
+| Variant | Exits after layer | Reduced after layer | q8 | One graph | Until exit | Mean, 50/20/30 | Mean, 70/15/15 |
+|---|---|---|---|---|---|---|---|
+| ettin-32m-tr2 | 3/7/10 | 3/7 | 33 MB | 84 (100) | 48 / 76 / 86 | 65 (72) | 58 (63) |
+| ettin-32m-tr-early | 3/7/10 | 1/3 | 33 MB | 53 (100) | 32 / 46 / 57 | 42 (72) | 38 (63) |
+| ettin-32m-ngram | 0/3/7/10 | 3 | 100 MB | 95 (100) | 1 / 48 / 74 / 93 | 67 (72) | 58 (63) |
+| ettin-68m-tr2 | 6/13/19 | 6/13 | 70 MB | 228 (272) | 133 / 201 / 230 | 176 (196) | 158 (173) |
+| ettin-68m-tr-early | 6/13/19 | 1/6 | 70 MB | 128 (272) | 71 / 104 / 133 | 96 (196) | 85 (173) |
+| ettin-68m-ngram | 0/6/13/19 | 6 | 137 MB | 258 (272) | 2 / 132 / 198 / 252 | 181 (196) | 160 (173) |
+| ettin-150m-tr2 | 7/15/22 | 7/15 | 151 MB | 502 (747) | 277 / 418 / 475 | 365 (441) | 328 (389) |
+| ettin-150m-tr-early | 7/15/22 | 1/7 | 151 MB | 274 (747) | 151 / 221 / 277 | 203 (441) | 180 (389) |
+| ettin-150m-ngram | 0/7/15/22 | 7 | 218 MB | 551 (747) | 2 / 283 / 419 / 547 | 390 (441) | 343 (389) |
+
+- **The n-gram table costs download, not time:** the exit on the embeddings has its score after 1
+  to 2 ms at every length, and the rest of the model takes as long as without the table. The 8-bit
+  download grows by 67 MB.
+- The numbers in brackets come from the earlier run, which was 5 to 10% slower (the `-ngram`
+  variants do everything the candidate does and still need less). The stages of `-ngram` after its
+  first are the candidate measured in this run: 92, 251 and 546 ms at 512 tokens and 26, 60 and
+  127 ms at 128.
+- **Pooling a second time after the second exit gains little:** 7 to 13% at 512 tokens against
+  those numbers, nothing to 9% at 128.
+- **Pooling after the first layer is the large lever:** the whole model needs 38 to 49% less at 512
+  tokens and 25 to 37% less at 128, and the first exit has its score in 32, 71 and 151 ms at 512
+  tokens instead of 46, 130 and 281. Against the candidate without any lever that is a third of the
+  time (53, 128 and 274 ms against 164, 444 and 1017). ettin-150m built this way needs 274 ms at
+  512 tokens and 80 to 99 ms at 128, less than half of TMR (663 and 144 ms).
+- A model cut off after its second exit (two thirds of the pretrained layers, the rest never
+  downloaded) needs no measurement of its own: it is the second number of "Until exit".
+
+Whether a model that sees half of the tokens from its second layer on still detects anything is not
+measured; that variant is the one most likely to cost quality. A backbone with a width and depth of
+our own would be measured the same way, but it would have no pretrained weights; it is left out
+because pretraining or distilling one is outside what a first round can afford
+(`MODEL_CONCEPT.md`, "Risks and open points": no GPU).
+
+### Recommendation for training (work package 7)
+
+Latency alone does not choose a model; it says which sizes are affordable. Three sizes of one
+family, so that the same code, tokeniser and export serve all of them and the result is a curve of
+quality against cost:
+
+1. **ettin-68m** (19 × 512) as the main candidate: 1.5 times as fast as TMR as a whole model, 2 to
+   4 times with both levers, and the largest candidate that is faster than TMR at every length.
+2. **ettin-32m** (10 × 384) as the fast end: 3 to 4 times as fast as TMR without any lever. It
+   shows what the smaller size costs in quality.
+3. **ettin-150m** (22 × 768) as the upper end, only with both levers: as a whole model it is slower
+   than TMR, with them it is level with it and 5 to 8 times as fast as the desklib architecture.
+
+Exits after a third, two thirds and all layers (6/13/19, 3/7/10, 7/15/22) and token reduction after
+the first exit, trained jointly from the start. All three are MIT-licensed, run in the ONNX Runtime
+Web of the extension, and have mmBERT (small, base) as the multilingual model of the same family.
+
+Of our own variants, two are worth training next to that: the hashed n-gram embeddings with the
+exit on the embeddings (free in time, 67 MB of download), and token reduction after the first layer
+as a second configuration of ettin-68m and ettin-150m (a third of the time of the whole model, the
+largest risk for quality). A second reduction after the second exit is not worth its own run.
+
+Not recommended for the first round: ettin-17m (13 of its 17 M parameters are the vocabulary;
+below ettin-32m latency is no longer what limits), the MiniLM models (same cost class as ettin-32m,
+512 tokens at most), DeBERTa-v3 (xsmall and small cost 2 to 3 times ettin-32m; 8-bit weights
+lowered the quality of a DeBERTa here before, `MODEL_CONCEPT.md`) and ALBERT. If the Ettin models
+fall short of the baselines, deberta-v3-small and deberta-v3-base are the next to try: they are the
+family of desklib and cost about as much as ettin-68m and ettin-150m. This ranking of what to try
+first is a judgement; only the latencies are measured.
+
+### Limitations
+
+- **No quality.** What early exit and token reduction cost in detection is measured in work
+  packages 7 and 8. The shares of paragraphs per exit are assumed.
+- **One text per call.** The extension scores batches of up to 25 paragraphs grouped by length;
+  the time per paragraph inside a batch is not measured here.
+- **One machine**, 8 threads, a laptop CPU. A whole page sometimes ran at about half speed; every
+  chain was therefore measured in two passes and the faster one kept. One chain differed by more
+  than 15% between its passes (ettin-17m, full precision, stages with token reduction), and one
+  single number is disturbed (ettin-150m, see "Token reduction"). Our own variants were measured
+  in a later run, 8-bit only; their two passes differ by up to 24% (the first was the faster for
+  all of them), and the candidates they are compared with were not measured again in that run.
+- **The desklib anchor is the architecture, not the file of the extension:** desklib is converted
+  in the browser with its own recipe (`desklib_build.js`). The anchor needs 0.65 s at 128 and
+  1.35 s at 256 tokens; at desklib's 1500 characters (about 350 tokens) that is nearer 1.9 s than
+  the ~1 to 1.3 s per paragraph noted for the extension. Ratios to "the desklib architecture" may
+  therefore overstate the gain over desklib as shipped. DeBERTa-v3-large in full precision is not
+  measured (1.7 GB do not fit into one ONNX file for the browser).
+- **8-bit files** are made with onnxruntime's dynamic quantisation; another recipe can be faster or
+  slower. The 8-bit graphs were only checked to run and give finite values.
+- Load time is in `results.json` but not evaluated; memory is not measured. Only WASM (#19, WebGPU,
+  has not landed; the script takes `--backend`).
