@@ -989,6 +989,74 @@ At 512 tokens:
 - With both levers ettin-150m needs 0.39 to 0.62 s at 512 tokens and 82 to 142 ms at 128 tokens,
   which is at or below TMR (663 and 144 ms); ettin-68m 173 to 275 ms and 40 to 68 ms.
 
+### Our own variants of the Ettin models
+
+The candidates above are published models as they are. Three changes around their pretrained
+layers, each built into ettin-32m, ettin-68m and ettin-150m and measured the same way (8-bit only,
+in a later run on the same day and machine):
+
+- **`-tr2`:** tokens pooled 2:1 after the first and again after the second exit, so the last third
+  of the layers runs on a quarter of the tokens.
+- **`-tr-early`:** tokens pooled after the first layer and again after the first exit, so the first
+  third runs on half and the rest on a quarter.
+- **`-ngram`:** hashed n-gram embeddings added to the input (`MODEL_CONCEPT.md`, lever 3: one table
+  of 2^20 rows × 64, looked up by the hash of the two and three token ids ending at a token, widened
+  to the width of the model) and an additional exit on the embeddings, before any layer. Token
+  reduction as in the candidate.
+
+At 128 tokens; in brackets the candidate itself with token reduction after the first exit (from the
+tables above). "One graph" is the whole model, "Until exit" the stages added up, the means as in
+"Early exit" (nothing leaves at the exit on the embeddings):
+
+| Variant | Exits after layer | Reduced after layer | q8 | One graph | Until exit | Mean, 50/20/30 | Mean, 70/15/15 |
+|---|---|---|---|---|---|---|---|
+| ettin-32m-tr2 | 3/7/10 | 3/7 | 33 MB | 25 (26) | 12 / 21 / 25 | 18 (18) | 15 (15) |
+| ettin-32m-tr-early | 3/7/10 | 1/3 | 33 MB | 18 (26) | 9 / 14 / 17 | 12 (18) | 11 (15) |
+| ettin-32m-ngram | 0/3/7/10 | 3 | 100 MB | 26 (26) | 1 / 13 / 21 / 27 | 19 (18) | 16 (15) |
+| ettin-68m-tr2 | 6/13/19 | 6/13 | 70 MB | 65 (68) | 34 / 54 / 62 | 46 (46) | 41 (40) |
+| ettin-68m-tr-early | 6/13/19 | 1/6 | 70 MB | 43 (68) | 24 / 36 / 45 | 32 (46) | 29 (40) |
+| ettin-68m-ngram | 0/6/13/19 | 6 | 137 MB | 63 (68) | 1 / 27 / 47 / 62 | 41 (46) | 35 (40) |
+| ettin-150m-tr2 | 7/15/22 | 7/15 | 151 MB | 112 (143) | 60 / 96 / 116 | 84 (96) | 74 (82) |
+| ettin-150m-tr-early | 7/15/22 | 1/7 | 151 MB | 99 (143) | 39 / 62 / 80 | 56 (96) | 49 (82) |
+| ettin-150m-ngram | 0/7/15/22 | 7 | 218 MB | 148 (143) | 1 / 60 / 95 / 128 | 88 (96) | 76 (82) |
+
+At 512 tokens:
+
+| Variant | Exits after layer | Reduced after layer | q8 | One graph | Until exit | Mean, 50/20/30 | Mean, 70/15/15 |
+|---|---|---|---|---|---|---|---|
+| ettin-32m-tr2 | 3/7/10 | 3/7 | 33 MB | 84 (100) | 48 / 76 / 86 | 65 (72) | 58 (63) |
+| ettin-32m-tr-early | 3/7/10 | 1/3 | 33 MB | 53 (100) | 32 / 46 / 57 | 42 (72) | 38 (63) |
+| ettin-32m-ngram | 0/3/7/10 | 3 | 100 MB | 95 (100) | 1 / 48 / 74 / 93 | 67 (72) | 58 (63) |
+| ettin-68m-tr2 | 6/13/19 | 6/13 | 70 MB | 228 (272) | 133 / 201 / 230 | 176 (196) | 158 (173) |
+| ettin-68m-tr-early | 6/13/19 | 1/6 | 70 MB | 128 (272) | 71 / 104 / 133 | 96 (196) | 85 (173) |
+| ettin-68m-ngram | 0/6/13/19 | 6 | 137 MB | 258 (272) | 2 / 132 / 198 / 252 | 181 (196) | 160 (173) |
+| ettin-150m-tr2 | 7/15/22 | 7/15 | 151 MB | 502 (747) | 277 / 418 / 475 | 365 (441) | 328 (389) |
+| ettin-150m-tr-early | 7/15/22 | 1/7 | 151 MB | 274 (747) | 151 / 221 / 277 | 203 (441) | 180 (389) |
+| ettin-150m-ngram | 0/7/15/22 | 7 | 218 MB | 551 (747) | 2 / 283 / 419 / 547 | 390 (441) | 343 (389) |
+
+- **The n-gram table costs download, not time:** the exit on the embeddings has its score after 1
+  to 2 ms at every length, and the rest of the model takes as long as without the table. The 8-bit
+  download grows by 67 MB.
+- The numbers in brackets come from the earlier run, which was 5 to 10% slower (the `-ngram`
+  variants do everything the candidate does and still need less). The stages of `-ngram` after its
+  first are the candidate measured in this run: 92, 251 and 546 ms at 512 tokens and 26, 60 and
+  127 ms at 128.
+- **Pooling a second time after the second exit gains little:** 7 to 13% at 512 tokens against
+  those numbers, nothing to 9% at 128.
+- **Pooling after the first layer is the large lever:** the whole model needs 38 to 49% less at 512
+  tokens and 25 to 37% less at 128, and the first exit has its score in 32, 71 and 151 ms at 512
+  tokens instead of 46, 130 and 281. Against the candidate without any lever that is a third of the
+  time (53, 128 and 274 ms against 164, 444 and 1017). ettin-150m built this way needs 274 ms at
+  512 tokens and 80 to 99 ms at 128, less than half of TMR (663 and 144 ms).
+- A model cut off after its second exit (two thirds of the pretrained layers, the rest never
+  downloaded) needs no measurement of its own: it is the second number of "Until exit".
+
+Whether a model that sees half of the tokens from its second layer on still detects anything is not
+measured; that variant is the one most likely to cost quality. A backbone with a width and depth of
+our own would be measured the same way, but it would have no pretrained weights; it is left out
+because pretraining or distilling one is outside what a first round can afford
+(`MODEL_CONCEPT.md`, "Risks and open points": no GPU).
+
 ### Recommendation for training (work package 7)
 
 Latency alone does not choose a model; it says which sizes are affordable. Three sizes of one
@@ -1005,6 +1073,11 @@ quality against cost:
 Exits after a third, two thirds and all layers (6/13/19, 3/7/10, 7/15/22) and token reduction after
 the first exit, trained jointly from the start. All three are MIT-licensed, run in the ONNX Runtime
 Web of the extension, and have mmBERT (small, base) as the multilingual model of the same family.
+
+Of our own variants, two are worth training next to that: the hashed n-gram embeddings with the
+exit on the embeddings (free in time, 67 MB of download), and token reduction after the first layer
+as a second configuration of ettin-68m and ettin-150m (a third of the time of the whole model, the
+largest risk for quality). A second reduction after the second exit is not worth its own run.
 
 Not recommended for the first round: ettin-17m (13 of its 17 M parameters are the vocabulary;
 below ettin-32m latency is no longer what limits), the MiniLM models (same cost class as ettin-32m,
@@ -1023,7 +1096,9 @@ first is a judgement; only the latencies are measured.
 - **One machine**, 8 threads, a laptop CPU. A whole page sometimes ran at about half speed; every
   chain was therefore measured in two passes and the faster one kept. One chain differed by more
   than 15% between its passes (ettin-17m, full precision, stages with token reduction), and one
-  single number is disturbed (ettin-150m, see "Token reduction").
+  single number is disturbed (ettin-150m, see "Token reduction"). Our own variants were measured
+  in a later run, 8-bit only; their two passes differ by up to 24% (the first was the faster for
+  all of them), and the candidates they are compared with were not measured again in that run.
 - **The desklib anchor is the architecture, not the file of the extension:** desklib is converted
   in the browser with its own recipe (`desklib_build.js`). The anchor needs 0.65 s at 128 and
   1.35 s at 256 tokens; at desklib's 1500 characters (about 350 tokens) that is nearer 1.9 s than

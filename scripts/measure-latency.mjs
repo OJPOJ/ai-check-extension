@@ -143,7 +143,9 @@ function chains(candidate) {
   return {
     full: ["full"],
     ...(g.includes("full-tr") && { "full-tr": ["full-tr"] }),
-    ...(stages.length && { stages: stages, "stages-tr": reduced })
+    ...(stages.length && { stages: stages }),
+    // our own variants have their token reduction built in and no second set of stages
+    ...(stages.length && reduced.every((v) => g.includes(v)) && { "stages-tr": reduced })
   };
 }
 

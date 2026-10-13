@@ -1,8 +1,9 @@
 """
 The model of issue #46 as it is measured (work package 6) and later trained (work package 7): a
 pretrained encoder with classifier heads after some of its layers (early exit) and, optionally,
-half as many tokens from one layer on (token reduction). Concept: MODEL_CONCEPT.md, "Architecture",
-levers 1 and 2.
+half as many tokens from one layer on (token reduction), optionally more than once. The input can
+also carry hashed n-gram embeddings, and a head can sit on the embeddings before any layer.
+Concept: MODEL_CONCEPT.md, "Architecture", levers 1 to 3.
 
 The encoder is a Hugging Face model; its layers are called one by one, so that the same code runs
 all layers at once (training, `StagedClassifier.forward`) or only the layers up to the next exit
@@ -173,6 +174,28 @@ class ExitHead(nn.Module):
         return self.out(mean).squeeze(-1)
 
 
+class NgramEmbedding(nn.Module):
+    """
+    Hashed n-gram embeddings: every token also looks up the pair and the triple of token ids that
+    end at it, by hash in one table. The table is narrow and widened once, so that it can have many
+    rows; it costs download, not compute.
+    """
+
+    def __init__(self, hidden_size, buckets, dim):
+        super().__init__()
+        self.buckets = buckets
+        self.table = nn.Embedding(buckets, dim)
+        self.widen = nn.Linear(dim, hidden_size, bias=False)
+
+    def forward(self, input_ids):
+        start = torch.zeros_like(input_ids[:, :1])
+        before = torch.cat([start, input_ids[:, :-1]], dim=1)
+        two_before = torch.cat([start, before[:, :-1]], dim=1)
+        pair = (before * 1000003 + input_ids) % self.buckets
+        triple = ((two_before * 1000033 + before) % self.buckets * 1000037 + input_ids) % self.buckets
+        return self.widen(self.table(pair) + self.table(triple))
+
+
 def default_exits(num_layers):
     """Exits after a third, two thirds and all layers."""
     return sorted({max(1, round(num_layers / 3)), max(1, round(2 * num_layers / 3)), num_layers})
@@ -181,29 +204,35 @@ def default_exits(num_layers):
 class StagedClassifier(nn.Module):
     """
     `exits`: number of layers computed before each head, ascending; the last one must be all layers.
-    `reduce_after`: tokens are pooled 2:1 after this many layers (None: never).
+    0 is a head on the embeddings, before any layer.
+    `reduce_after`: tokens are pooled 2:1 after this many layers (None: never); several numbers pool
+    several times.
+    `ngram`: (rows, width) of a table of hashed n-gram embeddings added to the input (None: none).
     """
 
-    def __init__(self, encoder, exits=None, reduce_after=None):
+    def __init__(self, encoder, exits=None, reduce_after=None, ngram=None):
         super().__init__()
         self.backbone = backbone_for(encoder)
         layers = self.backbone.num_layers
         self.exits = list(exits) if exits else default_exits(layers)
-        if self.exits != sorted(set(self.exits)) or self.exits[0] < 1 or self.exits[-1] != layers:
+        if self.exits != sorted(set(self.exits)) or self.exits[0] < 0 or self.exits[-1] != layers:
             raise ValueError(f"exits must ascend and end at the last layer ({layers}): {self.exits}")
-        if reduce_after is not None and not 1 <= reduce_after < layers:
-            raise ValueError(f"reduce_after must be between 1 and {layers - 1}: {reduce_after}")
-        self.reduce_after = reduce_after
+        reduce = () if reduce_after is None else (reduce_after,) if isinstance(reduce_after, int) else tuple(reduce_after)
+        if list(reduce) != sorted(set(reduce)) or any(not 1 <= r < layers for r in reduce):
+            raise ValueError(f"reduce_after must ascend between 1 and {layers - 1}: {reduce_after}")
+        self.reduce_after = reduce
         self.heads = nn.ModuleList(ExitHead(encoder.config.hidden_size) for _ in self.exits)
+        self.ngram = NgramEmbedding(encoder.config.hidden_size, *ngram) if ngram else None
 
     def embed(self, input_ids, mask):
-        return self.backbone.embed(input_ids, mask)
+        hidden = self.backbone.embed(input_ids, mask)
+        return hidden if self.ngram is None else hidden + self.ngram(input_ids)
 
     def run_layers(self, hidden, mask, start, end):
         """Layers start..end-1 (0-based). `hidden` and `mask` are as they were after layer start-1."""
         ctx = None
         for i in range(start, end):
-            if i == self.reduce_after:
+            if i in self.reduce_after:
                 hidden, mask = pool_tokens(hidden, mask)
                 ctx = None
             if ctx is None:

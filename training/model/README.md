@@ -7,7 +7,7 @@ yet. All commands run from `training/`; everything built goes to `data/latency/`
 
 | File | What |
 |---|---|
-| `staged.py` | the model: a Hugging Face encoder whose layers are called one by one, with a classifier head after some of them (`exits`) and 2:1 pooling of neighbouring tokens from one layer on (`reduce_after`). `StagedClassifier` returns the scores of all exits (training); `Stage` is the part between two exits (one ONNX graph each, the browser stops after a confident one); `Full` is the model without early exit |
+| `staged.py` | the model: a Hugging Face encoder whose layers are called one by one, with a classifier head after some of them (`exits`; 0 is a head on the embeddings), 2:1 pooling of neighbouring tokens from one layer on (`reduce_after`, also several times) and optionally hashed n-gram embeddings added to the input (`ngram`). `StagedClassifier` returns the scores of all exits (training); `Stage` is the part between two exits (one ONNX graph each, the browser stops after a confident one); `Full` is the model without early exit |
 | `export_candidates.py` | builds every candidate from its published configuration with random weights and exports it to ONNX, in full precision (checked against PyTorch) and 8-bit (run once, its difference recorded) |
 | `latency_report.py` | the tables in `EVAL_RESULTS.md` from the browser measurement |
 
@@ -33,6 +33,12 @@ token reduction), one graph per stage (`stage0`, `stage1`, …) and the stages a
 reduction (`stage1-tr`, …), plus `manifest.json` with size, parameters and the largest difference
 to PyTorch. The two anchors (RoBERTa-base as in TMR and fakespot, DeBERTa-v3-large as in desklib)
 get `full` only.
+
+Our own variants of the three Ettin sizes keep the pretrained layers and change what is around
+them (`-tr2`: tokens pooled after the first and the second exit; `-tr-early`: after the first layer
+and the first exit; `-ngram`: hashed n-gram embeddings and an exit before the first layer). They
+are candidates of their own in `CANDIDATES` (`base` names the one they are built from) and get
+`full` and their stages, with their levers built in.
 
 `npm run measure:latency` (`scripts/measure-latency.mjs`) loads the graphs with the ONNX Runtime
 Web that `@huggingface/transformers` pins, in a cross-origin isolated page so that threads work as

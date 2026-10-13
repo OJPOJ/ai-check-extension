@@ -37,9 +37,12 @@ def expected(stage_ms, shares):
 
 
 def spread(shares, stages):
-    """Shares given for three exits, for a model with fewer: what would leave at a missing exit leaves at the last."""
+    """
+    Shares given for three exits, for a model with fewer: what would leave at a missing exit leaves at
+    the last. For a model with more, nothing leaves at the additional early exits.
+    """
     if stages >= len(shares):
-        return shares
+        return (*[0.0] * (stages - len(shares)), *shares)
     return (*shares[: stages - 1], sum(shares[stages - 1:]))
 
 
@@ -73,6 +76,11 @@ def until_exits(stages):
     return "–" if stages is None else " / ".join(ms(c) for c in cumulative(stages))
 
 
+def layers(value):
+    """Layer numbers as written in the manifest: one or several."""
+    return "/".join(str(v) for v in value) if isinstance(value, list) else str(value)
+
+
 def label(name, spec):
     return f"{name} (anchor: {spec['anchor']})" if "anchor" in spec else name
 
@@ -81,7 +89,8 @@ def report(manifest, results, precision):
     env = results["environment"]
     lengths = env["lengths"]
     specs = manifest["candidates"]
-    measured = [n for n in results["candidates"] if n in specs]
+    own = [n for n in results["candidates"] if "base" in specs.get(n, {})]  # our own variants: their own table
+    measured = [n for n in results["candidates"] if n in specs and n not in own]
     out = [
         f"Measured {env['date']}: {env['browser']}, onnxruntime-web {env['onnxruntimeWeb']} ({', '.join(env['wasm'])}), "
         f"backend {env['backend']}, {env.get('threads', '?')} threads, {env['cpu']} ({env['logicalCores']} logical cores). "
@@ -97,7 +106,7 @@ def report(manifest, results, precision):
                     mb(s["graphs"]["full"]["files"]["fp32"]["bytes"]), mb(s["graphs"]["full"]["files"]["q8"]["bytes"]),
                     s["licence"], f"`{s['sibling']}`" if s["sibling"] else "–" if "anchor" in s else "itself",
                 ]
-                for n, s in specs.items()
+                for n, s in specs.items() if "base" not in s
             ],
         ),
         "",
@@ -106,7 +115,7 @@ def report(manifest, results, precision):
         table(
             ["Candidate", *[str(n) for n in lengths]],
             [[label(n, specs.get(n, results_spec(n))), *[ms(total(chain(results, n, precision, "full"), length)) for length in lengths]]
-             for n in results["candidates"]],
+             for n in results["candidates"] if n not in own],
         ),
     ]
 
@@ -121,7 +130,7 @@ def report(manifest, results, precision):
                 ["Candidate", "Reduced after layer", f"{mid}: without", f"{mid}: with", f"{long}: without", f"{long}: with", f"Saved at {long}"],
                 [
                     [
-                        n, specs[n]["reduce_after"],
+                        n, layers(specs[n]["reduce_after"]),
                         *[ms(total(chain(results, n, precision, c), length)) for length in (mid, long) for c in ("full", "full-tr")],
                         saved(total(chain(results, n, precision, "full"), long), total(chain(results, n, precision, "full-tr"), long)),
                     ]
@@ -136,7 +145,7 @@ def report(manifest, results, precision):
                 reduced = stage_ms(chain(results, n, precision, "stages-tr"), length)  # None if that chain failed
                 whole = total(chain(results, n, precision, "full"), length)
                 rows.append([
-                    n, "/".join(str(e) for e in specs[n]["exits"]), until_exits(plain), ms(whole), until_exits(reduced),
+                    n, layers(specs[n]["exits"]), until_exits(plain), ms(whole), until_exits(reduced),
                     *[ms(reduced and expected(reduced, spread(shares, len(reduced)))) for shares in SCENARIOS.values()],
                 ])
             out += [
@@ -150,6 +159,30 @@ def report(manifest, results, precision):
                     rows,
                 ),
             ]
+        for length in (mid, long) if own else ():
+            rows = []
+            for n in own:
+                base = specs[n]["base"]
+                stages, base_stages = (stage_ms(chain(results, c, precision, w), length) for c, w in ((n, "stages"), (base, "stages-tr")))
+                rows.append([
+                    n, layers(specs[n]["exits"]), layers(specs[n]["reduce_after"]), mb(specs[n]["graphs"]["full"]["files"]["q8"]["bytes"]),
+                    against(total(chain(results, n, precision, "full"), length), total(chain(results, base, precision, "full-tr"), length)),
+                    until_exits(stages),
+                    *[against(stages and expected(stages, spread(shares, len(stages))),
+                              base_stages and expected(base_stages, spread(shares, len(base_stages))))
+                      for shares in list(SCENARIOS.values())[1:]],
+                ])
+            out += [
+                "",
+                f"Our own variants at {length} tokens, in brackets the candidate they are built from with token reduction "
+                "after the first exit:",
+                "",
+                table(
+                    ["Variant", "Exits after layer", "Reduced after layer", "q8", "One graph", "Until exit",
+                     *[f"Mean, {name}" for name in list(SCENARIOS)[1:]]],
+                    rows,
+                ),
+            ]
     failed = [(n, p, c, e["error"]) for n, per in results["candidates"].items() for p, chains in per.items()
               for c, e in chains.items() if "error" in e]
     if failed:
@@ -160,6 +193,10 @@ def report(manifest, results, precision):
 def results_spec(name):
     """Entries the measurement adds itself (the real TMR file) have no line in the manifest."""
     return {"anchor": "TMR as the extension runs it, real weights"} if name == "tmr-real" else {}
+
+
+def against(value, base):
+    return f"{ms(value)} ({ms(base)})"
 
 
 def saved(without, with_):

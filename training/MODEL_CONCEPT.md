@@ -220,7 +220,13 @@ Several of its principles do:
 | 7 | **Averaging checkpoints** from several training runs | Model merging across RL runs | Robustness at no inference cost | Small gain, only if runs share the initialisation |
 
 Measured with random weights (work package 6): lever 2 saves 36 to 39% of the time at 512 tokens,
-and splitting the graph into stages for lever 1 costs neither time nor download.
+and splitting the graph into stages for lever 1 costs neither time nor download. Three variants of
+our own around the pretrained Ettin layers were measured as well (`EVAL_RESULTS.md`, "Our own
+variants of the Ettin models"): pooling the tokens already after the first layer and again after
+the first exit brings the whole model to a third of its time (ettin-150m: 274 ms at 512 tokens,
+less than half of TMR), pooling a second time after the second exit gains 7 to 13%, and lever 3
+with an exit on the embeddings costs 1 to 2 ms and 67 MB of download (table of 2^20 × 64). What
+they cost in quality is open.
 
 With the priorities above, levers 1 and 2 are the ones that matter (latency). Levers 4 and 6 only
 save download size and are dropped unless they turn out to be free; in particular the model may

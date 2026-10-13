@@ -9,7 +9,9 @@ Per candidate (all in full precision and 8-bit):
     full-tr         the same with token reduction
     stage0..n       the layers up to each exit as their own graph (early exit)
     stage1-tr..     the stages after the token reduction (stage 0 is the same with and without)
-The anchors (the architectures of TMR/fakespot and desklib) get `full` only.
+The anchors (the architectures of TMR/fakespot and desklib) get `full` only. Our own variants of a
+candidate (more token reduction, hashed n-gram embeddings; see below `CANDIDATES`) get `full` and
+their stages, with their levers built in.
 
 Usage (from training/):
     .venv/Scripts/python.exe model/export_candidates.py                      # all, into data/latency/
@@ -69,11 +71,26 @@ CANDIDATES = {
                          "licence": "MIT", "sibling": None, "anchor": "desklib"},
 }
 
+# Our own variants of the backbones recommended for training, which keep the pretrained weights
+# (`base`: the candidate they are read against). They get `full` and the stages only, with their
+# levers built in.
+#   tr2       tokens pooled 2:1 after the first and again after the second exit (a quarter in the last third)
+#   tr-early  pooled after the first layer and again after the first exit
+#   ngram     hashed n-gram embeddings added to the input (lever 3) and an exit on the embeddings,
+#             before any layer; token reduction as in the base
+NGRAM = (2**20, 64)  # rows and width of the n-gram table: 64 MB in 8-bit
+for _base in ("ettin-32m", "ettin-68m", "ettin-150m"):
+    for _suffix, _variant in (("tr2", {"reduce": "twice"}), ("tr-early", {"reduce": "early"}), ("ngram", {"ngram": True})):
+        CANDIDATES[f"{_base}-{_suffix}"] = {**CANDIDATES[_base], "base": _base, **_variant}
+
 PARITY_TOLERANCE = 1e-3  # ONNX against PyTorch, largest difference of a logit or hidden value
 
 
 def build(name, seed=0):
-    """Encoder with random weights from the published configuration, with exits and token reduction after the first exit."""
+    """
+    Encoder with random weights from the published configuration. A candidate comes without and with
+    token reduction after the first exit; one of our own variants as one model (the second is None).
+    """
     from transformers import AutoConfig, AutoModel
 
     spec = CANDIDATES[name]
@@ -81,6 +98,12 @@ def build(name, seed=0):
     torch.manual_seed(seed)
     encoder = AutoModel.from_config(config)
     plain = StagedClassifier(encoder).eval()
+    if "base" in spec:
+        first, second = plain.exits[:2]
+        ngram = NGRAM if spec.get("ngram") else None
+        reduce = {"twice": (first, second), "early": (1, first)}.get(spec.get("reduce"), first)
+        exits = [0, *plain.exits] if ngram else plain.exits
+        return config, StagedClassifier(encoder, exits=exits, reduce_after=reduce, ngram=ngram).eval(), None
     reduced = StagedClassifier(encoder, exits=plain.exits, reduce_after=plain.exits[0]).eval()
     reduced.heads = plain.heads
     return config, plain, reduced
@@ -91,6 +114,8 @@ def graphs(plain, reduced, anchor=False):
     if anchor:
         return [("full", Full(plain), True)]
     stages = range(len(plain.exits))
+    if reduced is None:
+        return [("full", Full(plain), True)] + [(f"stage{i}", Stage(plain, i), i == 0) for i in stages]
     return (
         [("full", Full(plain), True), ("full-tr", Full(reduced), True)]
         + [(f"stage{i}", Stage(plain, i), i == 0) for i in stages]
@@ -161,12 +186,13 @@ def export_candidate(name, out):
     folder.mkdir(parents=True, exist_ok=True)
     encoder = plain.backbone.model
     embedding = sum(p.numel() for p in encoder.get_input_embeddings().parameters())
+    ngram = sum(p.numel() for p in plain.ngram.parameters()) if plain.ngram else 0
     entry = {
         **spec,
         "family": config.model_type, "layers": plain.backbone.num_layers, "hidden": config.hidden_size,
         "intermediate": config.intermediate_size, "heads": config.num_attention_heads, "vocab": config.vocab_size,
-        "parameters": sum(p.numel() for p in encoder.parameters()), "embedding_parameters": embedding,
-        "exits": plain.exits, "reduce_after": reduced.reduce_after, "graphs": {},
+        "parameters": sum(p.numel() for p in encoder.parameters()) + ngram, "embedding_parameters": embedding + ngram,
+        "exits": plain.exits, "reduce_after": list((reduced or plain).reduce_after), "graphs": {},
     }
     for variant, module, takes_ids in graphs(plain, reduced, anchor="anchor" in spec):
         fp32, q8 = folder / f"{variant}.fp32.onnx", folder / f"{variant}.q8.onnx"
@@ -200,7 +226,8 @@ def main():
     args = ap.parse_args()
     if args.list:
         for name, spec in CANDIDATES.items():
-            print(f"{name:<20} {spec['repo']}@{spec['revision'][:7]}{'  (anchor: ' + spec['anchor'] + ')' if 'anchor' in spec else ''}")
+            note = f"  (anchor: {spec['anchor']})" if "anchor" in spec else f"  (variant of {spec['base']})" if "base" in spec else ""
+            print(f"{name:<20} {spec['repo']}@{spec['revision'][:7]}{note}")
         return
     logging.disable(logging.WARNING)  # the exporter and the quantiser report every node
     args.out.mkdir(parents=True, exist_ok=True)

@@ -87,9 +87,10 @@ class StagesTest(unittest.TestCase):
 
     def test_stages_one_after_the_other_give_the_logits_of_the_whole_model(self):
         for family in staged.BACKBONES:
-            for reduce_after in (None, 2, 3):
-                with self.subTest(family=family, reduce_after=reduce_after):
-                    model = staged.StagedClassifier(encoder(family), reduce_after=reduce_after).eval()
+            for reduce_after, exits, ngram in ((None, None, None), (2, None, None), (3, None, None), ((1, 2, 4), None, None),
+                                               (2, [0, 2, 4, 6], (50, 8))):
+                with self.subTest(family=family, reduce_after=reduce_after, exits=exits):
+                    model = staged.StagedClassifier(encoder(family), exits=exits, reduce_after=reduce_after, ngram=ngram).eval()
                     ids, mask = batch(pad_id=1 if family == "roberta" else 0)
                     with torch.no_grad():
                         whole = model(ids, mask)
@@ -104,20 +105,48 @@ class StagesTest(unittest.TestCase):
 
     def test_exits_and_reduction_are_checked(self):
         enc = encoder("bert")
-        for exits in ([2, 4], [4, 2, 6], [0, 6], [2, 2, 6]):
+        for exits in ([2, 4], [4, 2, 6], [-1, 6], [2, 2, 6]):
             with self.assertRaises(ValueError):
                 staged.StagedClassifier(enc, exits=exits)
-        for reduce_after in (0, LAYERS):
+        for reduce_after in (0, LAYERS, (3, 2), (2, 2)):
             with self.assertRaises(ValueError):
                 staged.StagedClassifier(enc, reduce_after=reduce_after)
 
     def test_padding_does_not_change_a_score(self):
-        model = staged.StagedClassifier(encoder("modernbert"), reduce_after=2).eval()
-        ids, mask = batch(tokens=40, padded_from=25)
+        for options in ({"reduce_after": 2}, {"reduce_after": (1, 2), "exits": [0, 2, 4, 6], "ngram": (50, 8)}):
+            with self.subTest(options):
+                model = staged.StagedClassifier(encoder("modernbert"), **options).eval()
+                ids, mask = batch(tokens=40, padded_from=25)
+                with torch.no_grad():
+                    padded = model(ids, mask)[1]
+                    alone = model(ids[1:, :25], mask[1:, :25])[0]
+                self.assertLess((padded - alone).abs().max().item(), 1e-4)
+
+    def test_repeated_token_reduction_halves_the_tokens_each_time(self):
+        model = staged.StagedClassifier(encoder("bert"), reduce_after=(1, 2)).eval()
+        ids, mask = batch(tokens=41)
         with torch.no_grad():
-            padded = model(ids, mask)[1]
-            alone = model(ids[1:, :25], mask[1:, :25])[0]
-        self.assertLess((padded - alone).abs().max().item(), 1e-4)
+            _, hidden, mask1 = staged.Stage(model, 0)(ids, mask)
+            _, hidden, mask2 = staged.Stage(model, 1)(hidden, mask1)
+        self.assertEqual(mask1.shape[1], 21)
+        self.assertEqual(hidden.shape[1], 11)
+
+    def test_exit_on_the_embeddings_runs_no_layer(self):
+        model = staged.StagedClassifier(encoder("bert"), exits=[0, 6], ngram=(50, 8)).eval()
+        ids, mask = batch()
+        with torch.no_grad():
+            logit, hidden, _ = staged.Stage(model, 0)(ids, mask)
+            self.assertLess((hidden - model.embed(ids, mask)).abs().max().item(), 1e-6)
+            self.assertLess((logit - model(ids, mask)[:, 0]).abs().max().item(), 1e-6)
+
+    def test_ngram_embedding_of_a_token_depends_on_the_two_tokens_before_it_only(self):
+        ngram = staged.NgramEmbedding(HIDDEN, 1000, 8)
+        ids, _ = batch()
+        changed = ids.clone()
+        changed[:, 10] = (changed[:, 10] + 1) % VOCAB
+        with torch.no_grad():
+            differs = ((ngram(ids) - ngram(changed)).abs().sum(dim=-1) > 0)[0].nonzero().flatten().tolist()
+        self.assertEqual(differs, [10, 11, 12])
 
     def test_token_reduction_halves_the_tokens_of_the_later_stages(self):
         model = staged.StagedClassifier(encoder("bert"), reduce_after=2).eval()
@@ -188,6 +217,9 @@ class LatencyReportTest(unittest.TestCase):
         self.assertEqual(latency_report.spread((0.5, 0.2, 0.3), 2), (0.5, 0.5))
         self.assertEqual(latency_report.spread((0.5, 0.2, 0.3), 1), (1.0,))
 
+    def test_more_exits_get_no_share_at_the_additional_early_ones(self):
+        self.assertEqual(latency_report.spread((0.5, 0.2, 0.3), 4), (0.0, 0.5, 0.2, 0.3))
+
     def test_report_has_a_row_per_candidate_and_names_failures(self):
         files = {"fp32": {"path": "a/full.fp32.onnx", "bytes": 4_000_000}, "q8": {"path": "a/full.q8.onnx", "bytes": 1_000_000}}
         manifest = {"candidates": {"a": {
@@ -204,7 +236,15 @@ class LatencyReportTest(unittest.TestCase):
                 "stages-tr": {"lengths": {"32": stage(4, 3, 3), "128": stage(14, 8, 8)}},
             }, "fp32": {"full": {"error": "out of memory"}}}},
         }
+        # a variant of `a` with one more exit is listed in its own table, next to `a` with token reduction
+        manifest["candidates"]["a-x"] = {**manifest["candidates"]["a"], "base": "a", "exits": [0, 2, 4, 6], "reduce_after": [1, 2]}
+        results["candidates"]["a-x"] = {"q8": {
+            "full": {"lengths": {"32": stage(7), "128": stage(20)}},
+            "stages": {"lengths": {"32": stage(1, 3, 2, 2), "128": stage(2, 8, 6, 6)}},
+        }}
         text = latency_report.report(manifest, results, "q8")
+        self.assertIn("| a-x | 0/2/4/6 | 1/2 | 1 MB | 20 (30) | 2 / 10 / 16 / 22 | 15 (20) | 13 (18) |", text)
+        self.assertNotIn("| a-x | 7 |", text)
         self.assertIn("| a | 10 | 40 |", text)
         self.assertIn("| a | 2 | 40 | 30 | 40 | 30 | 25% |", text)
         self.assertIn("14 / 28 / 42 | 40 | 14 / 22 / 30 | 30 | 20 | 18 |", text)
