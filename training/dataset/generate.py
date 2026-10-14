@@ -207,7 +207,7 @@ def messages(prompt: dict) -> list:
 
 
 def max_tokens(prompt: dict) -> int:
-    return int(prompt["words"] * 2) + 100
+    return int(prompt["words"] * 3) + 200  # at * 2 + 100, 17% of Claude Haiku 5.5's texts were cut off
 
 
 class TransformersBackend:
@@ -223,10 +223,15 @@ class TransformersBackend:
         self.tok.padding_side = "left"
         if self.tok.pad_token is None:
             self.tok.pad_token = self.tok.eos_token
-        quant = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_compute_dtype=torch.float16) \
-            if spec.get("quantise") == "4bit" else None
-        self.model = AutoModelForCausalLM.from_pretrained(spec["model"], revision=spec.get("revision"), dtype=torch.float16,
-                                                          quantization_config=quant, device_map="auto")
+        if torch.cuda.is_available():
+            quant = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_compute_dtype=torch.float16) \
+                if spec.get("quantise") == "4bit" else None
+            self.model = AutoModelForCausalLM.from_pretrained(spec["model"], revision=spec.get("revision"), dtype=torch.float16,
+                                                              quantization_config=quant, device_map="auto")
+        elif spec.get("quantise"):
+            raise SystemExit(f"{spec['name']} is loaded in 4 bit, which needs a GPU (generate_notebook.ipynb)")
+        else:  # small models also run on a CPU, in full precision
+            self.model = AutoModelForCausalLM.from_pretrained(spec["model"], revision=spec.get("revision"), dtype=torch.float32)
         self.model.eval()
         eos = self.model.generation_config.eos_token_id
         self.ends = set(eos if isinstance(eos, list) else [eos]) | {self.tok.eos_token_id}
@@ -354,6 +359,7 @@ def run(cfg: dict, name: str, out_dir: Path, prompts_path: Path, limit=None, bat
 PREAMBLE = re.compile(r"^\s*(?:sure|certainly|of course|absolutely|okay|ok|here(?:'s| is| are))\b", re.I)
 PREAMBLE_COLON = re.compile(r"^\s*here(?:'s| is| are)\b[^\n]{0,150}?:\s*", re.I)
 CLOSING = re.compile(r"\n+[^\n]{0,40}\b(?:let me know|i hope this|feel free to|would you like|if you(?:'d| would) like)\b[^\n]*\s*$", re.I)
+HEADING_LINE = re.compile(r"^[ \t]*#{1,6}[ \t][^\n]*\n+", re.M)
 REFUSAL = re.compile(r"^\s*(?:i'?m sorry|i apologi[sz]e|i can(?:'|no)t|i am unable|i'm unable|as an ai)\b", re.I)
 def clean_output(text: str, prompt: dict) -> tuple:
     """(text, reason): the generated text without what an assistant puts around it, or a reason to drop it."""
@@ -370,11 +376,20 @@ def clean_output(text: str, prompt: dict) -> tuple:
     first, _, rest = text.partition("\n")
     if rest.strip() and len(first.split()) <= 12 and not first.rstrip("*# ").endswith((".", "!", "?", ":")):
         text = rest.strip()  # a title line despite the request
+    text = HEADING_LINE.sub("", text)  # small models write headings despite the request
     text = CLOSING.sub("", text).strip()
     if prompt["task"] == "continue" and prompt.get("given") and text.startswith(prompt["given"][:60]):
         text = text[len(prompt["given"]):].strip()
     text = text.strip().strip('"').strip()
     return text, None
+
+
+def whole_sentences(text: str) -> str:
+    """The text up to the end of its last whole sentence."""
+    spans = sentence_spans(text)
+    if len(spans) > 1 and not text.rstrip().endswith((".", "!", "?", '"')):
+        spans = spans[:-1]
+    return text[: spans[-1][1]].rstrip() if spans else text
 
 
 def ingest(cfg: dict, out_dir: Path) -> None:
@@ -388,7 +403,8 @@ def ingest(cfg: dict, out_dir: Path) -> None:
             key = (r["generator"], prompt["task"])
             text, reason = clean_output(r["text"], prompt)
             if reason is None and r["finish"] not in ("stop", None):
-                reason = "cut_off"  # the length limit ended it: the end is not a writer's end
+                text = whole_sentences(text)  # the length limit ended it: only up to the last whole sentence
+                stats[("trimmed",) + key] += 1
             if reason is None and len(text.split()) < cfg["min_words"]:
                 reason = "short"
             if reason:

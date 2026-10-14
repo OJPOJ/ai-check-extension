@@ -69,6 +69,10 @@ class CleanTest(unittest.TestCase):
         text, _ = generate.clean_output(given + " It carried trains.", {"task": "continue", "given": given})
         self.assertEqual(text, "It carried trains.")
 
+    def test_a_text_cut_off_ends_with_its_last_whole_sentence(self):
+        self.assertEqual(generate.whole_sentences("It rained. Then it stopped. And then the"), "It rained. Then it stopped.")
+        self.assertEqual(generate.whole_sentences("It rained. Then it stopped."), "It rained. Then it stopped.")
+
     def test_a_first_sentence_is_not_taken_for_a_title(self):
         text, _ = generate.clean_output("It rained.\nThen it stopped.", self.PROMPT)
         self.assertEqual(text, "It rained.\nThen it stopped.")

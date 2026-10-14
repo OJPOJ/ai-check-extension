@@ -20,6 +20,8 @@
     {"name": "qwen2.5-7b-instruct", "backend": "transformers", "model": "Qwen/Qwen2.5-7B-Instruct", "quantise": "4bit", "share": 0.2},
     {"name": "llama-3.1-8b-instruct", "backend": "transformers", "model": "meta-llama/Llama-3.1-8B-Instruct", "quantise": "4bit", "share": 0.2, "note": "gated: accept the licence on Hugging Face and give the notebook a token (HF_TOKEN)"},
     {"name": "mistral-7b-instruct-v0.3", "backend": "transformers", "model": "mistralai/Mistral-7B-Instruct-v0.3", "quantise": "4bit", "share": 0.1, "note": "gated like Llama"},
+    {"name": "qwen2.5-1.5b-instruct", "backend": "transformers", "model": "Qwen/Qwen2.5-1.5B-Instruct", "quantise": null, "share": 0.05, "note": "small: also runs on a CPU"},
+    {"name": "smollm2-1.7b-instruct", "backend": "transformers", "model": "HuggingFaceTB/SmolLM2-1.7B-Instruct", "quantise": null, "share": 0.05, "note": "small: also runs on a CPU"},
     {"name": "claude-haiku-5-5", "backend": "anthropic", "model": "claude-haiku-5-5", "temperature": false, "share": 0.2, "note": "takes no sampling settings; ANTHROPIC_API_KEY"},
     {"name": "gpt-5-mini", "backend": "openai", "model": "gpt-5-mini", "temperature": false, "key_env": "OPENAI_API_KEY", "extra": {"reasoning_effort": "minimal"}, "share": 0.15, "note": "check the model name and price before the run"},
     {"name": "gemini-2.5-flash", "backend": "openai", "model": "gemini-2.5-flash", "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/", "key_env": "GEMINI_API_KEY", "share": 0.15, "note": "OpenAI-compatible endpoint of the Gemini API; check the model name and price before the run"},

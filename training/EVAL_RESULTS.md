@@ -1222,3 +1222,49 @@ AUROC per exit (after layer 6 / 13 / 19):
   nothing.
 - Not measured: the 8-bit ONNX export of the trained weights, calibration, thresholds per exit
   (work packages 8 and 9).
+
+## The suite split in two, and the loss of the last exit only (2026-10-14, issue #46, work package 7)
+
+**Model choice on the suite.** The validation part only holds texts of the sources we train on,
+so choosing the epoch there rewards what does not carry over. The 1200-text suite is therefore
+split in two halves by a seeded hash per domain and class (`dataset.json`, "suite"):
+`suite-dev` (600 texts) is scored after every epoch, and the epoch with the highest AUROC there
+(mean over the trained exits) is kept; `suite-test` chooses nothing and is reported only for a
+decision to ship (`evaluate_test_part.py report --suite-test`). Runs now default to 2 epochs: the
+third epoch of the first run gained 0.1 points of AUROC on validation, and its training loss
+dropped at every start of an epoch, the mark of texts seen before.
+
+**The run.** ettin-68m as in the first run, but the loss is that of the last exit only
+(`--loss last`; the heads of the other two exits stay frozen at their random start), 2 epochs,
+the epoch chosen on `suite-dev`. Commit `fcceacf`, dataset `v1`, seed 57, one Tesla T4, 42
+minutes. Epoch 1 was kept: AUROC of the last exit on `suite-dev` 0.9828 after epoch 1, 0.9825
+after epoch 2, so the choice decided nothing. Files in `data/runs/ettin-68m-last/`.
+
+Last exit, thresholds per model and length group for 1% false alarms on the human texts of
+`main`, as in "First trained model":
+
+| View | fakespot | desklib | ettin-68m (all exits, 3 epochs) | ettin-68m-last |
+|---|---|---|---|---|
+| `main`, AUROC / det. | 0.885 / 45.6% | 0.950 / 55.5% | **0.985 / 78.4%** | 0.981 / 75.5% |
+| `held_out_generator`, AUROC / det. | 0.875 / 42.3% | 0.772 / 27.2% | **0.902 / 49.7%** | 0.896 / 46.7% |
+| `held_out_domain`, AUROC / FA | **0.951 / 0.2%** | 0.916 / 0.4% | 0.911 / 5.4% | 0.903 / 4.4% |
+| `testbed`, AUROC / FA | **0.854 / 2.0%** | 0.797 / 2.2% | 0.710 / 5.6% | 0.743 / 5.1% |
+| `suite-dev`, AUROC / FA | 0.957 / 2.7% | **0.990 / 0.7%** | 0.974 / 8.3% | 0.983 / 7.3% |
+
+False alarms of ettin-68m-last on `suite-dev` by domain (50 human texts each): Wikipedia 16%,
+news 14%, reviews 10%, abstracts 4%, forum and how-tos 0%.
+
+- **The loss is not the cause.** With nothing asking the early layers for an answer, the last
+  exit is about where it was: better on `suite-dev` (+0.009) and the testbed (+0.033), worse on
+  `main` and the held-out views (−0.004 to −0.008). With 300 and 356 human texts the gains are
+  within what chance gives; there is one seed per variant, and the two runs differ in epochs and
+  in how the epoch was chosen as well. What stays is the main finding of the first run: the
+  thresholds do not carry over to new human sources (7.3% false alarms on `suite-dev` instead of
+  1%). That points to the data, which work package 10 addresses.
+- **The shared loss stays the default**: without it there is no early exit, and what it costs on
+  the last exit is at most the difference above.
+- **A random head reads a lot.** The second exit, whose head never trained, reaches AUROC 0.91 on
+  `main` and 0.94 on `suite-dev`: after layer 13 the classes lie apart in almost any direction.
+  This fits the finding of the first run that what separates them is visible early.
+- Next: the same comparison on dataset `v2` (with the AI texts of work package 10), both
+  variants with 2 epochs and the choice on `suite-dev`, so that they differ in the loss only.
