@@ -1109,3 +1109,116 @@ first is a judgement; only the latencies are measured.
   slower. The 8-bit graphs were only checked to run and give finite values.
 - Load time is in `results.json` but not evaluated; memory is not measured. Only WASM (#19, WebGPU,
   has not landed; the script takes `--backend`).
+
+## First trained model: ettin-68m (2026-10-14, issue #46, work package 7)
+
+The first run of `model/train.py`: ettin-68m (19 × 512), exits after layers 6, 13 and 19, tokens
+pooled 2:1 after layer 6, default settings (3 epochs, batches of 32, learning rate 5e-5, both
+classes weighted the same; `model/README.md`, "Training"). Commit `b0a3e0a`, dataset `v1`, seed 57,
+one Tesla T4 on Colab, 64 minutes. The third epoch was kept (the best on validation). Files of the
+run in `data/runs/ettin-68m/`, the comparison in `data/dataset/v1/comparison.json` (gitignored).
+
+Compared as in "Baselines on the frozen test part": same excerpts, one threshold per model and
+length group for at most 1% false alarms on the human texts of `main`, applied unchanged
+elsewhere. For our model the score is that of the last exit.
+
+### Result per view
+
+| View | Human | AI | | TMR | fakespot | desklib | ettin-68m |
+|---|---|---|---|---|---|---|---|
+| `main` | 12,607 | 19,066 | F1 | 0.479 | 0.624 | 0.711 | **0.876** |
+| | | | AUROC | 0.847 | 0.885 | 0.950 | **0.985** |
+| | | | FA / det. | 1.0% / 31.7% | 1.0% / 45.6% | 1.0% / 55.5% | 1.0% / 78.4% |
+| `held_out_generator` | 0 | 3,788 | AUROC | 0.769 | 0.875 | 0.772 | **0.902** |
+| | | | det. | 23.3% | 42.3% | 27.2% | 49.7% |
+| `held_out_domain` | 1,134 | 8,123 | AUROC | 0.937 | **0.951** | 0.916 | 0.911 |
+| | | | FA / det. | 0.7% / 54.8% | 0.2% / 52.5% | 0.4% / 49.6% | 5.4% / 69.2% |
+| `testbed` | 356 | 1,200 | AUROC | 0.756 | **0.854** | 0.797 | 0.710 |
+| | | | FA / det. | 4.8% / 29.2% | 2.0% / 41.8% | 2.2% / 29.9% | 5.6% / 26.8% |
+
+`main` by length, F1 and AUROC:
+
+| Words | TMR | fakespot | desklib | ettin-68m |
+|---|---|---|---|---|
+| 15-39 | 0.248 / 0.744 | 0.305 / 0.762 | 0.408 / 0.870 | 0.694 / 0.948 |
+| 40-119 | 0.458 / 0.866 | 0.690 / 0.913 | 0.782 / 0.966 | 0.942 / 0.993 |
+| 120-330 | 0.801 / 0.962 | 0.876 / 0.979 | 0.936 / 0.992 | 0.985 / 0.998 |
+
+- **On texts like its training data the model is far ahead**, most of all on short paragraphs
+  (15 to 39 words: 53.4% detected at 1% false alarms against 25.8% for desklib), by F1 in every
+  domain, and for every generator except the Flan-T5 models (desklib detects more on four of the
+  five sizes).
+- **The two Cohere models it never saw** are detected better than by any baseline (49.7% against
+  42.3% for fakespot), but far below the generators it was trained on (78.4%).
+- **Where the human texts are new it is behind:** on the reviews its AUROC is the lowest of the
+  four and its false alarms are 5.4% at the threshold from `main`; on MAGE's out-of-domain files
+  (GPT-4 and paraphrases) it is last (AUROC 0.710, fakespot 0.854).
+
+### Second view: the 1200-text suite
+
+Whole texts, cleaned with `normalise()` and cut to 2,000 characters and 512 tokens, scored on the
+CPU. The suite is the view whose human texts mostly come from datasets we do not train on.
+Thresholds from `main` as above; the last column sets the threshold on the suite itself.
+
+| | AUROC | FA at the thresholds of `main` | Detected there | Detected at 1% FA on the suite |
+|---|---|---|---|---|
+| TMR | 0.929 | 6.3% | 74.0% | 34.0% |
+| fakespot | 0.960 | 1.5% | 80.0% | 78.5% |
+| desklib | **0.991** | 0.3% | 87.7% | **93.5%** |
+| ettin-68m | 0.972 | 9.0% | 89.2% | 67.3% |
+
+False alarms of ettin-68m by domain: Wikipedia 15%, how-tos 15%, news 8%, reviews 8%, forum 4%,
+abstracts 4%. Without `normalise()` the numbers are the same (AUROC 0.973, 9.2%).
+
+**The shipping criterion of #46 is not met:** at the same false alarm rate on texts outside its
+training sources the model finds fewer AI texts than fakespot (67.3% against 78.5%), and its
+thresholds do not transfer (9% false alarms instead of 1%). In ranking it is between fakespot and
+desklib (AUROC 0.972).
+
+### The exits
+
+AUROC per exit (after layer 6 / 13 / 19):
+
+| | Exit 1 | Exit 2 | Exit 3 |
+|---|---|---|---|
+| validation | 0.9834 | 0.9845 | 0.9844 |
+| test, `main` | 0.9833 | 0.9848 | 0.9847 |
+| test, `held_out_generator` | 0.9021 | 0.9027 | 0.9024 |
+| test, `held_out_domain` | 0.9087 | 0.9109 | 0.9106 |
+| test, `testbed` | 0.7043 | 0.7087 | 0.7102 |
+| suite | 0.9692 | 0.9721 | 0.9722 |
+
+- **The first exit is as good as the whole model**, in every view; the logits of the second and
+  third exit correlate with 0.998. Two thirds of the layers add nothing that is measured here, so
+  a model cut after layer 6 (a third of the time, `Until exit` in the latency tables) would give
+  the same results.
+- Read together with the views above this is not only good news: what the model uses can be
+  read after six layers and does not carry over to new human sources. That fits the finding of
+  `check_shortcuts.py` that surface features alone reach 0.7 to 0.86 on this data. Whether the
+  cause is the data (few human sources, sources with one class) or the training (one loss with
+  the same weight for every exit, which may keep the encoder shallow) is not separated yet.
+
+### What follows
+
+- More runs of the same kind (ettin-150m, the `-ngram` and `-tr-early` variants) are unlikely to
+  change the picture: the limit is not the size of the model. ettin-32m is the informative one
+  (is a third of ettin-68m's cost enough as well?).
+- The lever is the human side of the data and how the model generalises: more and different
+  human sources, AI texts for the sources that have one class (work package 10), and a look at
+  which texts of the suite are flagged.
+- One training variant separates the two causes named above cheaply: the same run with the loss
+  of the last exit only.
+
+### Limitations
+
+- **One run, one seed**, default settings that were not tuned.
+- **Our model is trained on the sources of `main`** (not the same documents); the baselines may or
+  may not be. `main` therefore flatters it; the held-out views, the testbed and the suite are the
+  fairer comparison.
+- Thresholds are set on the texts of `main` they are reported on, as for the baselines.
+- The suite scores of our model are fp32 PyTorch on whole texts; the suite has no text below 40
+  words (262 texts of 40 to 119 words, 938 longer).
+- The epoch was chosen on validation by the share found at 1% false alarms; the test part chose
+  nothing.
+- Not measured: the 8-bit ONNX export of the trained weights, calibration, thresholds per exit
+  (work packages 8 and 9).

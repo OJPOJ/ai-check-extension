@@ -72,10 +72,11 @@ that was measured.
 .venv/Scripts/python.exe evaluation/evaluate_test_part.py report --run ettin-68m ettin-32m   # next to the baselines
 ```
 
-There is no usable GPU locally. A real run goes through `train_notebook.ipynb` on Kaggle or
-Colab: it clones the repository at a commit and reads the dataset from a **private** dataset
-there (`data/dataset/v1/{train,validation,test}.jsonl`, 575 MB; not every source may be
-redistributed). The script refuses files whose SHA-256 is not the one in `dataset/dataset.json`.
+There is no usable GPU locally. A real run goes through `train_notebook.ipynb` on Colab (or
+Kaggle): it clones the repository at a commit, reads the dataset from a copy of
+`data/dataset/v1/` on your own Google Drive (575 MB; unshared, since not every source may be
+redistributed, and deleted when the training is done) and writes the run to the Drive, so that
+running the notebook again continues it. The script refuses files whose SHA-256 is not the one in `dataset/dataset.json`.
 
 What a run does:
 
