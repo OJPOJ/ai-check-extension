@@ -23,6 +23,20 @@ def row(i, label, logit, view="main", words=50, generator=None, domain="news", s
             "generator": generator or ("gpt-4" if label else "human"), "domain": domain, "source": source, "logit": logit}
 
 
+class SuitePartsTest(unittest.TestCase):
+    def test_half_of_every_domain_and_class_is_dev_and_the_split_does_not_change(self):
+        cfg = {"seed": 50, "suite": {"dev_share": 0.5}}
+        rows = [{"id": f"suite:{i}", "domain": ("news", "forum")[i % 2], "label": i // 2 % 2} for i in range(400)]
+        parts = ev.suite_parts(rows, cfg)
+        self.assertEqual(parts, ev.suite_parts(list(reversed(rows)), cfg))
+        for domain in ("news", "forum"):
+            for label in (0, 1):
+                group = [parts[r["id"]] for r in rows if r["domain"] == domain and r["label"] == label]
+                self.assertEqual(group.count("suite-dev"), 50)
+        # by hash, not by position in the file
+        self.assertNotEqual({parts[r["id"]] for r in rows[:200]}, {"suite-dev"})
+
+
 class ThresholdTest(unittest.TestCase):
     def test_at_most_the_target_share_of_human_values_reaches_it(self):
         human = list(range(1000))

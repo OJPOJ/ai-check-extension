@@ -26,8 +26,11 @@ Usage (from training/):
     .venv/Scripts/python.exe evaluation/evaluate_test_part.py report                 # tables, and baselines.json next to the scores
     .venv/Scripts/python.exe evaluation/evaluate_test_part.py report --run ettin-68m # the same with our own model next to them (comparison.json)
 
-`--run` takes runs of model/train.py (data/runs/<name>/scores/test.jsonl, the score of the last
-exit). Their texts were cut to 512 tokens by the run itself.
+`--run` takes runs of model/train.py (data/runs/<name>/scores/test.jsonl and suite.jsonl, the
+score of the last exit). Their texts were cut to 512 tokens by the run itself.
+
+The suite is reported for its dev half only (`suite-dev`, which runs choose their epoch by);
+`--suite-test` adds the other half, which is meant for a decision to ship and nothing else.
 """
 
 import argparse
@@ -45,6 +48,8 @@ import evaluate_backends as eb
 from compare_onnx import clip_text
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parent / "dataset"))
+from build_dataset import seeded  # noqa: E402
 DATA = HERE.parent / "data"  # gitignored
 CONFIG = HERE.parent / "dataset" / "dataset.json"
 SUITE = DATA / "eval_suite.jsonl"
@@ -92,9 +97,24 @@ def length_group(words: int, groups: list) -> str:
     return groups[-1][0]
 
 
-def load_rows(which: str, cfg: dict) -> list:
+def suite_parts(rows: list, cfg: dict) -> dict:
+    """id -> "suite-dev" or "suite-test". Per domain and class the texts are ordered by a seeded
+    hash of their id and the first `dev_share` of them are the dev part (dataset.json, "suite")."""
+    keyed = defaultdict(list)
+    for r in rows:
+        keyed[(r["domain"], r["label"])].append(r["id"])
+    parts = {}
+    for ids in keyed.values():
+        ids.sort(key=lambda i: seeded(cfg["seed"], "suite", i))
+        dev = round(len(ids) * cfg["suite"]["dev_share"])
+        parts.update({i: "suite-dev" if n < dev else "suite-test" for n, i in enumerate(ids)})
+    return parts
+
+
+def load_rows(which: str, cfg: dict, suite_path: Path = SUITE) -> list:
     """Rows to score, without what the report does not need. `scored` is the text a model is given
-    before its own cut: the excerpt of a test row, the whole text of a suite row."""
+    before its own cut: the excerpt of a test row, the whole text of a suite row. The view of a
+    suite row is its part, `suite-dev` or `suite-test`."""
     groups = length_groups(cfg)
     rows = []
     if which == "test":
@@ -104,10 +124,13 @@ def load_rows(which: str, cfg: dict) -> list:
             start, end = r["excerpt"]
             rows.append({k: r[k] for k in ("id", "source", "domain", "label", "generator", "view")} | {"scored": r["text"][start:end]})
     else:
-        for i, line in enumerate(open(SUITE, encoding="utf-8")):
+        for i, line in enumerate(open(suite_path, encoding="utf-8")):
             r = json.loads(line)
             rows.append({"id": f"suite:{i}", "source": "suite", "domain": r["domain"], "label": r["label"],
-                         "generator": r["generator"], "view": "suite", "scored": r["text"]})
+                         "generator": r["generator"], "scored": r["text"]})
+        parts = suite_parts(rows, cfg)
+        for r in rows:
+            r["view"] = parts[r["id"]]
     for r in rows:
         r["words"] = len(r["scored"].split())
         r["length"] = length_group(r["words"], groups)
@@ -302,8 +325,10 @@ def print_table(title: str, results: dict, section: str, columns=("f1", "auroc",
         print(f"| {k} | {first['human']:,} | {first['ai']:,} | " + " | ".join(cells) + " |")
 
 
-def report(models: list, cfg: dict, runs=()) -> None:
+def report(models: list, cfg: dict, runs=(), suite_test=False) -> None:
     rows = load_rows("test", cfg)
+    # the test half of the suite chooses nothing: shown only when asked for (a decision to ship)
+    suite_rows = [r for r in load_rows("suite", cfg) if suite_test or r["view"] == "suite-dev"] if SUITE.exists() else []
     results, suite_results, run_records = {}, {}, {}
     for name in models:
         logits = read_scores(scores_path("test", name, cfg))
@@ -322,12 +347,10 @@ def report(models: list, cfg: dict, runs=()) -> None:
         run_records[name] = json.loads((RUNS / name / "run.json").read_text(encoding="utf-8"))
     models = models + list(runs)
     for name in models:
-        if name not in MODELS:  # the suite as a second view of our own model: work package 8
-            continue
-        suite_logits = read_scores(scores_path("suite", name, cfg))
-        if suite_logits:
+        suite_logits = read_scores(scores_path("suite", name, cfg) if name in MODELS else RUNS / name / "scores" / "suite.jsonl")
+        if suite_rows and all(r["id"] in suite_logits for r in suite_rows):
             thresholds = {g: t["logit"] for g, t in results[name]["thresholds"].items()}
-            suite_results[name] = evaluate(load_rows("suite", cfg), suite_logits, name, cfg, thresholds)
+            suite_results[name] = evaluate(suite_rows, suite_logits, name, cfg, thresholds)
 
     print(f"Test part of dataset {cfg['version']}: {len(rows):,} excerpts. Thresholds for at most {TARGET_FA:.0%} false alarms on the human texts of `main`:\n")
     print("| Words | " + " | ".join(models) + " |\n|---|" + "---|" * len(models))
@@ -342,8 +365,9 @@ def report(models: list, cfg: dict, runs=()) -> None:
     if shipped:
         print_table("`main` at the thresholds the extension uses today (short: below 120 words)", shipped, "shipped", ("fa", "detected"))
     if suite_results:
-        print_table("1200-text suite, whole texts, thresholds as above", suite_results, "view")
-        print_table("1200-text suite by domain", suite_results, "domain")
+        part = "both halves" if suite_test else "dev half"
+        print_table(f"1200-text suite ({part}), whole texts, thresholds as above", suite_results, "view")
+        print_table(f"1200-text suite ({part}) by domain", suite_results, "domain")
 
     # the baselines alone keep their file; a comparison with runs of our own gets another one
     out = DATA / "dataset" / cfg["version"] / ("comparison.json" if runs else "baselines.json")
@@ -361,6 +385,7 @@ def main():
     ap.add_argument("--set", dest="which", choices=["test", "suite"], default="test", help="what to score")
     ap.add_argument("--run", nargs="+", default=[], metavar="NAME", help="report: runs of model/train.py to put next to the models")
     ap.add_argument("--limit", type=int, help="score only this many texts, spread over all lengths (to try a model out)")
+    ap.add_argument("--suite-test", action="store_true", help="report: the test half of the suite too (only for a decision to ship)")
     args = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
     cfg = load_config()
@@ -369,7 +394,7 @@ def main():
         for name in models:
             score(name, args.which, cfg, args.limit)
     else:
-        report(models, cfg, args.run)
+        report(models, cfg, args.run, args.suite_test)
 
 
 if __name__ == "__main__":

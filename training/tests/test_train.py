@@ -164,6 +164,15 @@ class ModelTest(unittest.TestCase):
                 self.assertTrue(torch.isfinite(logits).all())
                 self.assertTrue(all(torch.isfinite(p.grad).all() for p in m.parameters() if p.grad is not None))
 
+    def test_an_epoch_is_judged_by_the_suite_first_and_by_the_trained_exits_only(self):
+        validation = [{"auroc": 0.9, "detected": 0.5}, {"auroc": 0.8, "detected": 0.7}]
+        suite = [{"auroc": 0.6, "detected": 0.1}, {"auroc": 0.7, "detected": 0.2}]
+        np.testing.assert_allclose(train.selection(validation), [0.6, 0.85])
+        np.testing.assert_allclose(train.selection(validation, suite), [0.65, 0.6])
+        np.testing.assert_allclose(train.selection(validation, suite, exits=[1]), [0.7, 0.7])
+        self.assertEqual(train.trained_exits({"loss": "all"}, 3), [0, 1, 2])
+        self.assertEqual(train.trained_exits({"loss": "last"}, 3), [2])
+
     def test_quality_per_exit(self):
         labels = [1, 1, 0, 0]
         logits = np.array([[2.0, -1.0], [3.0, 0.5], [-1.0, 0.0], [-2.0, 1.0]])
@@ -207,6 +216,25 @@ class RunTest(unittest.TestCase):
             for (name, a), b in zip(expected.state_dict().items(), got.state_dict().values()):
                 self.assertTrue(torch.allclose(a, b, atol=1e-6), name)
             self.assertEqual([e["step"] for e in read_jsonl(Path(parts) / "log.jsonl")], [e["step"] for e in read_jsonl(Path(whole) / "log.jsonl")])
+
+    def test_the_suite_chooses_the_epoch_and_is_logged(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            suite = [{**r, "view": "suite-dev"} for r in rows(40, seed=3)]
+            train.train(model(), tokenise, rows(96), rows(60, seed=1), CFG, SETTINGS, Path(tmp), torch.device("cpu"), log=lambda m: None, suite_rows=suite)
+            epochs = [e for e in read_jsonl(Path(tmp) / "log.jsonl") if "validation" in e]
+            self.assertEqual([len(e["suite_dev"]) for e in epochs], [3, 3])
+            self.assertEqual([e["selection"][0] for e in epochs], [float(np.mean([q["auroc"] for q in e["suite_dev"]])) for e in epochs])
+            self.assertIn("suite_dev", torch.load(Path(tmp) / "model.pt", weights_only=False))
+
+    def test_with_the_loss_of_the_last_exit_the_other_heads_stay_as_they_started(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            m = model()
+            start = {k: v.clone() for k, v in m.state_dict().items() if k.startswith("heads.")}
+            train.train(m, tokenise, rows(96), rows(60, seed=1), CFG, {**SETTINGS, "loss": "last"}, Path(tmp), torch.device("cpu"), log=lambda m: None)
+            last = f"heads.{len(m.exits) - 1}."
+            for k, v in start.items():
+                same = torch.equal(v, m.state_dict()[k])
+                self.assertEqual(same, not k.startswith(last), k)
 
     def test_a_checkpoint_is_not_continued_with_other_settings(self):
         with tempfile.TemporaryDirectory() as tmp:

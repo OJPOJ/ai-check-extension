@@ -1,0 +1,31 @@
+{
+  "comment": "AI counterparts for the human texts we collected ourselves (issue #46, work package 10; generate.py). Every human text of `sources` gets one prompt on its topic, for one generator, so that topic and source are no longer a shortcut to the label. Model names and prices change: check them before a run.",
+  "sources": ["stackexchange", "wikimedia", "arxiv"],
+  "seed": 10,
+  "words": [60, 350],
+  "words_comment": "Target length: the word count of the human text, clipped to this range and rounded to 10.",
+  "tasks": {
+    "write": 0.5,
+    "continue": 0.25,
+    "rewrite": 0.25
+  },
+  "tasks_comment": "write: a text on the topic (title or question) of the human one; continue: the opening of the human text is given, only the continuation is kept; rewrite: the human text in other words (what 'humanizer' tools do). A rewrite that stays too close is removed later as a duplicate, the human text is kept.",
+  "systems": [
+    [null, 0.4],
+    ["You are a helpful assistant.", 0.3],
+    ["Write like a person writing for other people: natural and specific, without filler or stock phrases.", 0.3]
+  ],
+  "temperatures": [0.7, 1.0],
+  "generators": [
+    {"name": "qwen2.5-7b-instruct", "backend": "transformers", "model": "Qwen/Qwen2.5-7B-Instruct", "quantise": "4bit", "share": 0.2},
+    {"name": "llama-3.1-8b-instruct", "backend": "transformers", "model": "meta-llama/Llama-3.1-8B-Instruct", "quantise": "4bit", "share": 0.2, "note": "gated: accept the licence on Hugging Face and give the notebook a token (HF_TOKEN)"},
+    {"name": "mistral-7b-instruct-v0.3", "backend": "transformers", "model": "mistralai/Mistral-7B-Instruct-v0.3", "quantise": "4bit", "share": 0.1, "note": "gated like Llama"},
+    {"name": "claude-haiku-5-5", "backend": "anthropic", "model": "claude-haiku-5-5", "temperature": false, "share": 0.2, "note": "takes no sampling settings; ANTHROPIC_API_KEY"},
+    {"name": "gpt-5-mini", "backend": "openai", "model": "gpt-5-mini", "temperature": false, "key_env": "OPENAI_API_KEY", "extra": {"reasoning_effort": "minimal"}, "share": 0.15, "note": "check the model name and price before the run"},
+    {"name": "gemini-2.5-flash", "backend": "openai", "model": "gemini-2.5-flash", "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/", "key_env": "GEMINI_API_KEY", "share": 0.15, "note": "OpenAI-compatible endpoint of the Gemini API; check the model name and price before the run"},
+    {"name": "phi-3.5-mini-instruct", "backend": "transformers", "model": "microsoft/Phi-3.5-mini-instruct", "quantise": null, "held_out": true}
+  ],
+  "held_out_share": 0.3,
+  "held_out_comment": "A held-out generator only writes for groups that build_dataset.py puts into the test part, there for this share of them; dataset.json has to name it under held_out.generators, or its rows end up in `main`.",
+  "min_words": 40
+}

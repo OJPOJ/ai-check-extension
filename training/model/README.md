@@ -84,17 +84,24 @@ What a run does:
   `build_dataset.py`: 15 to 330 words, at most 2,000 characters), cut to 512 tokens. Texts are
   shuffled and every stretch of 50 batches is sorted by length before it is cut into batches.
   Order and excerpts depend on the seed and the epoch only.
-- **Loss.** Binary cross-entropy of every exit head, mean over the exits. A text is weighted by
-  its class so that human and AI texts weigh the same in total (the dataset has 1.5 AI texts
-  per human one). Sources are not weighted.
-- **Optimiser.** AdamW, 3 epochs, batches of 32, learning rate 5e-5 for the encoder and 1e-3 for
+- **Loss.** Binary cross-entropy of every exit head, mean over the exits (`--loss last`: the
+  last exit only, the other heads stay frozen; separates whether the shared loss keeps the
+  encoder shallow). A text is weighted by its class so that human and AI texts weigh the same
+  in total (the dataset has 1.5 AI texts per human one). Sources are not weighted.
+- **Optimiser.** AdamW, 2 epochs (the third of the first run gained 0.1 points of AUROC on
+  validation, and its training loss dropped at every start of an epoch), batches of 32, learning rate 5e-5 for the encoder and 1e-3 for
   what starts random (exit heads, n-gram table), linear warm-up over 6% of the steps and linear
   decay, half precision on a GPU. The n-gram table adds nothing at the first step, so the
   encoder starts from what it was pretrained on. All of these are options (`--help`); the
   defaults are a starting point, not a tuned result.
-- **Validation.** After every epoch on the stored excerpts of the validation part: AUROC and
-  the share of AI texts found at 1% false alarms, per exit. The epoch with the highest share
-  (mean over the exits) is kept. The test part is scored once at the end and chooses nothing.
+- **Validation.** After every epoch on the stored excerpts of the validation part and on the
+  dev half of the 1200-text suite (`--suite`, default `data/eval_suite.jsonl`; whole texts,
+  `normalise()`, 2,000 characters): AUROC and the share of AI texts found at 1% false alarms,
+  per exit. The validation part has only texts of the sources we train on, so the epoch with
+  the highest AUROC on `suite-dev` is kept (mean over the trained exits; the share found on
+  validation decides a tie). Without the suite (`--no-suite`) the share found on validation
+  decides. The test part and the test half of the suite are scored once at the end and choose
+  nothing; `evaluate_test_part.py report` shows the test half only with `--suite-test`.
 - **Interruption.** `checkpoint.pt` is written every 30 minutes, at the end of an epoch and
   when `--hours` are over. The same command continues from it with the same order of texts,
   excerpts and learning rates (in the tests an interrupted run ends at the same weights), and
@@ -109,8 +116,8 @@ Files of a run (`data/runs/<name>/`):
 | `log.jsonl` | every 100 steps the loss per exit and the learning rate; per epoch the validation numbers |
 | `model.pt` | weights of the best epoch (`StagedClassifier.state_dict()`) |
 | `checkpoint.pt` | everything to continue; not needed once the run is done |
-| `scores/{validation,test}.jsonl` | per id the log-odds of all exits (`exits`) and of the last one (`logit`, the field the baselines have) |
-| `scores/summary.json` | AUROC and share found at 1% false alarms per exit, per split and view |
+| `scores/{validation,test,suite}.jsonl` | per id the log-odds of all exits (`exits`) and of the last one (`logit`, the field the baselines have) |
+| `scores/summary.json` | AUROC and share found at 1% false alarms per exit, per split and view, and for `suite-dev` |
 
 `evaluate_test_part.py report --run <name>` puts the last exit of a run next to TMR, fakespot
 and desklib on identical texts, with thresholds set the same way, and writes `comparison.json`

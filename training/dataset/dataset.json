@@ -37,7 +37,9 @@
     "comment": "Similarity = common 5-word sequences / those of the shorter text, over all sequences. From 'duplicate' on one text stays and the groups are merged; from 'related' on the two texts must be on the same side of the split."
   },
   "suite": {
-    "path": "data/eval_suite.jsonl"
+    "path": "data/eval_suite.jsonl",
+    "dev_share": 0.5,
+    "comment": "The 1200-text suite is split in two by a seeded hash, per domain and class: `suite-dev` chooses epochs and variants (texts from sources we do not train on), `suite-test` chooses nothing and is reported only for a decision to ship (evaluate_test_part.py report --suite-test)."
   },
   "excerpt": {
     "max_chars": 2000,

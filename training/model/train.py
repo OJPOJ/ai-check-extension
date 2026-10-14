@@ -8,13 +8,16 @@ step, so that what is trained is what `staged.py` exports and work package 6 mea
 What a run does:
     data        per text and epoch a new excerpt of whole sentences, as long as a paragraph in the
                 browser (`excerpt()` of build_dataset.py), cut to 512 tokens; batches of similar length
-    loss        binary cross-entropy of every exit head, mean over the exits; both classes weigh the
-                same in total (the dataset has 1.5 AI texts per human one)
-    validation  after every epoch, on the stored excerpts: AUROC and the share of AI texts found at
-                1% false alarms, per exit. The weights of the best epoch are kept (`model.pt`)
-    scores      of all exits on validation and test, as log-odds per id like the baselines
-                (`scores/test.jsonl`; evaluation/evaluate_test_part.py report --run <name>)
-The test part is only scored, never used to choose anything.
+    loss        binary cross-entropy of every exit head, mean over the exits (`--loss last`: the
+                last exit only); both classes weigh the same in total (the dataset has 1.5 AI texts
+                per human one)
+    validation  after every epoch, on the stored excerpts of the validation part and on the dev
+                half of the 1200-text suite (`--suite`): AUROC and the share of AI texts found at 1%
+                false alarms, per exit. The weights of the best epoch are kept (`model.pt`), judged
+                by the suite first, whose texts come from sources we do not train on
+    scores      of all exits on validation, test and the suite, as log-odds per id like the
+                baselines (`scores/test.jsonl`; evaluation/evaluate_test_part.py report --run <name>)
+The test part and the test half of the suite are only scored, never used to choose anything.
 
 A run can be interrupted at any time (`--hours` stops it before a session ends); the same command
 continues it from `checkpoint.pt` with the same order of texts, excerpts and learning rates.
@@ -46,8 +49,9 @@ TRAINING = HERE.parent
 for _folder in (HERE, TRAINING / "dataset", TRAINING / "evaluation"):
     sys.path.insert(0, str(_folder))
 
-from build_dataset import excerpt, load_config, seeded, sha256_file  # noqa: E402
-from evaluate_test_part import auroc, threshold_for  # noqa: E402
+from build_dataset import excerpt, load_config, normalise, seeded, sha256_file  # noqa: E402
+from compare_onnx import clip_text  # noqa: E402
+from evaluate_test_part import SUITE, auroc, load_rows, threshold_for  # noqa: E402
 from export_candidates import CANDIDATES, levers  # noqa: E402
 from staged import StagedClassifier  # noqa: E402
 
@@ -55,11 +59,14 @@ RUNS = TRAINING / "data" / "runs"  # gitignored
 
 # What decides the result of a run; a checkpoint is only continued with the same values.
 DEFAULTS = {
-    "epochs": 3, "batch": 32, "max_tokens": 512, "seed": 57,
+    "epochs": 2,        # the third epoch of the first run gained 0.1 points of AUROC on validation
+    "batch": 32, "max_tokens": 512, "seed": 57,
     "lr": 5e-5,         # the pretrained encoder
     "head_lr": 1e-3,    # what starts random: exit heads, n-gram table
     "weight_decay": 0.01, "warmup": 0.06, "clip": 1.0,
+    "loss": "all",      # "all": mean over the exits; "last": the last exit only (the other heads stay untrained)
 }
+CHOICES = {"loss": ("all", "last")}
 CHUNK_BATCHES = 50   # batches are cut from this many batches of texts sorted by length
 LOG_EVERY = 100      # steps
 SAVE_MINUTES = 30
@@ -88,6 +95,22 @@ def read_rows(path: Path, limit=None) -> list:
     if limit and limit < len(rows):  # the files are sorted by source: take rows from all of them
         rows = rows[:: len(rows) // limit][:limit]
     return rows
+
+
+def check_suite(path: Path, cfg: dict) -> str:
+    """SHA-256 of the 1200-text suite; it has to be the one the dataset was built against."""
+    found = sha256_file(path)
+    if found != cfg["expected"]["inputs"]["eval_suite"]:
+        raise SystemExit(f"{path} is not the suite dataset {cfg['version']} was built against (dataset.json, 'expected', 'eval_suite')")
+    return found
+
+
+def read_suite(path: Path, cfg: dict, parts=("suite-dev",)) -> list:
+    """Suite rows of the given parts. `scored` is the whole text as the extension sends it:
+    normalise(), then cut to the excerpt length in characters (512 tokens is the tokeniser's cut)."""
+    return [{"id": r["id"], "label": r["label"], "view": r["view"],
+             "scored": clip_text(normalise(r["scored"])[0], cfg["excerpt"]["max_chars"])}
+            for r in load_rows("suite", cfg, path) if r["view"] in parts]
 
 
 def class_weights(rows: list) -> dict:
@@ -233,16 +256,34 @@ def per_exit_text(exits: list, key: str) -> str:
     return "  ".join(format(q[key], ".4f" if key == "auroc" else ".1%") for q in exits)
 
 
-def selection(validation: list) -> list:
-    """What an epoch is judged by: the share found at 1% false alarms, mean over the exits; AUROC decides a tie."""
-    return [float(np.mean([q[key] for q in validation])) for key in ("detected", "auroc")]
+def trained_exits(settings: dict, n_exits: int) -> list:
+    """Indices of the exits whose heads the loss trains."""
+    return list(range(n_exits)) if settings["loss"] == "all" else [n_exits - 1]
 
 
-def train(model, tokenise, rows: list, validation_rows: list, cfg: dict, settings: dict, out: Path, device, hours=None, log=print) -> bool:
+def selection(validation: list, suite=None, exits=None) -> list:
+    """
+    What an epoch is judged by, as means over the trained `exits` (default: all). With the suite:
+    AUROC on its dev half first, since its texts come from sources we do not train on and the
+    validation part only from those we do; the share found at 1% false alarms on validation decides
+    a tie. Without: that share first, AUROC on validation second. (AUROC, not the share found, on
+    the suite: 300 human texts give 1% false alarms from 3 of them.)
+    """
+    def mean(part, key):
+        return float(np.mean([part[i][key] for i in (exits if exits is not None else range(len(part)))]))
+
+    if suite is None:
+        return [mean(validation, "detected"), mean(validation, "auroc")]
+    return [mean(suite, "auroc"), mean(validation, "detected")]
+
+
+def train(model, tokenise, rows: list, validation_rows: list, cfg: dict, settings: dict, out: Path, device, hours=None, log=print,
+          suite_rows=None) -> bool:
     """
     Trains until all epochs are done (True) or `hours` have passed (False). Continues from
-    `out/checkpoint.pt` if there is one. Writes `log.jsonl` (loss per exit, validation per
-    epoch), `checkpoint.pt` (everything to continue) and `model.pt` (weights of the best epoch).
+    `out/checkpoint.pt` if there is one. Writes `log.jsonl` (loss per exit, validation and the
+    dev half of the suite per epoch), `checkpoint.pt` (everything to continue) and `model.pt`
+    (weights of the best epoch, see `selection`).
     """
     out.mkdir(parents=True, exist_ok=True)
     started = time.time()
@@ -251,6 +292,9 @@ def train(model, tokenise, rows: list, validation_rows: list, cfg: dict, setting
     total = settings["epochs"] * per_epoch
     weight_of = class_weights(rows)
     model.to(device).train()
+    if settings["loss"] == "last":  # frozen, so that not even weight decay moves them
+        for head in model.heads[:-1]:
+            head.requires_grad_(False)
     optim = optimiser(model, settings)
     sched = schedule(optim, total, settings["warmup"])
     scaler = torch.amp.GradScaler(device.type, enabled=device.type == "cuda")
@@ -302,7 +346,7 @@ def train(model, tokenise, rows: list, validation_rows: list, cfg: dict, setting
             with autocast(device):
                 logits = model(ids.to(device), mask.to(device))
             losses = exit_losses(logits, labels, weights)
-            loss = losses.mean()
+            loss = losses.mean() if settings["loss"] == "all" else losses[-1]
             if not torch.isfinite(loss):
                 raise SystemExit(f"step {step}: the loss is {loss.item()}; nothing is saved from this step on")
             optim.zero_grad(set_to_none=True)
@@ -339,11 +383,16 @@ def train(model, tokenise, rows: list, validation_rows: list, cfg: dict, setting
 
         validation = quality([r["label"] for r in validation_rows],
                              predict(model, tokenise, [r["scored"] for r in validation_rows], batch * 2, device))
-        value = selection(validation)
-        record({"step": step, "epoch": epoch, "validation": validation, "selection": value, "seconds": elapsed()})
+        suite = suite_rows and quality([r["label"] for r in suite_rows],
+                                       predict(model, tokenise, [r["scored"] for r in suite_rows], batch * 2, device))
+        value = selection(validation, suite or None, trained_exits(settings, len(model.exits)))
+        record({"step": step, "epoch": epoch, "validation": validation, **({"suite_dev": suite} if suite else {}),
+                "selection": value, "seconds": elapsed()})
         log(f"epoch {epoch + 1}: validation AUROC per exit {per_exit_text(validation, 'auroc')}, found at 1% false alarms {per_exit_text(validation, 'detected')}")
+        if suite:
+            log(f"         suite-dev  AUROC per exit {per_exit_text(suite, 'auroc')}, found at 1% false alarms {per_exit_text(suite, 'detected')}")
         if best is None or value > best["selection"]:
-            best = {"epoch": epoch, "step": step, "selection": value, "validation": validation}
+            best = {"epoch": epoch, "step": step, "selection": value, "validation": validation, **({"suite_dev": suite} if suite else {})}
             save(out / "model.pt", {"model": model.state_dict(), **best})
         save_checkpoint()
         last_save = time.time()
@@ -355,12 +404,13 @@ def train(model, tokenise, rows: list, validation_rows: list, cfg: dict, setting
 
 # --- scores -------------------------------------------------------------------------------
 
-def score(model, tokenise, data_dir: Path, out: Path, device, batch: int, limit=None, log=print) -> dict:
+def score(model, tokenise, data_dir: Path, out: Path, device, batch: int, limit=None, log=print, suite_path=None) -> dict:
     """
     Scores validation and test with `out/model.pt` and writes per split `scores/<split>.jsonl`:
     per id the log-odds of all exits (`exits`) and of the last one (`logit`, the field the
     baselines have). Returns and writes `scores/summary.json`: AUROC and the share found at 1%
-    false alarms per exit, for each split and each view of it.
+    false alarms per exit, for each split and each view of it. With `suite_path` the whole suite
+    goes to `scores/suite.jsonl` as well; the summary and the log show its dev half only.
     """
     best = torch.load(out / "model.pt", map_location=device, weights_only=False)
     model.load_state_dict(best["model"])
@@ -387,6 +437,19 @@ def score(model, tokenise, data_dir: Path, out: Path, device, batch: int, limit=
         for name, part in summary[split].items():
             log(f"  {name:<20} {part['human']:>6,} human {part['ai']:>6,} AI   "
                 + per_exit_text(part["exits"], "auroc") + "  |  " + per_exit_text(part["exits"], "detected"))
+    if suite_path:
+        cfg = load_config()
+        rows = read_suite(suite_path, cfg, parts=("suite-dev", "suite-test"))
+        logits = predict(model, tokenise, [r["scored"] for r in rows], batch, device)
+        with open(out / "scores" / "suite.jsonl", "w", encoding="utf-8") as f:
+            for r, values in zip(rows, logits.tolist()):
+                f.write(json.dumps({"id": r["id"], "logit": values[-1], "exits": values}) + "\n")
+        dev = np.array([r["view"] == "suite-dev" for r in rows])
+        labels = np.array([r["label"] for r in rows])[dev]
+        summary["suite-dev"] = {"human": int((labels == 0).sum()), "ai": int(labels.sum()), "exits": quality(labels, logits[dev])}
+        part = summary["suite-dev"]
+        log(f"\n  {'suite-dev':<20} {part['human']:>6,} human {part['ai']:>6,} AI   "
+            + per_exit_text(part["exits"], "auroc") + "  |  " + per_exit_text(part["exits"], "detected"))
     (out / "scores" / "summary.json").write_text(json.dumps(summary, indent=1).replace("NaN", "null"), encoding="utf-8")
     return summary
 
@@ -412,9 +475,11 @@ def main():
     ap.add_argument("--score", action="store_true", help="only score validation and test with the model.pt of the run")
     ap.add_argument("--rows", type=int, help="train on this many texts only and validate and score on a quarter as many, to try a run out")
     ap.add_argument("--random-weights", action="store_true", help="do not load the pretrained encoder (to try the code out)")
+    ap.add_argument("--suite", type=Path, help=f"the 1200-text suite; its dev half chooses the epoch (default: {SUITE.relative_to(TRAINING)} if it exists)")
+    ap.add_argument("--no-suite", action="store_true", help="choose the epoch on validation alone")
     ap.add_argument("--device", help="default: cuda if there is one")
     for key, value in DEFAULTS.items():
-        ap.add_argument(f"--{key.replace('_', '-')}", type=type(value), default=value, help=f"default: {value}")
+        ap.add_argument(f"--{key.replace('_', '-')}", type=type(value), default=value, choices=CHOICES.get(key), help=f"default: {value}")
     args = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
     if args.list:
@@ -440,8 +505,16 @@ def main():
         torch.backends.cudnn.allow_tf32 = True
 
     checksums = check_dataset(data_dir, cfg)
+    suite_path = None if args.no_suite else args.suite or (SUITE if SUITE.exists() else None)
+    if args.suite and not args.suite.exists():
+        raise SystemExit(f"--suite {args.suite} does not exist")
+    if suite_path:
+        checksums["suite"] = check_suite(suite_path, cfg)
+    else:
+        print("no suite: the epoch is chosen on validation alone (texts from the sources we train on)", flush=True)
     settings = {"candidate": args.name, "pretrained": not args.random_weights, "rows": args.rows,
-                "dataset": cfg["version"], "train_sha256": checksums["train"], **{k: getattr(args, k) for k in DEFAULTS}}
+                "dataset": cfg["version"], "train_sha256": checksums["train"], "suite": bool(suite_path),
+                **{k: getattr(args, k) for k in DEFAULTS}}
     model = build_model(args.name, pretrained=not args.random_weights, seed=args.seed)
     tokenise = tokeniser(args.name, args.max_tokens)
     spec = CANDIDATES[args.name]
@@ -462,10 +535,11 @@ def main():
         (out / "run.json").write_text(json.dumps(run, indent=1) + "\n", encoding="utf-8")
         rows = read_rows(data_dir / "train.jsonl", args.rows)
         validation_rows = read_rows(data_dir / "validation.jsonl", args.rows and max(1, args.rows // 4))
-        if not train(model, tokenise, rows, validation_rows, cfg, settings, out, device, args.hours, log):
+        suite_rows = read_suite(suite_path, cfg) if suite_path else None
+        if not train(model, tokenise, rows, validation_rows, cfg, settings, out, device, args.hours, log, suite_rows):
             return
         del rows
-    summary = score(model, tokenise, data_dir, out, device, args.batch * 2, args.rows and max(1, args.rows // 4), log)
+    summary = score(model, tokenise, data_dir, out, device, args.batch * 2, args.rows and max(1, args.rows // 4), log, suite_path)
     run = json.loads((out / "run.json").read_text(encoding="utf-8"))
     run["best"] = {"epoch": summary["epoch"], "step": summary["step"]}
     (out / "run.json").write_text(json.dumps(run, indent=1) + "\n", encoding="utf-8")

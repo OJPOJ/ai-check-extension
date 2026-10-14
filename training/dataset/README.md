@@ -10,6 +10,7 @@ From the original sources to the cleaned, split dataset. Concept and licence rul
 | `dataset.json` | parameters of the dataset and the checksums it has to reproduce |
 | `build_dataset.py`, `test_ids.txt` | cleaning, duplicates, split; the frozen test part |
 | `check_shortcuts.py` | what gives the label away without reading |
+| `generate.py`, `generation.json`, `generate_notebook.ipynb` | AI counterparts for the collected human texts (work package 10) |
 
 ## Training sources
 
@@ -299,3 +300,38 @@ Open, to know before training:
   abbreviations can end an excerpt early, in both classes alike.
 - **Duplicates of at least 0.7** still merge groups transitively; that is where the groups of
   more than 40 rows come from (short, near-identical generations).
+
+## AI texts for the collected sources (issue #46, work package 10)
+
+Stack Exchange, Wikimedia and arXiv have human texts only in `v1`. `generate.py` gives every one
+of these texts (23,914) one AI counterpart on its topic, from one generator of `generation.json`:
+
+| Task | Share | Prompt |
+|---|---|---|
+| write | 0.5 | a text on the title of the human one (the question for Stack Exchange, fetched with `titles`) |
+| continue | 0.25 | the first sentences of the human text are given; only the continuation is kept |
+| rewrite | 0.25 | the human text in other words; a rewrite that stays too close is removed as a duplicate, the human text stays |
+
+Target length is that of the human text (60 to 350 words); system prompt (none, "helpful
+assistant", "write like a person") and temperature (0.7 or 1.0) are drawn per text. All of it
+is drawn from a hash of the human text's id, so a prompt does not change when texts are added.
+The AI text gets the group of its human text and therefore its side of the split.
+
+Generators: open models in 4 bit on a Colab T4 (`generate_notebook.ipynb`: Qwen2.5-7B,
+Llama-3.1-8B, Mistral-7B-v0.3) and cheap API models run locally (`claude-haiku-5-5`, GPT and
+Gemini, keys in `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`). Phi-3.5-mini is held
+out: it only writes for groups of the test part. Names and prices change; check them in
+`generation.json` before a run.
+
+```
+.venv/Scripts/python.exe dataset/generate.py titles                       # Stack Exchange question titles
+.venv/Scripts/python.exe dataset/generate.py prompts                      # data/generation/prompts.jsonl
+.venv/Scripts/python.exe dataset/generate.py run claude-haiku-5-5 --limit 20   # look at a few, then without --limit
+.venv/Scripts/python.exe dataset/generate.py ingest                       # data/sources/generated/rows.jsonl
+```
+
+`ingest` removes what an assistant puts around a text ("Sure! Here is ...", a title line,
+"Let me know if ..."), and drops refusals, texts cut off by the length limit and texts below 40
+words. For the dataset `v2`, `dataset.json` then gets `generated` as the last source (a human
+text wins over its duplicate), `phi-3.5-mini-instruct` under `held_out.generators`, and the
+version `v2`; the test part of `v1` stays test.
