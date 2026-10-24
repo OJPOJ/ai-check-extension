@@ -32,8 +32,10 @@ function setPdfTab(isPdf) {
   $("pdfHint").hidden = !(isPdf || pdfByContentType);
 }
 
+const isSupported = () => /^https?:$/.test(tab?.url ? new URL(tab.url).protocol : "");
+
 function renderSite() {
-  const supported = /^https?:$/.test(tab?.url ? new URL(tab.url).protocol : "");
+  const supported = isSupported();
   $("host").textContent = supported ? host : "This page";
   const reason = supported ? AIVSAI.blockReason(host, config) : null;
   $("siteSwitch").hidden = !supported || !!reason || config.scanMode === "manual";
@@ -67,7 +69,10 @@ function renderSite() {
   }
 }
 
+let lastStats; // undefined until the page has answered once - lets the status line follow the on/off switch
+
 function renderStats(stats) {
+  lastStats = stats;
   // PDF without ".pdf" in the address: the content script knows the content type
   if (stats?.pdf) {
     pdfByContentType = true;
@@ -76,7 +81,7 @@ function renderStats(stats) {
   const set = (id, v) => ($(id).textContent = v ?? "–");
   if (!stats) {
     ["cRed", "cYellow", "cGreen", "cUncertain"].forEach((id) => set(id));
-    $("pending").textContent = "";
+    $("pending").textContent = AIVSAI_STATUS.message(stats, config, { supported: isSupported() });
     return;
   }
   set("cRed", stats.red);
@@ -91,28 +96,7 @@ function renderStats(stats) {
     $("scanNow").disabled = true;
   }
 
-  if (stats.error) {
-    $("pending").textContent = `Error: ${stats.error}`;
-  } else if (stats.pending) {
-    $("pending").textContent = `${stats.pending} paragraph(s) being checked…`;
-  } else if (stats.deferred) {
-    $("pending").textContent = `${stats.deferred} more paragraphs will be checked on scrolling.`;
-  } else if (stats.skipped) {
-    const langs = AIVSAI.languages(config);
-    $("pending").textContent =
-      `${stats.skipped} paragraph(s) in another language not scored` +
-      (langs ? ` – the model only knows ${langs.map(AIVSAI_LANG.name).join(", ")}.` : ".");
-  } else if (stats.active && !stats.red && !stats.yellow && !stats.green && !stats.uncertain) {
-    $("pending").textContent = "No sufficiently long paragraphs of text found.";
-  } else if (stats.blocked) {
-    $("pending").textContent = "No automatic check – single passages via right-click.";
-  } else if (!stats.active) {
-    $("pending").textContent = "Not active on this page.";
-  } else if (stats.red || stats.yellow) {
-    $("pending").textContent = "Click “flagged” or “unclear” to jump to the paragraphs.";
-  } else {
-    $("pending").textContent = "";
-  }
+  $("pending").textContent = AIVSAI_STATUS.message(stats, config, { supported: isSupported() });
 }
 
 // ids of flagged/unclear paragraphs per level, in document order; the tiles cycle through them
@@ -202,6 +186,7 @@ $("enabled").addEventListener("change", async (e) => {
   config.enabled = e.target.checked;
   await chrome.storage.sync.set({ enabled: config.enabled });
   render();
+  if (lastStats !== undefined) renderStats(lastStats);
 });
 
 $("siteAuto").addEventListener("change", async (e) => {
