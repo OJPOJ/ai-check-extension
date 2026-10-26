@@ -19,11 +19,25 @@
     max-height: 9em; overflow: auto; white-space: pre-wrap; }
   .error { margin: 0; padding: 10px; border-radius: 8px; background: var(--warn-bg); color: var(--warn-text); }
   .actions { margin-top: 14px; display: flex; gap: 8px; }
+  #paste textarea { width: 100%; min-height: 9em; resize: vertical; padding: 8px 10px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; }
+  #paste .row { margin-top: 8px; display: flex; align-items: center; gap: 10px; }
+  #paste + #status, #paste ~ #result { margin-top: 14px; }
   [hidden] { display: none !important; }
 </style>
 </head>
 <body>
 <main>
+  <form id="paste" hidden>
+    <h1>Check pasted text</h1>
+    <p class="small muted">Paste text from a PDF, mail or document. It is scored with the selected model and not
+      stored – it is gone when you close this window.</p>
+    <textarea id="pasteText" aria-label="Text to check" placeholder="Paste text here (Ctrl+V)"></textarea>
+    <div class="row">
+      <button id="pasteCheck" class="primary" type="submit">Check for AI</button>
+      <span id="pasteCount" class="small muted"></span>
+    </div>
+  </form>
   <div id="status" class="muted">Checking for AI…</div>
   <p id="error" class="error" hidden></p>
   <div id="result" hidden>

@@ -113,6 +113,9 @@ switch "Scan this site automatically". From then on the page is checked when you
 (or `Alt+Shift+C`). Without a selection: right-click a paragraph → "Check this paragraph for
 AI". This works everywhere, even on pages that have not been approved.
 
+**Check text from elsewhere (PDF, mail, document):** Popup → "Check pasted text…", paste the text and
+click "Check for AI". The text is scored like a selected passage and is not stored.
+
 **View details:** Click the score badge of a marked paragraph.
 
 **Find marked paragraphs on a long page:** Open the popup and click the "flagged" or "unclear"

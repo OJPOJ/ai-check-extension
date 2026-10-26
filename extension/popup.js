@@ -198,6 +198,17 @@ $("openPdfFile").addEventListener("click", async () => {
   window.close();
 });
 
+// Text from outside a web page (PDF, mail, document): own window, needs no site permission
+$("openPaste").addEventListener("click", async () => {
+  await chrome.windows.create({
+    url: chrome.runtime.getURL("selection-check.html?paste"),
+    type: "popup",
+    width: 520,
+    height: 640
+  });
+  window.close();
+});
+
 $("enabled").addEventListener("change", async (e) => {
   config.enabled = e.target.checked;
   await chrome.storage.sync.set({ enabled: config.enabled });

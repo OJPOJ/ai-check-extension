@@ -95,6 +95,7 @@ and records every text sent (random port, a running `shim_server.py` does not in
 |---|---|
 | `scan.test.mjs` | auto-scan, popup counter, icon badge, lazily added paragraphs, cache, thresholds, selection/right-click check, on/off, lazy scan, approval per page, blocklist (custom entries, bundled list, exceptions, password-field heuristic), backend status, settings |
 | `extraction.test.mjs` | What goes to the model: 23 edge cases (navigation, cookie banner, hidden paragraphs, code, icon fonts, forms …), with and without lazy scan |
+| `paste-check.test.mjs` | Check pasted text: opened from the popup, no site permission, same cleanup and excerpt as a selection, "X of Y words" when clipped, nothing stored |
 | `text-length.test.mjs` | Up to 2000 characters, cut at sentence end, batch budget 2500 characters, right-click = same excerpt as auto-scan |
 | `feedback.test.mjs` | Feedback in the popover: click on the badge (also in links, without re-scoring), consent before the first save, undo, export without address, withdrawal, switching off |
 | `score-store.test.mjs` | Persistent store: SW restart, mapping across pages, model switch, retention, "Do not store" |
@@ -181,6 +182,8 @@ Hugging Face provider with a real token (mocked only, see `providers.test.mjs`).
 - **Check single passages:** right-click on selected text or on a paragraph (or
   `Alt+Shift+C`), independent of the scan mode and also for text the auto-scan leaves out
   (from 5 words, up to 2000 characters). Marking via CSS Custom Highlight API, result in the popover.
+- **Check pasted text:** popup → "Check pasted text…" opens `selection-check.html?paste`, a window with a
+  text field. Same cleanup, limits and result view as a selection; no feedback question, nothing stored.
 - **Remember scores (default 30 days, adjustable up to 1 year or "Do not store"):**
   known paragraphs are marked immediately without recomputing – also after a browser restart and
   on other pages with the same text.
@@ -338,7 +341,7 @@ extension/
                         (`results`: element → score, text, model, source – basis for feedback/reports)
   content-popover.js    Result popover of the manual check (Shadow DOM)
   manual-check.js       Single check shared by content.js and selection-check.js: word limits, excerpt, result view
-  selection-check.*     Last-resort result window for selected text when the tab has no content script at all
+  selection-check.*     Result window for selected text when the tab has no content script at all, and for pasted text (?paste)
                         (issue #31). In the PDF viewer the top frame's popover is used (message CHECK_TEXT);
                         the text travels via session storage
   popup.*, options.*    UI; the popup gets STATS pushed instead of polling

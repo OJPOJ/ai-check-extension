@@ -123,7 +123,11 @@ globalThis.AIVSAI_MANUAL = (() => {
       notes.push(`Short text (${words} words) – result not very reliable.`);
     }
     if (rec.truncated) {
-      notes.push(`The first ${rec.text.length} characters (up to the sentence end) were scored – the model does not see more.`);
+      // scoredWords (optional): callers that know the full text say how much of it was scored
+      const part = rec.scoredWords ? `${rec.scoredWords} of ${words} words, ` : "";
+      notes.push(
+        `The first ${rec.text.length} characters (${part}up to the sentence end) were scored – the model does not see more.`
+      );
     }
     notes.push(
       "Hint, not proof: The AI score shows how much the text resembles what the model learned as AI text " +
