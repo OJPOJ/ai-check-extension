@@ -70,7 +70,7 @@ describe("Check pasted text", () => {
     const scored = sent.split(" ").length;
     assert.match(
       await page.textContent("#notes"),
-      new RegExp(`The first ${sent.length} characters \\(${scored} of ${words} words\\)`)
+      new RegExp(`The first ${sent.length} characters \\(${scored} of ${words} words, up to the sentence end\\)`)
     );
     await page.close();
   });

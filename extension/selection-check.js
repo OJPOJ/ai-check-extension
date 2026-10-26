@@ -42,15 +42,16 @@ async function loadConfig() {
   return { ...AIVSAI.DEFAULTS, ...sync, ...AIVSAI.SECRET_DEFAULTS, ...local };
 }
 
-function requestScore(item) {
+// persist: false for pasted text - no score fingerprint in the store (see bg/scoring.js)
+function requestScore(item, persist) {
   return new Promise((resolve) => {
-    chrome.runtime.sendMessage({ type: "SCORE_BATCH", items: [item], manual: true }, (resp) =>
+    chrome.runtime.sendMessage({ type: "SCORE_BATCH", items: [item], manual: true, persist }, (resp) =>
       resolve(chrome.runtime.lastError ? null : resp)
     );
   });
 }
 
-async function check(fullText, url, cfg, force = false) {
+async function check(fullText, url, cfg, force = false, persist = true) {
   const M = AIVSAI_MANUAL;
   show({ status: true, error: false, result: false, actions: false, excerpt: false });
   $("status").textContent = "Checking for AI…";
@@ -72,7 +73,7 @@ async function check(fullText, url, cfg, force = false) {
     );
     const button = document.createElement("button");
     button.textContent = "Check anyway";
-    button.addEventListener("click", () => check(fullText, url, cfg, true));
+    button.addEventListener("click", () => check(fullText, url, cfg, true, persist));
     $("actions").replaceChildren(button);
     show({ status: false, result: true, actions: true });
     return;
@@ -80,7 +81,7 @@ async function check(fullText, url, cfg, force = false) {
 
   const text = M.clipText(fullText, cfg);
   const id = "single_check";
-  const resp = await requestScore({ id, text, lang });
+  const resp = await requestScore({ id, text, lang }, persist);
   const p = resp?.scores?.[id];
   if (typeof p !== "number") {
     return showError(resp?.error || (resp ? "No score received." : "Extension unreachable – reload the extension."));
@@ -142,7 +143,7 @@ async function pasteMode() {
     if (!text) return showError("Paste some text into the field first.");
     $("pasteCheck").disabled = true;
     try {
-      await check(text, "", cfg);
+      await check(text, "", cfg, false, false);
     } finally {
       $("pasteCheck").disabled = false;
     }

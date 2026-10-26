@@ -124,9 +124,9 @@ globalThis.AIVSAI_MANUAL = (() => {
     }
     if (rec.truncated) {
       // scoredWords (optional): callers that know the full text say how much of it was scored
-      const part = rec.scoredWords ? ` (${rec.scoredWords} of ${words} words)` : "";
+      const part = rec.scoredWords ? `${rec.scoredWords} of ${words} words, ` : "";
       notes.push(
-        `The first ${rec.text.length} characters${part} (up to the sentence end) were scored – the model does not see more.`
+        `The first ${rec.text.length} characters (${part}up to the sentence end) were scored – the model does not see more.`
       );
     }
     notes.push(

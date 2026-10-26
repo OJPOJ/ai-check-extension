@@ -64,10 +64,12 @@ const pending = new Map();
 
 /**
  * @param {{id: string, text: string, lang?: string}[]} items  lang: detected language, if known
+ * @param {{persist?: boolean}} [opts]  persist: false = do not write new scores to the persistent store (pasted
+ *   text: it never appears on a page again, so a fingerprint of it would only be kept for nothing)
  * @returns {Promise<{ok: boolean, scores: Record<string, number>, model: string, error?: string}>}
  *   `model` (AIVSAI.modelKey) belongs to every score - for feedback, reports and calibration.
  */
-export async function scoreBatch(items) {
+export async function scoreBatch(items, { persist = true } = {}) {
   const cfg = await getConfig();
   const model = AIVSAI.modelKey(cfg);
   if (!cfg.enabled || !items?.length) return { ok: true, scores: {}, model };
@@ -99,7 +101,7 @@ export async function scoreBatch(items) {
   if (own.length) {
     let result = { probs: [] };
     try {
-      result = await lookup(own.map((o) => o.it), cfg, sig, model);
+      result = await lookup(own.map((o) => o.it), cfg, sig, model, persist);
     } finally {
       own.forEach(({ it, key, settle }, i) => {
         const p = result.probs[i];
@@ -120,7 +122,7 @@ export async function scoreBatch(items) {
 
 // 2. persistent store, 3. model/backend. Result in the order of `items`; `error` only if the
 // backend fails - hits from the store are still in `probs` then.
-async function lookup(items, cfg, sig, model) {
+async function lookup(items, cfg, sig, model, persist) {
   const probs = new Array(items.length);
   let missing = items.map((it, i) => ({ it, i }));
 
@@ -154,7 +156,7 @@ async function lookup(items, cfg, sig, model) {
       cachePut(`${sig}${it.text}`, result[j]);
       if (key) fresh.push({ k: key, p: result[j], m: model });
     });
-    if (fresh.length) store.putMany(fresh).catch((err) => console.warn("Score store not writable", err));
+    if (fresh.length && persist) store.putMany(fresh).catch((err) => console.warn("Score store not writable", err));
     lastStatus = { ok: true, at: Date.now(), provider };
     return { probs };
   } catch (err) {

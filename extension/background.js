@@ -198,7 +198,7 @@ const HANDLERS = {
         return { ok: false, scores: {}, error: `PDFs are not sent to ${target} (not allowed in the settings)` };
       }
     }
-    return scoreBatch(msg.items);
+    return scoreBatch(msg.items, { persist: msg.persist !== false });
   },
   STATS: (msg, sender) => {
     if (sender.tab?.id !== undefined) updateBadge(sender.tab.id, msg.stats);
