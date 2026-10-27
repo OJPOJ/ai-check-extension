@@ -32,22 +32,32 @@ function setPdfTab(isPdf) {
   $("pdfHint").hidden = !(isPdf || pdfByContentType);
 }
 
-function renderSite() {
-  const supported = /^https?:$/.test(tab?.url ? new URL(tab.url).protocol : "");
-  $("host").textContent = supported ? host : "This page";
+// Set once in init() from the tab's address
+let supported = false; // http(s) page
+let isPdf = false; // address ends in ".pdf"
+
+// What the popup offers for this tab: renderSite() shows it, the status line only points to what is there
+function controls() {
   const reason = supported ? AIVSAI.blockReason(host, config) : null;
-  $("siteSwitch").hidden = !supported || !!reason || config.scanMode === "manual";
-  $("scanNow").disabled = !supported || !!reason;
+  const pdf = isPdf || pdfByContentType;
+  const canScan = supported && !reason && !pdf;
+  return { supported, pdf, reason, canScan, canSwitch: canScan && config.scanMode !== "manual" };
+}
+
+const statusLine = (stats) => AIVSAI_STATUS.message(stats, config, controls());
+
+function renderSite() {
+  const { pdf, reason, canScan, canSwitch } = controls();
+  $("host").textContent = supported ? host : "This page";
+  $("siteSwitch").hidden = !canSwitch;
+  $("scanNow").disabled = !canScan;
   $("blockToggle").hidden = !supported;
   $("blockToggle").textContent = reason ? "Remove from blocklist" : "Never scan here (blocklist)";
   const siteAuto = $("siteAuto");
 
   // The browser's PDF viewer has no content script: only selected text can be checked (context menu)
-  const isPdf = /^(https?|file):$/.test(tab?.url ? new URL(tab.url).protocol : "") && /\.pdf$/i.test(new URL(tab.url).pathname);
-  setPdfTab(isPdf);
-  if (isPdf) {
-    $("scanNow").disabled = true;
-    $("siteSwitch").hidden = true;
+  setPdfTab(pdf);
+  if (pdf) {
     $("siteHint").textContent = "PDF: select text, right-click → \"Check selected text for AI\"";
   } else if (!supported) {
     $("siteHint").textContent = "Cannot scan here";
@@ -69,14 +79,14 @@ function renderSite() {
 
 function renderStats(stats) {
   // PDF without ".pdf" in the address: the content script knows the content type
-  if (stats?.pdf) {
+  if (stats?.pdf && !pdfByContentType) {
     pdfByContentType = true;
-    setPdfTab(true);
+    renderSite();
   }
   const set = (id, v) => ($(id).textContent = v ?? "–");
   if (!stats) {
     ["cRed", "cYellow", "cGreen", "cUncertain"].forEach((id) => set(id));
-    $("pending").textContent = "";
+    $("pending").textContent = statusLine(stats);
     return;
   }
   set("cRed", stats.red);
@@ -91,28 +101,7 @@ function renderStats(stats) {
     $("scanNow").disabled = true;
   }
 
-  if (stats.error) {
-    $("pending").textContent = `Error: ${stats.error}`;
-  } else if (stats.pending) {
-    $("pending").textContent = `${stats.pending} paragraph(s) being checked…`;
-  } else if (stats.deferred) {
-    $("pending").textContent = `${stats.deferred} more paragraphs will be checked on scrolling.`;
-  } else if (stats.skipped) {
-    const langs = AIVSAI.languages(config);
-    $("pending").textContent =
-      `${stats.skipped} paragraph(s) in another language not scored` +
-      (langs ? ` – the model only knows ${langs.map(AIVSAI_LANG.name).join(", ")}.` : ".");
-  } else if (stats.active && !stats.red && !stats.yellow && !stats.green && !stats.uncertain) {
-    $("pending").textContent = "No sufficiently long paragraphs of text found.";
-  } else if (stats.blocked) {
-    $("pending").textContent = "No automatic check – single passages via right-click.";
-  } else if (!stats.active) {
-    $("pending").textContent = "Not active on this page.";
-  } else if (stats.red || stats.yellow) {
-    $("pending").textContent = "Click “flagged” or “unclear” to jump to the paragraphs.";
-  } else {
-    $("pending").textContent = "";
-  }
+  $("pending").textContent = statusLine(stats);
 }
 
 // ids of flagged/unclear paragraphs per level, in document order; the tiles cycle through them
@@ -169,7 +158,10 @@ async function init() {
   config = { ...AIVSAI.DEFAULTS, ...(await chrome.storage.sync.get(AIVSAI.DEFAULTS)) };
   [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   try {
-    host = new URL(tab.url).hostname;
+    const url = new URL(tab.url);
+    host = url.hostname;
+    supported = /^https?:$/.test(url.protocol);
+    isPdf = /^(https?|file):$/.test(url.protocol) && /\.pdf$/i.test(url.pathname);
   } catch {
     host = "";
   }
@@ -229,7 +221,7 @@ $("blockToggle").addEventListener("click", async () => {
 $("scanNow").addEventListener("click", async () => {
   const stats = await sendToTab({ type: "SCAN_NOW" });
   if (!stats) {
-    $("pending").textContent = "Reload the page once, then try again.";
+    $("pending").textContent = statusLine(null);
     return;
   }
   renderStats(stats);
