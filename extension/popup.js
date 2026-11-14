@@ -26,30 +26,27 @@ function renderScale() {
 }
 
 // PDF tab: the button opens the extension's viewer for this address (nothing happens automatically)
-let pdfByContentType = false; // reported by the content script, for PDFs without ".pdf" in the address
-function setPdfTab(isPdf) {
-  $("openPdfTab").hidden = !(isPdf || pdfByContentType);
-  $("pdfHint").hidden = !(isPdf || pdfByContentType);
+function setPdfTab(show) {
+  $("openPdfTab").hidden = !show;
+  $("pdfHint").hidden = !show;
 }
 
-// Set once in init() from the tab's address
-let supported = false; // http(s) page
-let isPdf = false; // address ends in ".pdf"
+// Set once in init() from the tab's address: { host, supported (http(s) page), isPdf (address ends in ".pdf") }
+let page = AIVSAI_STATUS.page("");
+let pdfByContentType = false; // reported by the content script, for PDFs without ".pdf" in the address
+let lastStats; // last stats the content script reported: undefined = not asked yet, null = no answer
 
 // What the popup offers for this tab: renderSite() shows it, the status line only points to what is there
-function controls() {
-  const reason = supported ? AIVSAI.blockReason(host, config) : null;
-  const pdf = isPdf || pdfByContentType;
-  const canScan = supported && !reason && !pdf;
-  return { supported, pdf, reason, canScan, canSwitch: canScan && config.scanMode !== "manual" };
+const controls = () => AIVSAI_STATUS.controls(page, config, { pdfByContentType, stats: lastStats });
+function renderStatusLine() {
+  if (lastStats === undefined) return; // the first GET_STATS is still on its way
+  $("pending").textContent = AIVSAI_STATUS.message(lastStats, config, controls());
 }
 
-const statusLine = (stats) => AIVSAI_STATUS.message(stats, config, controls());
-
 function renderSite() {
-  const { pdf, reason, canScan, canSwitch } = controls();
+  const { supported, pdf, reason, sensitive, canScan, showSwitch } = controls();
   $("host").textContent = supported ? host : "This page";
-  $("siteSwitch").hidden = !canSwitch;
+  $("siteSwitch").hidden = !showSwitch;
   $("scanNow").disabled = !canScan;
   $("blockToggle").hidden = !supported;
   $("blockToggle").textContent = reason ? "Remove from blocklist" : "Never scan here (blocklist)";
@@ -64,6 +61,9 @@ function renderSite() {
   } else if (reason) {
     $("siteHint").textContent =
       reason === "builtin" ? "Bundled blocklist (bank/mail) – is never scanned" : "Blocklist – is never scanned";
+  } else if (sensitive) {
+    // Heuristic from the content script - the popup does not know it from the settings
+    $("siteHint").textContent = "Password/payment field detected – is not scanned";
   } else if (config.scanMode === "all") {
     siteAuto.checked = true;
     siteAuto.disabled = true;
@@ -75,33 +75,21 @@ function renderSite() {
   } else {
     $("siteHint").textContent = "Only on button press";
   }
+  renderStatusLine();
 }
 
 function renderStats(stats) {
+  lastStats = stats ?? null;
   // PDF without ".pdf" in the address: the content script knows the content type
-  if (stats?.pdf && !pdfByContentType) {
-    pdfByContentType = true;
-    renderSite();
-  }
+  if (stats?.pdf) pdfByContentType = true;
   const set = (id, v) => ($(id).textContent = v ?? "–");
-  if (!stats) {
-    ["cRed", "cYellow", "cGreen", "cUncertain"].forEach((id) => set(id));
-    $("pending").textContent = statusLine(stats);
-    return;
-  }
-  set("cRed", stats.red);
-  set("cYellow", stats.yellow);
-  set("cGreen", stats.green);
-  set("cUncertain", stats.uncertain);
-  $("scanNow").textContent = stats.active ? "Rescan page" : "Scan page now";
-  // Heuristic from the content script - the popup does not know it from the settings
-  if (stats.blockReason === "sensitive") {
-    $("siteHint").textContent = "Password/payment field detected – is not scanned";
-    $("siteSwitch").hidden = true;
-    $("scanNow").disabled = true;
-  }
-
-  $("pending").textContent = statusLine(stats);
+  set("cRed", stats?.red);
+  set("cYellow", stats?.yellow);
+  set("cGreen", stats?.green);
+  set("cUncertain", stats?.uncertain);
+  if (stats) $("scanNow").textContent = stats.active ? "Rescan page" : "Scan page now";
+  // stats can change what the popup offers (PDF by content type, password field): renderSite() also sets the line
+  renderSite();
 }
 
 // ids of flagged/unclear paragraphs per level, in document order; the tiles cycle through them
@@ -157,14 +145,8 @@ function render() {
 async function init() {
   config = { ...AIVSAI.DEFAULTS, ...(await chrome.storage.sync.get(AIVSAI.DEFAULTS)) };
   [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  try {
-    const url = new URL(tab.url);
-    host = url.hostname;
-    supported = /^https?:$/.test(url.protocol);
-    isPdf = /^(https?|file):$/.test(url.protocol) && /\.pdf$/i.test(url.pathname);
-  } catch {
-    host = "";
-  }
+  page = AIVSAI_STATUS.page(tab?.url ?? "");
+  host = page.host;
   render();
   refreshStats();
   refreshHealth();
@@ -221,7 +203,8 @@ $("blockToggle").addEventListener("click", async () => {
 $("scanNow").addEventListener("click", async () => {
   const stats = await sendToTab({ type: "SCAN_NOW" });
   if (!stats) {
-    $("pending").textContent = statusLine(null);
+    lastStats = null;
+    renderStatusLine();
     return;
   }
   renderStats(stats);

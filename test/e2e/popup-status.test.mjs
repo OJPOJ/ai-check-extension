@@ -66,6 +66,20 @@ describe("Popup status line", () => {
     assert.equal(hint, "Cannot scan here");
   });
 
+  it("updates the line when the extension is switched, also where no content script answers", async () => {
+    const page = await ext.ctx.newPage(); // the popup tab itself is a chrome-extension:// page
+    await page.goto(`${base}/popup.html`);
+    const line = () => page.textContent("#pending");
+    await until(async () => (await line()) === "Nothing can be scanned on this kind of page.", { message: "no first line" });
+    await page.click("label.switch:has(#enabled)");
+    await until(async () => /switched off/.test(await line()), { message: "line did not follow switching off" });
+    await page.click("label.switch:has(#enabled)");
+    await until(async () => (await line()) === "Nothing can be scanned on this kind of page.", {
+      message: "line did not follow switching on"
+    });
+    await page.close();
+  });
+
   it("points to the flagged paragraphs on an approved, scanned site", async () => {
     await until(async () => {
       const s = await ext.sendToTab("approved.test", { type: "GET_STATS" });
@@ -96,6 +110,10 @@ describe("Popup status line", () => {
 
   it("explains a site on the blocklist and points to the way out", async () => {
     await ext.configure({ blockedSites: ["blocked.test"] });
+    // the content script learns about the blocklist via storage.onChanged - wait for it, not for the popup
+    await until(async () => (await ext.sendToTab("blocked.test", { type: "GET_STATS" })).blocked, {
+      message: "content script did not pick up the blocklist"
+    });
     const { status } = await popup("blocked.test");
     assert.match(status, /on the blocklist/);
     assert.match(status, /Remove from blocklist/);
